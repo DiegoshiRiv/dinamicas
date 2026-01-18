@@ -77,7 +77,7 @@ export function AdminPanel({ participants, onDelete, onClearAll, onStartRoulette
                 Iniciar Ruleta
               </Button>
               <Button variant="destructive" onClick={() => setConfirmClearAll(true)} disabled={participants.length === 0}>
-                <Trash2 className="w-4 h-4 mr-2" /> Borrar Todo
+                <Trash2 className="w-4 h-4 mr-2" /> Limpiar Todo
               </Button>
             </div>
           </div>
@@ -132,11 +132,11 @@ export function AdminPanel({ participants, onDelete, onClearAll, onStartRoulette
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-red-700">
               <AlertTriangle className="w-6 h-6" /> 
-              PELIGRO: BORRADO TOTAL
+              ¿Estas seguro?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-red-800">
-              Estás a punto de borrar la base de datos completa. <br/>
-              <b>Se eliminarán todos los participantes en todos los dispositivos conectados.</b>
+              Estás a punto de borrar todo. <br/>
+              
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
