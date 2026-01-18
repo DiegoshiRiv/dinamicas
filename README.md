@@ -1,7 +1,7 @@
 
   # Event Registration and Roulette App
 
-  This is a code bundle for Event Registration and Roulette App. The original project is available at https://www.figma.com/design/UDnPH2VWgGqZ9CFOAfswc3/Event-Registration-and-Roulette-App.
+  https://pokemon-gdl.pages.dev/
 # User: Pawmot
    # Pass: sellodex2026
   ## Running the code
