@@ -98,7 +98,7 @@ export function RegistrationForm({ saveRegistration }: RegistrationFormProps) {
 
           <Alert className="bg-yellow-50 border-yellow-200 text-yellow-800">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>Debes tener tu check-in en Campfire.</AlertDescription>
+            <AlertDescription>Debes tener tu check-in en Campfire para partcipar.</AlertDescription>
           </Alert>
           
           {error && (
