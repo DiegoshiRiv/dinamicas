@@ -1,3 +1,10 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+@import "tailwindcss";
+
+/* Si tenías estilos globales extra, ponlos aquí abajo */
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
