@@ -4,7 +4,7 @@ import { RegistrationForm } from '@/app/components/RegistrationForm'
 import { AdminPanel } from '@/app/components/AdminPanel'
 import { WinnerRoulette } from '@/app/components/WinnerRoulette'
 import { QRCodeDisplay } from '@/app/components/QRCodeDisplay'
-import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, MessageCircle, Instagram, Facebook, Twitter, Download } from 'lucide-react'
+import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, MessageCircle, Instagram, Facebook, Twitter, Download, Heart } from 'lucide-react'
 import { useParticipants } from '@/hooks/useParticipants'
 
 import pokemonLogo from '@/assets/pokemon-go-logo.png'
@@ -17,28 +17,16 @@ const validPassword = 'sellodex2026'
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('main')
   const [activeTab, setActiveTab] = useState('register')
-  
-  // Estado para el botón de Instalar App
   const [installPrompt, setInstallPrompt] = useState<any>(null)
 
   const { 
-    participants, 
-    bannedUsers,
-    recentWinners,
-    addParticipant, 
-    deleteParticipant,
-    deleteMultiple,
-    updateStatus, 
-    banUser,
-    unbanUser,
-    clearAll,
-    resetGame 
+    participants, bannedUsers, recentWinners, sponsors,
+    addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
+    banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorImage
   } = useParticipants()
 
   const [isAdmin, setIsAdmin] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('isAdmin') === 'true'
-    }
+    if (typeof window !== 'undefined') return localStorage.getItem('isAdmin') === 'true'
     return false
   })
   
@@ -51,23 +39,11 @@ export default function App() {
   const passwordRef = useRef<HTMLInputElement>(null)
   const registrationUrl = window.location.origin
 
-  useEffect(() => {
-    localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false')
-  }, [isAdmin])
+  useEffect(() => { localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false') }, [isAdmin])
+  useEffect(() => { if (!showLogin) { setShowPassword(false); setLoginError('') } }, [showLogin])
 
   useEffect(() => {
-    if (!showLogin) {
-      setShowPassword(false)
-      setLoginError('')
-    }
-  }, [showLogin])
-
-  // Capturar el evento de instalación PWA (Android/Chrome)
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault()
-      setInstallPrompt(e)
-    }
+    const handleBeforeInstallPrompt = (e: any) => { e.preventDefault(); setInstallPrompt(e) }
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
   }, [])
@@ -76,9 +52,7 @@ export default function App() {
     if (!installPrompt) return
     installPrompt.prompt()
     const { outcome } = await installPrompt.userChoice
-    if (outcome === 'accepted') {
-      setInstallPrompt(null) // Ocultar el botón si ya aceptó instalar
-    }
+    if (outcome === 'accepted') setInstallPrompt(null)
   }
 
   const handleLogin = () => {
@@ -94,22 +68,9 @@ export default function App() {
     }
   }
 
-  const onLoginSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    handleLogin()
-  }
-
-  const handleUsernameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      passwordRef.current?.focus()
-    }
-  }
-
-  const handleLogout = () => {
-    setIsAdmin(false)
-    setActiveTab('register')
-  }
+  const onLoginSubmit = (e: React.FormEvent) => { e.preventDefault(); handleLogin() }
+  const handleUsernameKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); passwordRef.current?.focus() } }
+  const handleLogout = () => { setIsAdmin(false); setActiveTab('register') }
 
   if (currentView === 'roulette') {
     return (
@@ -132,14 +93,7 @@ export default function App() {
           <img src={pokemonLogo} alt="Pokémon GO" className="h-20 mx-auto mb-3" />
           <h1 className="text-4xl font-bold text-gray-800">Dinámicas Pokémon GO GDL</h1>
 
-          <div className="absolute top-0 right-0 mt-4 mr-4 flex gap-2">
-            {/* Botón de Instalar App */}
-            {installPrompt && (
-              <button onClick={handleInstallApp} className="flex items-center gap-1 px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700 transition shadow-md">
-                <Download className="w-5 h-5" /> Instalar App
-              </button>
-            )}
-
+          <div className="absolute top-0 right-0 mt-4 mr-4">
             {!isAdmin ? (
               <button onClick={() => setShowLogin(true)} className="flex items-center gap-1 px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition shadow-md">
                 <LogIn className="w-5 h-5" /> Admin
@@ -153,10 +107,15 @@ export default function App() {
         </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid w-full mx-auto mb-8 ${isAdmin ? 'max-w-3xl grid-cols-3' : 'max-w-md grid-cols-1'}`}>
+          <TabsList className={`grid w-full mx-auto mb-8 ${isAdmin ? 'max-w-4xl grid-cols-4' : 'max-w-lg grid-cols-2'}`}>
             <TabsTrigger value="register" className="flex items-center gap-2">
               <Users className="h-4 w-4" /> Registro
             </TabsTrigger>
+            
+            <TabsTrigger value="sponsors" className="flex items-center gap-2">
+              <Heart className="h-4 w-4 text-pink-500" /> Patrocinadores
+            </TabsTrigger>
+            
             {isAdmin && (
               <>
                 <TabsTrigger value="admin" className="flex items-center gap-2">
@@ -173,18 +132,45 @@ export default function App() {
             <RegistrationForm saveRegistration={addParticipant} isAdmin={isAdmin} />
           </TabsContent>
 
+          {/* Nueva Pestaña Pública de Patrocinadores */}
+          <TabsContent value="sponsors">
+             <div className="w-full max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-8 border border-gray-100">
+               <div className="text-center mb-10">
+                 <h2 className="text-3xl font-extrabold text-gray-800 mb-2">Nuestros Patrocinadores</h2>
+                 <p className="text-gray-500 max-w-xl mx-auto">Gracias al apoyo de nuestros amigos, nuestras dinámicas y premios son posibles. ¡Toca su foto para ir a seguirlos en Instagram!</p>
+               </div>
+               
+               {sponsors.length === 0 ? (
+                 <div className="text-center py-10 text-gray-400">Aún estamos reuniendo a nuestros patrocinadores de esta ronda.</div>
+               ) : (
+                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-10 gap-x-6">
+                   {sponsors.map(sponsor => (
+                     <a key={sponsor.id} href={sponsor.url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center group">
+                       <div className="relative w-24 h-24 rounded-full p-1 bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500 group-hover:scale-110 transition-transform duration-300 shadow-md">
+                          <img 
+                            src={sponsor.image_url} 
+                            alt={sponsor.name} 
+                            className="w-full h-full rounded-full object-cover border-4 border-white bg-white" 
+                            onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + sponsor.name + '&background=random' }}
+                          />
+                       </div>
+                       <span className="mt-3 font-semibold text-sm text-gray-700 group-hover:text-pink-600 transition-colors truncate w-full text-center">@{sponsor.name}</span>
+                     </a>
+                   ))}
+                 </div>
+               )}
+             </div>
+          </TabsContent>
+
           {isAdmin && (
             <>
               <TabsContent value="admin">
                 <AdminPanel 
-                  participants={participants}
-                  bannedUsers={bannedUsers}
-                  onDelete={deleteParticipant}
-                  onDeleteMultiple={deleteMultiple}
-                  onClearAll={clearAll}
-                  onStartRoulette={() => setCurrentView('roulette')} 
-                  onBanUser={banUser}
-                  onUnbanUser={unbanUser}
+                  participants={participants} bannedUsers={bannedUsers} sponsors={sponsors}
+                  onDelete={deleteParticipant} onDeleteMultiple={deleteMultiple} onClearAll={clearAll} onStartRoulette={() => setCurrentView('roulette')} 
+                  onBanUser={banUser} onUnbanUser={unbanUser} onAddSponsor={addSponsor} onDeleteSponsor={deleteSponsor}
+                  onDeleteMultipleSponsors={deleteMultipleSponsors} onUpdateSponsorsOrder={updateSponsorsOrder}
+                  onUpdateSponsorImage={updateSponsorImage}
                 />
               </TabsContent>
               <TabsContent value="qr">
@@ -195,22 +181,20 @@ export default function App() {
         </Tabs>
       </div>
 
-      <footer className="mt-12 pb-8 flex flex-col items-center gap-4 text-sm text-gray-500 w-full">
-        <p>En nombre de Pawmi de Bidoff y del Ditto santo, amen.</p>
+      <footer className="mt-12 pb-8 flex flex-col items-center gap-6 text-sm text-gray-500 w-full">
+        <p className="text-center">Sigue las cuentas de la comunidad</p>
+        
+        {installPrompt && (
+          <button onClick={handleInstallApp} className="flex items-center gap-2 px-6 py-2 rounded-full border-2 border-blue-500 text-blue-600 font-semibold hover:bg-blue-50 transition shadow-sm">
+            <Download className="w-4 h-4" /> Instalar esta App
+          </button>
+        )}
         
         <div className="flex gap-6 items-center">
-          <a href="https://www.whatsapp.com/channel/0029VbA3X858Pgs9nkwUSO1L?utm_source=ig&utm_medium=social&utm_content=link_in_bio" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-500 transition">
-            <MessageCircle className="w-6 h-6" />
-          </a>
-          <a href="https://www.instagram.com/pokemon_go_gdl/" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-600 transition">
-            <Instagram className="w-6 h-6" />
-          </a>
-          <a href="https://www.facebook.com/profile.php?id=61577260873239" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-600 transition">
-            <Facebook className="w-6 h-6" />
-          </a>
-          <a href="https://x.com/PokemonGo_GDL" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition">
-            <Twitter className="w-6 h-6" />
-          </a>
+          <a href="https://www.whatsapp.com/channel/0029VbA3X858Pgs9nkwUSO1L?utm_source=ig&utm_medium=social&utm_content=link_in_bio" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-500 transition"><MessageCircle className="w-6 h-6" /></a>
+          <a href="https://www.instagram.com/pokemon_go_gdl/" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-600 transition"><Instagram className="w-6 h-6" /></a>
+          <a href="https://www.facebook.com/profile.php?id=61577260873239" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-600 transition"><Facebook className="w-6 h-6" /></a>
+          <a href="https://x.com/PokemonGo_GDL" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition"><Twitter className="w-6 h-6" /></a>
         </div>
       </footer>
 

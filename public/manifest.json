@@ -1,6 +1,6 @@
 {
-    "name": "Dinámicas Pokémon GO GDL",
-    "short_name": "Ruleta PGO",
+    "name": "Dinámicas",
+    "short_name": "Dinámicas",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",
