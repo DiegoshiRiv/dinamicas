@@ -1,0 +1,12 @@
+node_modules
+.env
+# Dependencias
+node_modules
+dist
+dist-ssr
+*.local
+
+# Entorno
+.env
+.env.*
+.env.local
