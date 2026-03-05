@@ -188,11 +188,11 @@ export default function App() {
       </div>
 
       <footer className="mt-16 pb-8 flex flex-col items-center gap-6 text-sm text-gray-500 w-full px-4 text-center">
-        <p>En nombre de Pawmi de Bidoff y del Ditto santo, amen.</p>
+        <p>Sigue las redes de la comunidad</p>
         
         {installPrompt && (
           <button onClick={handleInstallApp} className="flex items-center gap-2 px-6 py-2.5 rounded-full border-2 border-blue-500 text-blue-600 font-bold hover:bg-blue-50 transition shadow-sm active:scale-95">
-            <Download className="w-5 h-5" /> Instalar esta App
+            <Download className="w-5 h-5" /> Instalar acceso directo
           </button>
         )}
         
