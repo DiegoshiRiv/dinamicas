@@ -4,7 +4,7 @@ import { RegistrationForm } from '@/app/components/RegistrationForm'
 import { AdminPanel } from '@/app/components/AdminPanel'
 import { WinnerRoulette } from '@/app/components/WinnerRoulette'
 import { QRCodeDisplay } from '@/app/components/QRCodeDisplay'
-import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, MessageCircle, Instagram, Facebook, Twitter } from 'lucide-react'
+import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, MessageCircle, Instagram, Facebook, Twitter, Download } from 'lucide-react'
 import { useParticipants } from '@/hooks/useParticipants'
 
 import pokemonLogo from '@/assets/pokemon-go-logo.png'
@@ -17,6 +17,9 @@ const validPassword = 'sellodex2026'
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('main')
   const [activeTab, setActiveTab] = useState('register')
+  
+  // Estado para el botón de Instalar App
+  const [installPrompt, setInstallPrompt] = useState<any>(null)
 
   const { 
     participants, 
@@ -58,6 +61,25 @@ export default function App() {
       setLoginError('')
     }
   }, [showLogin])
+
+  // Capturar el evento de instalación PWA (Android/Chrome)
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault()
+      setInstallPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+  }, [])
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') {
+      setInstallPrompt(null) // Ocultar el botón si ya aceptó instalar
+    }
+  }
 
   const handleLogin = () => {
     if (validAdmins.includes(usernameInput.toLowerCase()) && passwordInput === validPassword) {
@@ -110,13 +132,20 @@ export default function App() {
           <img src={pokemonLogo} alt="Pokémon GO" className="h-20 mx-auto mb-3" />
           <h1 className="text-4xl font-bold text-gray-800">Dinámicas Pokémon GO GDL</h1>
 
-          <div className="absolute top-0 right-0 mt-4 mr-4">
+          <div className="absolute top-0 right-0 mt-4 mr-4 flex gap-2">
+            {/* Botón de Instalar App */}
+            {installPrompt && (
+              <button onClick={handleInstallApp} className="flex items-center gap-1 px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700 transition shadow-md">
+                <Download className="w-5 h-5" /> Instalar App
+              </button>
+            )}
+
             {!isAdmin ? (
-              <button onClick={() => setShowLogin(true)} className="flex items-center gap-1 px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition">
+              <button onClick={() => setShowLogin(true)} className="flex items-center gap-1 px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition shadow-md">
                 <LogIn className="w-5 h-5" /> Admin
               </button>
             ) : (
-              <button onClick={handleLogout} className="flex items-center gap-1 px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700 transition">
+              <button onClick={handleLogout} className="flex items-center gap-1 px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700 transition shadow-md">
                 <LogOut className="w-5 h-5" /> Salir
               </button>
             )}
@@ -167,7 +196,7 @@ export default function App() {
       </div>
 
       <footer className="mt-12 pb-8 flex flex-col items-center gap-4 text-sm text-gray-500 w-full">
-        <p>Sigue las redes para estar informado.</p>
+        <p>En nombre de Pawmi de Bidoff y del Ditto santo, amen.</p>
         
         <div className="flex gap-6 items-center">
           <a href="https://www.whatsapp.com/channel/0029VbA3X858Pgs9nkwUSO1L?utm_source=ig&utm_medium=social&utm_content=link_in_bio" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-500 transition">
