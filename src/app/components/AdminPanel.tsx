@@ -2,22 +2,23 @@ import { useState } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs'
-import { Trash2, AlertTriangle, Search, Ban, CheckSquare, ShieldCheck, Plus, Instagram, GripVertical, Pencil } from 'lucide-react'
+import { Trash2, AlertTriangle, Search, Ban, CheckSquare, ShieldCheck, Plus, Instagram, ChevronUp, ChevronDown, Pencil, Image as ImageIcon } from 'lucide-react'
 import { Input } from '@/app/components/ui/input'
 import { Checkbox } from '@/app/components/ui/checkbox'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
-import type { Participant, BannedUser, Sponsor } from '@/hooks/useParticipants'
+import type { Participant, BannedUser, Sponsor, Banner } from '@/hooks/useParticipants'
 
 interface AdminPanelProps {
-  participants: Participant[]; bannedUsers: BannedUser[]; sponsors: Sponsor[]
+  participants: Participant[]; bannedUsers: BannedUser[]; sponsors: Sponsor[]; banners: Banner[]
   onDelete: (id: string) => void; onDeleteMultiple: (ids: string[]) => void; onClearAll: () => void; onStartRoulette: () => void
   onBanUser: (id: string, durationInDays: number) => void; onUnbanUser: (id: string) => void
   onAddSponsor: (url: string) => Promise<void>; onDeleteSponsor: (id: string) => Promise<void>
   onDeleteMultipleSponsors: (ids: string[]) => Promise<void>; onUpdateSponsorsOrder: (list: Sponsor[]) => Promise<void>
   onUpdateSponsorImage: (id: string, url: string) => Promise<void>
+  onAddBanner: (url: string) => Promise<void>; onDeleteBanner: (id: string) => Promise<void>
 }
 
-export function AdminPanel({ participants, bannedUsers, sponsors, onDelete, onDeleteMultiple, onClearAll, onStartRoulette, onBanUser, onUnbanUser, onAddSponsor, onDeleteSponsor, onDeleteMultipleSponsors, onUpdateSponsorsOrder, onUpdateSponsorImage }: AdminPanelProps) {
+export function AdminPanel({ participants, bannedUsers, sponsors, banners, onDelete, onDeleteMultiple, onClearAll, onStartRoulette, onBanUser, onUnbanUser, onAddSponsor, onDeleteSponsor, onDeleteMultipleSponsors, onUpdateSponsorsOrder, onUpdateSponsorImage, onAddBanner, onDeleteBanner }: AdminPanelProps) {
   const [filterTeam, setFilterTeam] = useState<'all' | 'blue' | 'yellow' | 'red'>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -57,23 +58,23 @@ export function AdminPanel({ participants, bannedUsers, sponsors, onDelete, onDe
 
   const handleEditImage = (s: Sponsor) => {
     const newUrl = window.prompt(`Pega el link directo de la foto para @${s.name} (Ej: link de imgur o postimages):`, s.image_url)
-    if (newUrl && newUrl !== s.image_url) {
-      onUpdateSponsorImage(s.id, newUrl.trim())
-    }
+    if (newUrl && newUrl !== s.image_url) onUpdateSponsorImage(s.id, newUrl.trim())
   }
 
-  const handleDragStart = (e: React.DragEvent, id: string) => e.dataTransfer.setData('sponsorId', id)
-  const handleDragOver = (e: React.DragEvent) => e.preventDefault()
-  const handleDrop = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault()
-    const draggedId = e.dataTransfer.getData('sponsorId')
-    if (draggedId === targetId) return
-    const oldIndex = sponsors.findIndex(s => s.id === draggedId)
-    const newIndex = sponsors.findIndex(s => s.id === targetId)
-    const newSponsors = [...sponsors]
-    const [moved] = newSponsors.splice(oldIndex, 1)
-    newSponsors.splice(newIndex, 0, moved)
-    onUpdateSponsorsOrder(newSponsors)
+  const handleAddBanner = () => {
+    const url = window.prompt('Pega el enlace directo de la imagen para el banner (Imgur, etc):')
+    if (url) onAddBanner(url.trim())
+  }
+
+  const moveSponsor = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === sponsors.length - 1) return;
+    const newSponsors = [...sponsors];
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    const temp = newSponsors[index];
+    newSponsors[index] = newSponsors[swapIndex];
+    newSponsors[swapIndex] = temp;
+    onUpdateSponsorsOrder(newSponsors);
   }
 
   return (
@@ -83,9 +84,7 @@ export function AdminPanel({ participants, bannedUsers, sponsors, onDelete, onDe
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <CardTitle className="text-xl sm:text-2xl font-bold text-gray-800">Panel de Control</CardTitle>
             <div className="flex flex-wrap justify-center gap-2">
-              <Button onClick={onStartRoulette} disabled={activeCount === 0} className="bg-indigo-600 hover:bg-indigo-700 shadow-sm rounded-xl">
-                Iniciar Ruleta
-              </Button>
+              <Button onClick={onStartRoulette} disabled={activeCount === 0} className="bg-indigo-600 hover:bg-indigo-700 shadow-sm rounded-xl">Iniciar Ruleta</Button>
               <Button variant="destructive" onClick={() => setConfirmClearAll(true)} disabled={participants.length === 0} className="shadow-sm rounded-xl">
                 <Trash2 className="w-4 h-4 mr-1 sm:mr-2" /> <span className="hidden sm:inline">Limpiar Todo</span><span className="sm:hidden">Limpiar</span>
               </Button>
@@ -94,7 +93,6 @@ export function AdminPanel({ participants, bannedUsers, sponsors, onDelete, onDe
         </CardHeader>
         
         <CardContent className="p-4 sm:p-6">
-          {/* Estadísticas superiores adaptables */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <Stat label="Total Registros" value={participants.length} />
             <Stat label="En Juego" value={activeCount} color="text-green-600" bg="bg-green-50" />
@@ -103,16 +101,15 @@ export function AdminPanel({ participants, bannedUsers, sponsors, onDelete, onDe
           </div>
 
           <Tabs defaultValue="active" className="w-full">
-            {/* Pestañas del administrador en flex-wrap para que se acomoden hacia abajo en celular */}
             <TabsList className="flex flex-wrap justify-center w-full mb-6 h-auto gap-2 bg-transparent p-1">
               <TabsTrigger value="active" className="flex-1 min-w-[100px] data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg border border-transparent data-[state=active]:border-gray-200">Activos</TabsTrigger>
               <TabsTrigger value="winner" className="flex-1 min-w-[100px] data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg border border-transparent data-[state=active]:border-gray-200">Ganadores</TabsTrigger>
               <TabsTrigger value="discarded" className="flex-1 min-w-[100px] data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg border border-transparent data-[state=active]:border-gray-200">Descartados</TabsTrigger>
               <TabsTrigger value="banned" className="flex-1 min-w-[100px] text-orange-600 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg border border-transparent data-[state=active]:border-gray-200">Baneados</TabsTrigger>
-              <TabsTrigger value="sponsors" className="flex-1 min-w-[100px] text-pink-600 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg border border-transparent data-[state=active]:border-gray-200">Patrocinadores</TabsTrigger>
+              <TabsTrigger value="sponsors" className="flex-1 min-w-[100px] text-pink-600 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg border border-transparent data-[state=active]:border-gray-200">Sponsors</TabsTrigger>
             </TabsList>
 
-            {/* Pestaña Activos / Ganadores / Descartados */}
+            {/* Pestañas de participantes... (Igual que antes) */}
             {['active', 'winner', 'discarded'].map(status => {
               const list = participants.filter(p => p.status === status && (filterTeam === 'all' || p.team === filterTeam) && (!searchTerm || p.username.toLowerCase().includes(searchTerm.toLowerCase())))
               return (
@@ -129,7 +126,6 @@ export function AdminPanel({ participants, bannedUsers, sponsors, onDelete, onDe
                     <Button variant={filterTeam === 'red' ? 'default' : 'ghost'} size="sm" className={`rounded-md ${filterTeam === 'red' ? 'bg-red-600' : 'text-red-600'}`} onClick={() => setFilterTeam('red')}>Valor</Button>
                   </div>
                 </div>
-                
                 {selectedIds.size > 0 && (
                   <div className="mb-4">
                     <Button variant="destructive" onClick={() => { onDeleteMultiple(Array.from(selectedIds)); setSelectedIds(new Set()) }} className="w-full sm:w-auto rounded-xl">
@@ -137,7 +133,6 @@ export function AdminPanel({ participants, bannedUsers, sponsors, onDelete, onDe
                     </Button>
                   </div>
                 )}
-                
                 <div className="space-y-2 max-h-[400px] sm:max-h-[500px] overflow-y-auto pr-1 sm:pr-2 scroll-smooth">
                   {list.length === 0 ? <div className="text-center py-10 sm:py-16 text-gray-400 border border-dashed rounded-xl">No hay resultados</div> : list.map(p => (
                     <div key={p.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition gap-3">
@@ -168,54 +163,67 @@ export function AdminPanel({ participants, bannedUsers, sponsors, onDelete, onDe
                       <span className="font-bold text-gray-800 block text-base">{user.username}</span>
                       <span className="text-xs font-medium text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full mt-1 inline-block">Expira: {new Date(user.expires_at).toLocaleDateString()}</span>
                     </div>
-                    <Button variant="outline" className="w-full sm:w-auto rounded-xl text-green-700 hover:bg-green-100 border-green-200 shadow-sm" onClick={() => onUnbanUser(user.id)}>
-                      <ShieldCheck className="h-4 w-4 mr-2" /> Quitar Ban
-                    </Button>
+                    <Button variant="outline" className="w-full sm:w-auto rounded-xl text-green-700 hover:bg-green-100 border-green-200 shadow-sm" onClick={() => onUnbanUser(user.id)}><ShieldCheck className="h-4 w-4 mr-2" /> Quitar Ban</Button>
                   </div>
                 ))}
               </div>
             </TabsContent>
 
-            {/* Pestaña Patrocinadores */}
+            {/* Pestaña Patrocinadores + Banners */}
             <TabsContent value="sponsors" className="animate-in fade-in duration-300">
+              
+              {/* SECCIÓN DE BANNERS */}
+              <div className="bg-purple-50/50 border border-purple-100 p-4 rounded-xl mb-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                  <div>
+                    <h3 className="font-bold text-purple-900 text-lg flex items-center gap-2"><ImageIcon className="w-5 h-5"/> Banners Promocionales</h3>
+                    <p className="text-xs text-purple-600">Imágenes que rotarán en la vista del público.</p>
+                  </div>
+                  <Button onClick={handleAddBanner} className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white rounded-xl shadow-md">
+                    <Plus className="w-4 h-4 mr-2" /> Añadir Banner
+                  </Button>
+                </div>
+                
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {banners.length === 0 ? <p className="text-sm text-purple-400 italic">No hay banners activos.</p> : banners.map(b => (
+                    <div key={b.id} className="relative w-32 h-20 sm:w-40 sm:h-24 flex-shrink-0 rounded-lg overflow-hidden group shadow-sm border border-purple-200">
+                      <img src={b.image_url} alt="Banner" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Button variant="destructive" size="icon" className="w-8 h-8 rounded-full" onClick={() => onDeleteBanner(b.id)}><Trash2 className="w-4 h-4" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* SECCIÓN DE CUENTAS */}
+              <h3 className="font-bold text-pink-900 text-lg mb-3 flex items-center gap-2"><Instagram className="w-5 h-5"/> Cuentas Patrocinadoras</h3>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 bg-pink-50/80 p-3 sm:p-4 rounded-xl border border-pink-100 gap-3">
                 <Button onClick={() => setShowSponsorModal(true)} className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white shadow-md">
                   <Plus className="w-4 h-4 mr-2" /> Añadir Patrocinador
                 </Button>
-                
                 {selectedSponsorIds.size > 0 && (
                   <Button variant="destructive" className="w-full sm:w-auto rounded-xl" onClick={() => { onDeleteMultipleSponsors(Array.from(selectedSponsorIds)); setSelectedSponsorIds(new Set()) }}>
                     <Trash2 className="w-4 h-4 mr-2" /> Borrar ({selectedSponsorIds.size})
                   </Button>
                 )}
               </div>
-              <p className="text-xs text-gray-500 mb-4 ml-1 px-1 leading-relaxed">💡 Si Instagram bloqueó la foto, da clic en el <b>Lápiz</b> para poner un link manual. <br className="hidden sm:block"/>Arrástralos para cambiar el orden.</p>
 
-              <div className="space-y-2 sm:space-y-3 max-h-[400px] sm:max-h-[500px] overflow-y-auto pr-1 sm:pr-2 scroll-smooth">
-                {sponsors.length === 0 ? <div className="text-center py-10 sm:py-16 text-gray-400 border border-dashed rounded-xl">No hay patrocinadores.</div> : sponsors.map(s => (
-                  <div 
-                    key={s.id} 
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, s.id)}
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, s.id)}
-                    className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 sm:p-4 bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md hover:border-pink-200 transition cursor-grab active:cursor-grabbing gap-3 sm:gap-0"
-                  >
-                    <div className="flex items-center gap-3 overflow-hidden w-full sm:w-auto">
-                      <Checkbox checked={selectedSponsorIds.has(s.id)} onCheckedChange={() => toggleSponsorSelection(s.id)} className="w-5 h-5 rounded" />
-                      <GripVertical className="text-gray-300 w-5 h-5 flex-shrink-0 cursor-move hidden sm:block" />
-                      <img src={s.image_url} alt={s.name} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-gray-200 object-cover bg-gray-50 shadow-sm" onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + s.name + '&background=random' }} />
-                      <a href={s.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-gray-700 hover:text-pink-600 truncate flex items-center gap-1.5 text-sm sm:text-base max-w-[180px] sm:max-w-xs">
-                        <Instagram className="w-3.5 h-3.5" /> @{s.name}
-                      </a>
+              <div className="space-y-2 sm:space-y-3 max-h-[400px] overflow-y-auto pr-1 sm:pr-2 scroll-smooth">
+                {sponsors.length === 0 ? <div className="text-center py-10 text-gray-400 border border-dashed rounded-xl">No hay patrocinadores.</div> : sponsors.map((s, index) => (
+                  <div key={s.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 sm:p-4 bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md hover:border-pink-200 transition gap-3 sm:gap-0">
+                    <div className="flex items-center gap-2 sm:gap-3 overflow-hidden w-full sm:w-auto">
+                      <Checkbox checked={selectedSponsorIds.has(s.id)} onCheckedChange={() => toggleSponsorSelection(s.id)} className="w-5 h-5 rounded ml-1 mr-1" />
+                      <div className="flex flex-col bg-gray-50 rounded-lg p-0.5 border border-gray-100 mr-1">
+                        <button onClick={() => moveSponsor(index, 'up')} disabled={index === 0} className="p-0.5 text-gray-400 hover:text-pink-600 hover:bg-pink-50 rounded disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors" title="Subir"><ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" /></button>
+                        <button onClick={() => moveSponsor(index, 'down')} disabled={index === sponsors.length - 1} className="p-0.5 text-gray-400 hover:text-pink-600 hover:bg-pink-50 rounded disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 transition-colors" title="Bajar"><ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" /></button>
+                      </div>
+                      <img src={s.image_url} alt={s.name} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-gray-200 object-cover bg-white shadow-sm flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + s.name + '&background=random' }} />
+                      <a href={s.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-gray-700 hover:text-pink-600 truncate flex items-center gap-1.5 text-sm sm:text-base max-w-[150px] sm:max-w-xs ml-1"><Instagram className="w-3.5 h-3.5 flex-shrink-0" /> @{s.name}</a>
                     </div>
                     <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto justify-end border-t sm:border-0 border-gray-50 pt-2 sm:pt-0">
-                      <Button variant="ghost" size="sm" onClick={() => handleEditImage(s)} className="rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50" title="Cambiar foto">
-                        <Pencil className="h-4 w-4 sm:mr-2" /> <span className="text-xs font-medium sm:hidden">Foto</span>
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => onDeleteSponsor(s.id)} className="rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50" title="Eliminar">
-                        <Trash2 className="h-4 w-4 sm:mr-2" /> <span className="text-xs font-medium sm:hidden">Borrar</span>
-                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleEditImage(s)} className="rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50" title="Cambiar foto"><Pencil className="h-4 w-4 sm:mr-2" /> <span className="text-xs font-medium sm:hidden">Foto</span></Button>
+                      <Button variant="ghost" size="sm" onClick={() => onDeleteSponsor(s.id)} className="rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50" title="Eliminar"><Trash2 className="h-4 w-4 sm:mr-2" /> <span className="text-xs font-medium sm:hidden">Borrar</span></Button>
                     </div>
                   </div>
                 ))}
@@ -226,30 +234,17 @@ export function AdminPanel({ participants, bannedUsers, sponsors, onDelete, onDe
         </CardContent>
       </Card>
 
-      {/* MODALES */}
+      {/* MODAL PARA AÑADIR PATROCINADOR DE INSTAGRAM */}
       {showSponsorModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowSponsorModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-sm w-full border-t-4 border-pink-500" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-center mb-5">
-              <div className="bg-pink-50 p-4 rounded-full text-pink-500 shadow-inner"><Instagram className="w-8 h-8" /></div>
-            </div>
+            <div className="flex justify-center mb-5"><div className="bg-pink-50 p-4 rounded-full text-pink-500 shadow-inner"><Instagram className="w-8 h-8" /></div></div>
             <h2 className="text-xl sm:text-2xl font-bold mb-2 text-center text-gray-800">Añadir Patrocinador</h2>
             <p className="text-sm text-gray-500 mb-6 text-center leading-relaxed">Pega el link de su perfil de Instagram o su usuario directo.</p>
-            
-            <Input 
-              autoFocus
-              placeholder="Ej: https://instagram.com/michiblue2299" 
-              value={newSponsorUrl} 
-              onChange={(e) => setNewSponsorUrl(e.target.value)} 
-              onKeyDown={(e) => e.key === 'Enter' && submitSponsor()}
-              className="mb-6 border-gray-200 focus-visible:ring-pink-500 rounded-xl px-4 py-3 bg-gray-50 text-base"
-            />
-            
+            <Input autoFocus placeholder="Ej: https://instagram.com/michiblue2299" value={newSponsorUrl} onChange={(e) => setNewSponsorUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitSponsor()} className="mb-6 border-gray-200 focus-visible:ring-pink-500 rounded-xl px-4 py-3 bg-gray-50 text-base" />
             <div className="flex justify-end gap-3">
               <Button variant="outline" className="rounded-xl font-medium" onClick={() => setShowSponsorModal(false)}>Cancelar</Button>
-              <Button onClick={submitSponsor} disabled={addingSponsor || !newSponsorUrl} className="rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-medium shadow-md shadow-pink-500/20">
-                {addingSponsor ? 'Buscando...' : 'Guardar'}
-              </Button>
+              <Button onClick={submitSponsor} disabled={addingSponsor || !newSponsorUrl} className="rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-medium shadow-md shadow-pink-500/20">{addingSponsor ? 'Buscando...' : 'Guardar'}</Button>
             </div>
           </div>
         </div>
@@ -270,7 +265,7 @@ export function AdminPanel({ participants, bannedUsers, sponsors, onDelete, onDe
         <AlertDialogContent className="border-red-200 bg-[#fff5f5] rounded-2xl max-w-[90vw] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-3 text-red-700 text-xl"><AlertTriangle className="w-7 h-7" /> ¿Estas seguro?</AlertDialogTitle>
-            <AlertDialogDescription className="text-red-800/80 mt-2 text-base">Vas a borrar el registro de todos los participantes activos. Las IPs de todos volverán a estar permitidas.</AlertDialogDescription>
+            <AlertDialogDescription className="text-red-800/80 mt-2 text-base">Vas a borrar el registro de todos los participantes activos.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-6">
             <AlertDialogCancel className="w-full sm:w-auto rounded-xl bg-white text-red-900 border-red-200 hover:bg-red-50 mt-0">Cancelar</AlertDialogCancel>
