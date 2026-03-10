@@ -43,17 +43,36 @@ export function useParticipants() {
 
   const addParticipant = async (username: string, team: string, ip: string, isAdminBypass: boolean = false) => {
     if (!isAdminBypass) {
-      const { data: banned } = await supabase.from('banned_ips').select('expires_at').eq('ip_address', ip).single()
-      if (banned) {
-        if (new Date(banned.expires_at) > new Date()) throw new Error('Estás vetado de las dinámicas.')
-        else await supabase.from('banned_ips').delete().eq('ip_address', ip)
+      const now = new Date()
+
+      // 1. Buscamos TODOS los registros de ban para esta IP y este Nombre
+      const { data: bannedIps } = await supabase.from('banned_ips').select('expires_at').eq('ip_address', ip)
+      const { data: bannedNames } = await supabase.from('banned_ips').select('expires_at').ilike('username', username)
+
+      // 2. Verificamos si AL MENOS UNO sigue activo
+      const isBannedIp = bannedIps && bannedIps.some(ban => new Date(ban.expires_at) > now)
+      const isBannedName = bannedNames && bannedNames.some(ban => new Date(ban.expires_at) > now)
+
+      // 3. SHADOWBAN DEFINITIVO
+      if (isBannedIp || isBannedName) {
+        // Simulamos un retraso de red para que parezca que realmente se está registrando
+        await new Promise(resolve => setTimeout(resolve, 800))
+        return; 
       }
-      const { data: existingIp } = await supabase.from('participants').select('id').eq('ip_address', ip).single()
-      if (existingIp) throw new Error('Solo se permite un registro.')
+
+      // 4. Evitamos el doble registro de gente limpia (usamos limit para evitar el mismo error de maybeSingle)
+      const { data: existingIp } = await supabase.from('participants').select('id').eq('ip_address', ip).limit(1)
+      if (existingIp && existingIp.length > 0) {
+        throw new Error('Solo se permite un registro por dispositivo.')
+      }
     }
+
     const finalIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
     const { error } = await supabase.from('participants').insert([{ username, team, status: 'active', ip_address: finalIp }])
-    if (error) { if (error.code === '23505') throw new Error('El usuario ya está registrado'); throw error }
+    if (error) { 
+      if (error.code === '23505') throw new Error('Este usuario ya está registrado en la ruleta.')
+      throw error 
+    }
     await fetchData()
   }
 
@@ -81,7 +100,6 @@ export function useParticipants() {
   const resetGame = async () => { await supabase.from('participants').update({ status: 'active' }).neq('status', 'active'); await fetchData() }
   const clearAll = async () => { await supabase.rpc('truncate_participants'); await fetchData() }
 
-  // --- MAGIA PARA PATROCINADORES ---
   const addSponsor = async (rawUrl: string) => {
     let username = rawUrl.trim().replace('@', '')
     const match = rawUrl.match(/(?:instagram\.com\/)([^/?]+)/i)
@@ -106,7 +124,6 @@ export function useParticipants() {
     await supabase.from('sponsors').upsert(updates)
   }
 
-  // NUEVA FUNCIÓN: Actualizar imagen manualmente
   const updateSponsorImage = async (id: string, image_url: string) => {
     await supabase.from('sponsors').update({ image_url }).eq('id', id)
     await fetchData()
