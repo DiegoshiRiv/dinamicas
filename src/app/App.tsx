@@ -152,7 +152,7 @@ export default function App() {
 
                <div className="text-center mb-8 sm:mb-12">
                  <h2 className="text-2xl sm:text-4xl font-extrabold text-gray-800 mb-3 sm:mb-4 tracking-tight">Nuestros Patrocinadores</h2>
-                 <p className="text-sm sm:text-base text-gray-500 max-w-xl mx-auto leading-relaxed px-2">Gracias al apoyo incondicional de estas cuentas, nuestras dinámicas y premios son posibles. ¡Toca su foto para ir a seguirlos en Instagram!</p>
+                 <p className="text-sm sm:text-base text-gray-500 max-w-xl mx-auto leading-relaxed px-2">Gracias al apoyo de nuestros patrocinadore, nuestras dinámicas y premios son posibles. ¡Toca su foto para ir a seguirlos en Instagram!</p>
                </div>
                
                {sponsors.length === 0 ? (
@@ -190,7 +190,7 @@ export default function App() {
       </div>
 
       <footer className="mt-16 pb-8 flex flex-col items-center gap-6 text-sm text-gray-500 w-full px-4 text-center">
-        <p>En nombre de Pawmi de Bidoff y del Ditto santo, amen.</p>
+        <p>Sigue las redes de la comunidad</p>
         {installPrompt && (
           <button onClick={handleInstallApp} className="flex items-center gap-2 px-6 py-2.5 rounded-full border-2 border-blue-500 text-blue-600 font-bold hover:bg-blue-50 transition shadow-sm active:scale-95"><Download className="w-5 h-5" /> Instalar esta App</button>
         )}
