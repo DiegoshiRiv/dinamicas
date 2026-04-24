@@ -7,6 +7,23 @@ export interface RecentWinner { id: string; username: string; ip_address: string
 export interface Sponsor { id: string; name: string; url: string; image_url: string; order_index: number }
 export interface Banner { id: string; image_url: string; }
 
+// ALGORITMO MATEMÁTICO PARA DETECTAR NOMBRES CLONADOS O CON ERRORES INTENCIONALES
+function getLevenshteinDistance(a: string, b: string): number {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
+  for (let j = 0; j <= a.length; j++) { matrix[0][j] = j; }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
 export function useParticipants() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([])
@@ -50,6 +67,8 @@ export function useParticipants() {
   const addParticipant = async (username: string, team: string, ip: string, isAdminBypass: boolean = false) => {
     if (!isAdminBypass) {
       const now = new Date()
+      
+      // 1. Verificación Clásica (IP o Nombre Exacto en Lista Negra)
       const { data: bannedIps } = await supabase.from('banned_ips').select('expires_at').eq('ip_address', ip)
       const { data: bannedNames } = await supabase.from('banned_ips').select('expires_at').ilike('username', username)
       const isBannedIp = bannedIps && bannedIps.some(ban => new Date(ban.expires_at) > now)
@@ -60,9 +79,45 @@ export function useParticipants() {
         return; 
       }
 
+      // 2. NUEVO: SISTEMA ANTI-CLONES (Similitud de Nombres)
+      const cleanNew = username.toLowerCase().trim().replace(/[^a-z0-9]/g, '')
+      const lettersNew = cleanNew.replace(/[0-9]/g, '')
+      let isAbuser = false
+
+      // Revisamos la lista de la gente que ya está participando
+      const activeList = participants.filter(p => p.status === 'active')
+      
+      for (const p of activeList) {
+        const cleanExisting = p.username.toLowerCase().trim().replace(/[^a-z0-9]/g, '')
+        const lettersExisting = cleanExisting.replace(/[0-9]/g, '')
+
+        // Caso A: Tienen las mismas letras exactas, solo cambiaron el número (Ej: FatedRacketeer3 y FatedRacketeer1)
+        if (lettersNew === lettersExisting && lettersNew.length >= 4) {
+          isAbuser = true; break;
+        }
+        
+        // Caso B: Agregaron o quitaron letras para engañar (Ej: FatedRacketeer y FatedRaccketeer)
+        if (cleanNew.length >= 8 && cleanExisting.length >= 8) {
+          const dist = getLevenshteinDistance(cleanNew, cleanExisting)
+          // Si la diferencia es de 1 o 2 letras, lo consideramos un clon abusivo
+          if (dist <= 2) {
+            isAbuser = true; break;
+          }
+        }
+      }
+
+      // Si detectamos al clon, lo shadowbaneamos
+      if (isAbuser) {
+        await new Promise(resolve => setTimeout(resolve, 950))
+        return; 
+      }
+
+      // 3. Bloqueo normal de doble registro por dispositivo
       const { data: existingIp } = await supabase.from('participants').select('id').eq('ip_address', ip).limit(1)
       if (existingIp && existingIp.length > 0) throw new Error('Solo se permite un registro por dispositivo.')
     }
+    
+    // Si pasa todas las pruebas de seguridad, lo guardamos
     const finalIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
     const { error } = await supabase.from('participants').insert([{ username, team, status: 'active', ip_address: finalIp }])
     if (error) { if (error.code === '23505') throw new Error('Este usuario ya está registrado en la ruleta.'); throw error }
@@ -113,7 +168,6 @@ export function useParticipants() {
   }
   const updateSponsorImage = async (id: string, image_url: string) => { await supabase.from('sponsors').update({ image_url }).eq('id', id); await fetchData() }
 
-  // MAGIA PARA BANNERS
   const addBanner = async (image_url: string) => { await supabase.from('sponsor_banners').insert([{ image_url }]); await fetchData() }
   const deleteBanner = async (id: string) => { await supabase.from('sponsor_banners').delete().eq('id', id); await fetchData() }
 
