@@ -148,13 +148,17 @@ export function useParticipants() {
     const updates = reorderedList.map((s, idx) => ({ id: s.id, name: s.name, url: s.url, image_url: s.image_url, order_index: idx }))
     await supabase.from('sponsors').upsert(updates)
   }
-  const updateSponsorImage = async (id: string, image_url: string) => { await supabase.from('sponsors').update({ image_url }).eq('id', id); await fetchData() }
+  
+  // NUEVO: Ahora actualiza ambos campos
+  const updateSponsorDetails = async (id: string, image_url: string, url: string) => { 
+    await supabase.from('sponsors').update({ image_url, url }).eq('id', id); 
+    await fetchData() 
+  }
 
   const addBanner = async (image_url: string, link_url: string = '') => { 
     await supabase.from('sponsor_banners').insert([{ image_url, link_url }]); 
     await fetchData() 
   }
-  // NUEVO: Función para actualizar un banner existente
   const updateBanner = async (id: string, image_url: string, link_url: string = '') => {
     await supabase.from('sponsor_banners').update({ image_url, link_url }).eq('id', id);
     await fetchData();
@@ -165,7 +169,7 @@ export function useParticipants() {
     participants, bannedUsers, recentWinners, sponsors, banners, loading,
     addParticipant, deleteParticipant, deleteMultiple, updateStatus,
     banUser, unbanUser, resetGame, clearAll, 
-    addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorImage,
+    addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner
   }
 }

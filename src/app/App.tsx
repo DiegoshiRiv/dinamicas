@@ -33,17 +33,23 @@ export default function App() {
   const [addingSponsor, setAddingSponsor] = useState(false)
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<Set<string>>(new Set())
 
+  // NUEVOS Estados para EDITAR Patrocinadores
+  const [editingSponsor, setEditingSponsor] = useState<any>(null)
+  const [editSponsorImgUrl, setEditSponsorImgUrl] = useState('')
+  const [editSponsorDestUrl, setEditSponsorDestUrl] = useState('')
+  const [isUpdatingSponsor, setIsUpdatingSponsor] = useState(false)
+
   // Estados para la gestión de Banners
   const [showBannerModal, setShowBannerModal] = useState(false)
   const [bannerImgInput, setBannerImgInput] = useState('')
   const [bannerLinkInput, setBannerLinkInput] = useState('')
   const [addingBanner, setAddingBanner] = useState(false)
-  const [editingBannerId, setEditingBannerId] = useState<string | null>(null) // NUEVO: Para saber si estamos editando
+  const [editingBannerId, setEditingBannerId] = useState<string | null>(null)
 
   const { 
     participants, bannedUsers, recentWinners, sponsors, banners,
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
-    banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorImage,
+    banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner
   } = useParticipants()
 
@@ -105,9 +111,19 @@ export default function App() {
     setShowSponsorModal(false)
   }
 
-  const handleEditImage = (s: any) => {
-    const newUrl = window.prompt(`Pega el link directo de la foto para @${s.name} (Ej: link de imgur o postimages):`, s.image_url)
-    if (newUrl && newUrl !== s.image_url) updateSponsorImage(s.id, newUrl.trim())
+  // NUEVO: Funciones para abrir y guardar el modal de Edición de Patrocinador
+  const handleOpenEditSponsor = (s: any) => {
+    setEditingSponsor(s)
+    setEditSponsorImgUrl(s.image_url)
+    setEditSponsorDestUrl(s.url)
+  }
+
+  const submitEditSponsor = async () => {
+    if (!editingSponsor) return
+    setIsUpdatingSponsor(true)
+    await updateSponsorDetails(editingSponsor.id, editSponsorImgUrl.trim(), editSponsorDestUrl.trim())
+    setIsUpdatingSponsor(false)
+    setEditingSponsor(null)
   }
 
   const moveSponsor = (index: number, direction: 'up' | 'down') => {
@@ -221,9 +237,7 @@ export default function App() {
                        <div key={b.id} className="relative w-36 h-24 flex-shrink-0 rounded-xl overflow-hidden group shadow-sm border border-gray-200">
                          <img src={b.image_url} alt="Banner" className="w-full h-full object-cover" />
                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                           {/* BOTÓN EDITAR */}
                            <Button variant="secondary" size="icon" className="w-10 h-10 rounded-full" onClick={() => handleOpenBannerModal(b.id, b.image_url, b.link_url)}><Pencil className="w-5 h-5" /></Button>
-                           {/* BOTÓN BORRAR */}
                            <Button variant="destructive" size="icon" className="w-10 h-10 rounded-full" onClick={() => deleteBanner(b.id)}><Trash2 className="w-5 h-5" /></Button>
                          </div>
                        </div>
@@ -259,7 +273,8 @@ export default function App() {
                            <span className="font-bold text-gray-700 truncate text-sm">@{s.name}</span>
                          </div>
                          <div className="flex items-center gap-1 shrink-0">
-                           <Button variant="ghost" size="icon" onClick={() => handleEditImage(s)} className="rounded-lg text-gray-400 hover:text-blue-600 bg-gray-50/50"><Pencil className="h-4 w-4" /></Button>
+                           {/* AHORA ABRE EL MODAL NUEVO AL TOCAR EL LÁPIZ */}
+                           <Button variant="ghost" size="icon" onClick={() => handleOpenEditSponsor(s)} className="rounded-lg text-gray-400 hover:text-blue-600 bg-gray-50/50"><Pencil className="h-4 w-4" /></Button>
                            <Button variant="ghost" size="icon" onClick={() => deleteSponsor(s.id)} className="rounded-lg text-gray-400 hover:text-red-600 bg-gray-50/50"><Trash2 className="h-4 w-4" /></Button>
                          </div>
                        </div>
@@ -387,7 +402,38 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL PARA BANNERS (Ahora sirve para añadir y editar) */}
+      {/* NUEVO MODAL PARA EDITAR PATROCINADORES */}
+      {editingSponsor && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setEditingSponsor(null)}>
+          <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-center mb-5"><div className="bg-pink-50 p-4 rounded-full text-[#D946EF] shadow-inner"><Pencil className="w-8 h-8" /></div></div>
+            <h2 className="text-2xl font-black mb-2 text-center text-gray-800">Editar Patrocinador</h2>
+            <p className="text-sm text-gray-500 mb-6 text-center leading-relaxed">
+              Actualiza la foto o el enlace de destino para <span className="font-bold text-gray-900">@{editingSponsor.name}</span>.
+            </p>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-sm font-bold text-gray-700 block mb-1">Enlace de la imagen (Foto)</label>
+                <Input autoFocus placeholder="Ej: https://i.imgur.com/foto.jpg" value={editSponsorImgUrl} onChange={(e) => setEditSponsorImgUrl(e.target.value)} className="border-gray-200 focus-visible:ring-[#D946EF] rounded-xl px-4 py-5 bg-gray-50 text-base" />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-gray-700 block mb-1">Enlace de destino (Instagram/Web)</label>
+                <Input placeholder="Ej: https://instagram.com/..." value={editSponsorDestUrl} onChange={(e) => setEditSponsorDestUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitEditSponsor()} className="border-gray-200 focus-visible:ring-[#D946EF] rounded-xl px-4 py-5 bg-gray-50 text-base" />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <Button onClick={submitEditSponsor} disabled={isUpdatingSponsor || !editSponsorImgUrl || !editSponsorDestUrl} className="w-full rounded-xl py-6 bg-[#D946EF] hover:bg-[#C026D3] text-white font-bold text-lg">
+                {isUpdatingSponsor ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+              <Button variant="outline" className="w-full rounded-xl py-6 font-bold text-gray-600 border-0 bg-gray-100 hover:bg-gray-200 text-lg" onClick={() => setEditingSponsor(null)}>Cancelar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA BANNERS */}
       {showBannerModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowBannerModal(false)}>
           <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
