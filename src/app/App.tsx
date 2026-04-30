@@ -4,14 +4,17 @@ import { RegistrationForm } from '@/app/components/RegistrationForm'
 import { AdminPanel } from '@/app/components/AdminPanel'
 import { WinnerRoulette } from '@/app/components/WinnerRoulette'
 import { QRCodeDisplay } from '@/app/components/QRCodeDisplay'
-import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, MessageCircle, Instagram, Facebook, Twitter, Download, Heart } from 'lucide-react'
+import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, Instagram, Facebook, Twitter, Download, Heart } from 'lucide-react'
 import { useParticipants } from '@/hooks/useParticipants'
 
-import pokemonLogo from '@/assets/pokemon-go-logo.png'
+// IMPORTANDO TUS ASSETS
+import fondoImg from '@/assets/fondo.png'
+import logoImg from '@/assets/Logo.png'
+import wpIcon from '@/assets/w.png'
 
 type View = 'main' | 'roulette'
 
-const validAdmins = ['pawmot', 'bidoof', 'ditto', 'chimchar']
+const validAdmins = ['pawmot', 'bidoof', 'ditto']
 const validPassword = 'sellodex2026'
 
 export default function App() {
@@ -19,7 +22,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('register')
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   
-  // Estado para el carrusel de banners
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
 
   const { 
@@ -52,12 +54,9 @@ export default function App() {
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
   }, [])
 
-  // ROTACIÓN AUTOMÁTICA DEL BANNER (Cambia cada 4 segundos)
   useEffect(() => {
     if (banners.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentBannerIndex((prev) => (prev + 1) % banners.length);
-    }, 4000);
+    const interval = setInterval(() => { setCurrentBannerIndex((prev) => (prev + 1) % banners.length) }, 4000);
     return () => clearInterval(interval);
   }, [banners.length]);
 
@@ -70,12 +69,7 @@ export default function App() {
 
   const handleLogin = () => {
     if (validAdmins.includes(usernameInput.toLowerCase()) && passwordInput === validPassword) {
-      setIsAdmin(true)
-      setShowLogin(false)
-      setActiveTab('admin')
-      setLoginError('')
-      setUsernameInput('')
-      setPasswordInput('')
+      setIsAdmin(true); setShowLogin(false); setActiveTab('admin'); setLoginError(''); setUsernameInput(''); setPasswordInput('')
     } else {
       setLoginError('Usuario o contraseña incorrectos')
     }
@@ -87,84 +81,93 @@ export default function App() {
 
   if (currentView === 'roulette') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 sm:p-6">
+      <div 
+        className="min-h-screen p-4 sm:p-6 text-white" 
+        style={{ backgroundColor: '#0661C6', backgroundImage: `url(${fondoImg})`, backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat' }}
+      >
         <WinnerRoulette onBack={() => setCurrentView('main')} participants={participants} recentWinners={recentWinners} updateStatus={updateStatus} onResetGame={resetGame} />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 sm:p-6 relative flex flex-col">
-      <div className="max-w-6xl mx-auto flex-1 w-full">
+    <div 
+      className="min-h-screen px-4 py-6 sm:p-8 relative flex flex-col items-center overflow-x-hidden font-sans"
+      style={{ 
+        backgroundColor: '#0661C6', 
+        backgroundImage: `url(${fondoImg})`, 
+        backgroundSize: '100% auto', 
+        backgroundPosition: 'top center', 
+        backgroundRepeat: 'no-repeat' 
+      }}
+    >
+      <div className="max-w-md w-full relative z-10 flex-1 flex flex-col mt-2 sm:mt-4">
         
-        <div className="flex justify-end w-full mb-4">
+        {/* BOTÓN SALIR / ADMIN CAMBIADO A BLANCO */}
+        <div className="absolute -top-2 right-0 z-20">
           {!isAdmin ? (
-            <button onClick={() => setShowLogin(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition shadow-md text-sm font-medium"><LogIn className="w-4 h-4" /> Admin</button>
+            <button onClick={() => setShowLogin(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white text-[#0661C6] hover:bg-gray-50 transition shadow-lg text-sm font-bold">
+              <LogIn className="w-4 h-4" /> Admin
+            </button>
           ) : (
-            <button onClick={handleLogout} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition shadow-md text-sm font-medium"><LogOut className="w-4 h-4" /> Salir</button>
+            <button onClick={handleLogout} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white text-red-600 hover:bg-gray-50 transition shadow-lg text-sm font-bold">
+              <LogOut className="w-4 h-4" /> Salir
+            </button>
           )}
         </div>
 
-        <header className="text-center mb-8">
-          <img src={pokemonLogo} alt="Pokémon GO" className="h-16 sm:h-20 mx-auto mb-4 drop-shadow-md" />
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-800 tracking-tight leading-tight px-2">Dinámicas Pokémon GO GDL</h1>
+        <header className="text-center mb-6 mt-4">
+          <img src={logoImg} alt="Pokémon GO GDL" className="w-full max-w-[280px] sm:max-w-[320px] mx-auto drop-shadow-xl relative z-10" />
         </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`flex flex-wrap justify-center w-full mx-auto mb-8 h-auto gap-2 bg-transparent sm:bg-slate-100 p-1 sm:rounded-xl ${isAdmin ? 'max-w-4xl' : 'max-w-lg'}`}>
-            <TabsTrigger value="register" className="flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"><Users className="h-4 w-4" /> Registro</TabsTrigger>
-            <TabsTrigger value="sponsors" className="flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"><Heart className="h-4 w-4 text-pink-500" /> Patrocinadores</TabsTrigger>
+          <TabsList className="w-full grid grid-cols-2 gap-3 sm:gap-4 bg-transparent h-auto p-0 mb-6">
+            <TabsTrigger value="register" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-2xl py-3.5 sm:py-4 flex items-center justify-center gap-2 font-bold text-sm sm:text-base border-0 shadow-md transition-all">
+              <Users className="w-4 h-4 sm:w-5 sm:h-5" /> Registro
+            </TabsTrigger>
+            
+            <TabsTrigger value="sponsors" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-2xl py-3.5 sm:py-4 flex items-center justify-center gap-2 font-bold text-sm sm:text-base border-0 shadow-md transition-all">
+              <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-pink-500" /> Patrocinadores
+            </TabsTrigger>
+            
             {isAdmin && (
               <>
-                <TabsTrigger value="admin" className="flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"><Trophy className="h-4 w-4" /> Administración</TabsTrigger>
-                <TabsTrigger value="qr" className="flex-1 min-w-[140px] flex items-center justify-center gap-2 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"><QrCode className="h-4 w-4" /> QR</TabsTrigger>
+                <TabsTrigger value="admin" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-2xl py-3.5 sm:py-4 flex items-center justify-center gap-2 font-bold text-sm sm:text-base border-0 shadow-md transition-all">
+                  <Trophy className="w-4 h-4 sm:w-5 sm:h-5" /> Administración
+                </TabsTrigger>
+                <TabsTrigger value="qr" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-2xl py-3.5 sm:py-4 flex items-center justify-center gap-2 font-bold text-sm sm:text-base border-0 shadow-md transition-all">
+                  <QrCode className="w-4 h-4 sm:w-5 sm:h-5" /> QR
+                </TabsTrigger>
               </>
             )}
           </TabsList>
 
-          <TabsContent value="register"><RegistrationForm saveRegistration={addParticipant} isAdmin={isAdmin} /></TabsContent>
+          <TabsContent value="register" className="mt-0 outline-none"><RegistrationForm saveRegistration={addParticipant} isAdmin={isAdmin} /></TabsContent>
 
-          {/* PESTAÑA PÚBLICA DE PATROCINADORES CON BANNER ROTATIVO */}
-          <TabsContent value="sponsors">
-             <div className="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-10 border border-gray-100">
-               
-               {/* BANNER CARRUSEL */}
+          <TabsContent value="sponsors" className="mt-0 outline-none">
+             <div className="w-full bg-white rounded-[24px] shadow-2xl p-6 sm:p-8">
                {banners.length > 0 && (
-                 <div className="relative w-full h-40 sm:h-64 lg:h-80 rounded-2xl overflow-hidden mb-10 shadow-lg bg-gray-100 border border-gray-200">
+                 <div className="relative w-full h-32 sm:h-48 rounded-xl overflow-hidden mb-8 shadow-inner bg-gray-100">
                    {banners.map((banner, i) => (
-                     <img 
-                       key={banner.id} 
-                       src={banner.image_url} 
-                       alt={`Oferta promocional ${i + 1}`} 
-                       className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${i === currentBannerIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} 
-                     />
+                     <img key={banner.id} src={banner.image_url} alt="Oferta" className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${i === currentBannerIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} />
                    ))}
-                   {/* Puntos de navegación del banner */}
-                   {banners.length > 1 && (
-                     <div className="absolute bottom-3 left-0 right-0 z-20 flex justify-center gap-2">
-                       {banners.map((_, i) => (
-                         <div key={i} className={`w-2 h-2 rounded-full transition-all ${i === currentBannerIndex ? 'bg-white scale-125' : 'bg-white/50'}`} />
-                       ))}
-                     </div>
-                   )}
                  </div>
                )}
-
-               <div className="text-center mb-8 sm:mb-12">
-                 <h2 className="text-2xl sm:text-4xl font-extrabold text-gray-800 mb-3 sm:mb-4 tracking-tight">Nuestros Patrocinadores</h2>
-                 <p className="text-sm sm:text-base text-gray-500 max-w-xl mx-auto leading-relaxed px-2">Gracias al apoyo de nuestros patrocinadore, nuestras dinámicas y premios son posibles. ¡Toca su foto para ir a seguirlos en Instagram!</p>
+               <div className="text-center mb-6">
+                 <h2 className="text-2xl font-black text-gray-900 mb-2">Apoyan a la comunidad</h2>
+                 <p className="text-sm text-gray-500">Toca su foto para visitar su Instagram.</p>
                </div>
                
                {sponsors.length === 0 ? (
-                 <div className="text-center py-10 text-gray-400">Aún estamos reuniendo a nuestros patrocinadores de esta ronda.</div>
+                 <div className="text-center py-8 text-gray-400">Reuniendo patrocinadores...</div>
                ) : (
-                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-8 gap-x-4 sm:gap-y-10 sm:gap-x-6">
+                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-y-6 gap-x-2">
                    {sponsors.map(sponsor => (
                      <a key={sponsor.id} href={sponsor.url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center group">
-                       <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full p-1 bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500 group-hover:scale-105 transition-transform duration-300 shadow-lg">
-                          <img src={sponsor.image_url} alt={sponsor.name} className="w-full h-full rounded-full object-cover border-4 border-white bg-white" onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + sponsor.name + '&background=random' }} />
+                       <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full p-[3px] bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500 group-hover:scale-105 transition-transform shadow-md">
+                          <img src={sponsor.image_url} alt={sponsor.name} className="w-full h-full rounded-full object-cover border-2 border-white bg-white" onError={(e) => { (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + sponsor.name + '&background=random' }} />
                        </div>
-                       <span className="mt-3 font-semibold text-xs sm:text-sm text-gray-700 group-hover:text-pink-600 transition-colors truncate w-full text-center px-1">@{sponsor.name}</span>
+                       <span className="mt-2 font-bold text-[10px] sm:text-xs text-gray-700 truncate w-full text-center">@{sponsor.name}</span>
                      </a>
                    ))}
                  </div>
@@ -174,7 +177,7 @@ export default function App() {
 
           {isAdmin && (
             <>
-              <TabsContent value="admin">
+              <TabsContent value="admin" className="mt-0 outline-none bg-white p-4 rounded-2xl shadow-2xl">
                 <AdminPanel 
                   participants={participants} bannedUsers={bannedUsers} sponsors={sponsors} banners={banners}
                   onDelete={deleteParticipant} onDeleteMultiple={deleteMultiple} onClearAll={clearAll} onStartRoulette={() => setCurrentView('roulette')} 
@@ -183,39 +186,44 @@ export default function App() {
                   onUpdateSponsorImage={updateSponsorImage} onAddBanner={addBanner} onDeleteBanner={deleteBanner}
                 />
               </TabsContent>
-              <TabsContent value="qr"><QRCodeDisplay url={registrationUrl} /></TabsContent>
+              <TabsContent value="qr" className="mt-0 outline-none"><QRCodeDisplay url={registrationUrl} /></TabsContent>
             </>
           )}
         </Tabs>
-      </div>
+        
+        <footer className="mt-10 pb-16 text-center z-10 text-white">
+          <p className="font-semibold text-[17px] drop-shadow-md mb-6">Sigue las Redes Sociales de la Comunidad.</p>
+          <div className="flex justify-center items-center gap-6 mb-8">
+            <a href="https://www.whatsapp.com/channel/0029VbA3X858Pgs9nkwUSO1L?utm_source=ig&utm_medium=social&utm_content=link_in_bio" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform">
+              <img src={wpIcon} alt="WhatsApp" className="w-9 h-9 sm:w-10 sm:h-10 drop-shadow-lg object-contain" />
+            </a>
+            <a href="https://www.instagram.com/pokemon_go_gdl/" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform"><Instagram className="w-9 h-9 sm:w-10 sm:h-10 drop-shadow-lg" strokeWidth={1.5} /></a>
+            <a href="https://www.facebook.com/profile.php?id=61577260873239" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform"><Facebook className="w-9 h-9 sm:w-10 sm:h-10 drop-shadow-lg" strokeWidth={1.5} /></a>
+            <a href="https://x.com/PokemonGo_GDL" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform"><Twitter className="w-9 h-9 sm:w-10 sm:h-10 drop-shadow-lg" strokeWidth={1.5} /></a>
+          </div>
 
-      <footer className="mt-16 pb-8 flex flex-col items-center gap-6 text-sm text-gray-500 w-full px-4 text-center">
-        <p>Sigue las redes de la comunidad</p>
-        {installPrompt && (
-          <button onClick={handleInstallApp} className="flex items-center gap-2 px-6 py-2.5 rounded-full border-2 border-blue-500 text-blue-600 font-bold hover:bg-blue-50 transition shadow-sm active:scale-95"><Download className="w-5 h-5" /> Instalar esta App</button>
-        )}
-        <div className="flex gap-6 items-center">
-          <a href="https://www.whatsapp.com/channel/0029VbA3X858Pgs9nkwUSO1L?utm_source=ig&utm_medium=social&utm_content=link_in_bio" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-500 transition"><MessageCircle className="w-7 h-7" /></a>
-          <a href="https://www.instagram.com/pokemon_go_gdl/" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-600 transition"><Instagram className="w-7 h-7" /></a>
-          <a href="https://www.facebook.com/profile.php?id=61577260873239" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-600 transition"><Facebook className="w-7 h-7" /></a>
-          <a href="https://x.com/PokemonGo_GDL" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-black transition"><Twitter className="w-7 h-7" /></a>
-        </div>
-      </footer>
+          {installPrompt && (
+            <button onClick={handleInstallApp} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-white text-blue-600 font-bold shadow-xl mx-auto hover:bg-gray-50 active:scale-95 transition-all text-sm">
+              <Download className="w-5 h-5" /> Crear Acceso Directo
+            </button>
+          )}
+        </footer>
+      </div>
 
       {showLogin && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowLogin(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Acceso Admin</h2>
+          <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h2 className="text-2xl font-black mb-6 text-center text-gray-900">Acceso Admin</h2>
             <form onSubmit={onLoginSubmit}>
-              <input type="text" placeholder="Usuario" value={usernameInput} onChange={e => setUsernameInput(e.target.value)} onKeyDown={handleUsernameKeyDown} className="w-full border border-gray-200 rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" autoFocus />
+              <input type="text" placeholder="Usuario" value={usernameInput} onChange={e => setUsernameInput(e.target.value)} onKeyDown={handleUsernameKeyDown} className="w-full border-0 bg-gray-100 rounded-xl px-4 py-4 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-900" autoFocus />
               <div className="relative mb-4">
-                <input ref={passwordRef} type={showPassword ? "text" : "password"} placeholder="Contraseña" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-2" tabIndex={-1}>{showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button>
+                <input ref={passwordRef} type={showPassword ? "text" : "password"} placeholder="Contraseña" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} className="w-full border-0 bg-gray-100 rounded-xl px-4 py-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-900" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" tabIndex={-1}>{showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button>
               </div>
-              {loginError && <p className="text-red-500 mb-4 text-sm font-semibold text-center">{loginError}</p>}
-              <div className="flex justify-end gap-3 mt-6">
-                <button type="button" onClick={() => setShowLogin(false)} className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 font-medium">Cancelar</button>
-                <button type="submit" className="px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-medium shadow-md shadow-blue-500/20">Entrar</button>
+              {loginError && <p className="text-red-500 mb-4 text-sm font-bold text-center">{loginError}</p>}
+              <div className="flex justify-end gap-3 mt-8">
+                <button type="button" onClick={() => setShowLogin(false)} className="px-5 py-3 rounded-xl bg-gray-200 text-gray-700 hover:bg-gray-300 font-bold w-full">Cancelar</button>
+                <button type="submit" className="px-5 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-bold shadow-lg w-full">Entrar</button>
               </div>
             </form>
           </div>

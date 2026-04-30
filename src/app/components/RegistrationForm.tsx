@@ -4,11 +4,15 @@ import { Input } from '@/app/components/ui/input'
 import { Label } from '@/app/components/ui/label'
 import { Card, CardContent } from '@/app/components/ui/card'
 import { Alert, AlertDescription } from '@/app/components/ui/alert'
-import { AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ShieldCheck, X } from 'lucide-react'
 
 import moltres from '@/assets/moltres.png'
 import zapdos from '@/assets/zapdos.png'
 import articuno from '@/assets/articuno.png'
+
+// IMÁGENES DE EJEMPLO
+import pogoImg from '@/assets/Pogo.jpg'
+import camfImg from '@/assets/Camf.jpg'
 
 interface RegistrationFormProps {
   saveRegistration: (username: string, team: string, ip: string, isAdminBypass?: boolean) => Promise<void>
@@ -17,10 +21,10 @@ interface RegistrationFormProps {
 
 type Team = 'blue' | 'yellow' | 'red'
 
-const teams: { value: Team; label: string; bg: string; ring: string; borderColor: string; icon: string }[] = [
-  { value: 'blue', label: 'Sabiduría', bg: 'bg-blue-500', ring: 'ring-blue-500', borderColor: 'border-blue-500', icon: articuno },
-  { value: 'yellow', label: 'Instinto', bg: 'bg-yellow-400', ring: 'ring-yellow-400', borderColor: 'border-yellow-400', icon: zapdos },
-  { value: 'red', label: 'Valor', bg: 'bg-red-500', ring: 'ring-red-500', borderColor: 'border-red-500', icon: moltres },
+const teams: { value: Team; label: string; borderColor: string; icon: string }[] = [
+  { value: 'blue', label: 'Sabiduría', borderColor: 'border-blue-500', icon: articuno },
+  { value: 'yellow', label: 'Instinto', borderColor: 'border-yellow-400', icon: zapdos },
+  { value: 'red', label: 'Valor', borderColor: 'border-red-500', icon: moltres },
 ]
 
 export function RegistrationForm({ saveRegistration, isAdmin = false }: RegistrationFormProps) {
@@ -29,6 +33,10 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
+  
+  // Estado para mostrar la ventana de las fotos de ejemplo
+  const [showExamples, setShowExamples] = useState(false)
+  
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -43,10 +51,8 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
     setLoading(true)
     try {
       if (isAdmin) {
-        // Modo Staff: Sin límites, sin buscar IP
         await saveRegistration(username.trim(), team, 'admin-ip', true)
       } else {
-        // Modo Normal: Buscamos IP pública y validamos
         const ipResponse = await fetch('https://api.ipify.org?format=json')
         const ipData = await ipResponse.json()
         await saveRegistration(username.trim(), team, ipData.ip, false)
@@ -64,83 +70,131 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto shadow-lg relative overflow-hidden">
-      {/* Icono discreto de Modo Staff */}
-      {isAdmin && (
-        <div className="absolute top-4 right-4 z-10 cursor-help" title="Modo Staff: Sin límites">
-          <ShieldAlert className="text-blue-500 w-6 h-6" />
+    <>
+      <Card className="w-full border-0 shadow-2xl rounded-2xl relative overflow-hidden bg-white">
+        {isAdmin && (
+          <div className="absolute top-4 right-4 z-10 cursor-help" title="Modo Staff Activo">
+            <ShieldCheck className="text-blue-500 w-6 h-6" />
+          </div>
+        )}
+
+        <CardContent className="p-6 sm:p-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-3">
+              <Label htmlFor="username" className="text-lg font-bold text-gray-900 block">Nombre de usuario</Label>
+              <Input 
+                ref={inputRef} 
+                id="username" 
+                placeholder="Ej: AshKetchum123" 
+                value={username} 
+                onChange={(e) => setUsername(e.target.value)} 
+                disabled={loading} 
+                className="text-base sm:text-lg py-6 bg-gray-100 border-transparent rounded-xl focus-visible:ring-2 focus-visible:ring-blue-500 placeholder:text-gray-400 font-medium"
+              />
+            </div>
+            
+            <div className="space-y-3">
+              <Label className="text-lg font-bold text-gray-900 block">Selecciona tu equipo</Label>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                {teams.map((t) => {
+                  const selected = team === t.value
+                  return (
+                    <button 
+                      type="button" 
+                      key={t.value} 
+                      onClick={() => setTeam(t.value)} 
+                      disabled={loading}
+                      className={`
+                        flex flex-col items-center justify-center gap-2 py-4 px-1 rounded-2xl border-2 transition-all duration-200 bg-white
+                        ${selected ? `${t.borderColor} bg-gray-50/50 scale-105 shadow-sm` : `border-gray-200 hover:border-gray-300`}
+                      `}
+                    >
+                      <img src={t.icon} alt={t.label} className="w-10 h-10 sm:w-12 sm:h-12 brightness-0 opacity-90 object-contain" />
+                      <span className="font-bold text-xs sm:text-sm text-gray-900">{t.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {!isAdmin && (
+              <Alert className="bg-blue-50 border-blue-100 text-blue-800 rounded-xl flex items-center gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setShowExamples(true)} 
+                  className="flex-shrink-0 p-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded-full cursor-pointer transition-colors shadow-sm animate-pulse"
+                  title="Ver ejemplos"
+                >
+                  <AlertCircle className="h-5 w-5" />
+                </button>
+                <AlertDescription className="text-xs sm:text-sm font-medium">
+                  Debes tener tu nombre de usuario en pantalla para poder reclamar tu premio.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {error && (
+              <Alert variant="destructive" className="rounded-xl">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            {success && (
+              <Alert className="bg-green-50 border-green-200 text-green-800 rounded-xl">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertDescription className="font-bold">Ya estás registrado.</AlertDescription>
+              </Alert>
+            )}
+
+            <Button type="submit" size="lg" className="w-full text-lg font-bold py-6 bg-[#0B0F19] text-white hover:bg-gray-800 rounded-xl shadow-lg shadow-black/20" disabled={loading}>
+              {loading ? 'Registrando...' : 'Registrarse en la Dinámica'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* MODAL DE IMÁGENES DE EJEMPLO ACTUALIZADO */}
+      {showExamples && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowExamples(false)}>
+          {/* Se agregó max-h-[90vh] y flex-col para que nunca sea más grande que la pantalla */}
+          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-2xl w-full relative shadow-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            
+            {/* BOTÓN X CORREGIDO: Ahora está fijo en la esquina interior superior derecha */}
+            <button 
+              onClick={() => setShowExamples(false)} 
+              className="absolute top-4 right-4 p-2 bg-gray-100 text-gray-600 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="shrink-0 pr-8">
+              <h3 className="text-xl sm:text-2xl font-black text-center mb-2 text-gray-800">Ejemplos de Pantalla</h3>
+              <p className="text-center text-gray-600 mb-4 text-xs sm:text-sm">Asegúrate de mostrar tu perfil así cuando ganes.</p>
+            </div>
+            
+            {/* Contenedor de imágenes scrollable si es necesario */}
+            <div className="overflow-y-auto overflow-x-hidden p-1 flex-1">
+              {/* CORRECCIÓN PRINCIPAL: Se forzó a grid-cols-2 en todas las pantallas */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div className="rounded-xl overflow-hidden shadow-sm border border-gray-100 flex flex-col items-center bg-gray-50">
+                  {/* object-contain y limitante de altura para que no se estiren al infinito */}
+                  <img src={pogoImg} alt="Ejemplo Pokémon GO" className="w-full h-auto max-h-[40vh] object-contain p-1" />
+                  <span className="py-2 text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wide">Pokémon GO</span>
+                </div>
+                <div className="rounded-xl overflow-hidden shadow-sm border border-gray-100 flex flex-col items-center bg-gray-50">
+                  <img src={camfImg} alt="Ejemplo Campfire" className="w-full h-auto max-h-[40vh] object-contain p-1" />
+                  <span className="py-2 text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wide">Campfire</span>
+                </div>
+              </div>
+            </div>
+
+            <Button onClick={() => setShowExamples(false)} className="w-full mt-5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-6 font-bold text-lg shrink-0">
+              Entendido
+            </Button>
+          </div>
         </div>
       )}
-
-      <CardContent className="pt-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="username" className="text-lg">Nombre de usuario</Label>
-            <Input 
-              ref={inputRef} 
-              id="username" 
-              placeholder="Ej: AshKetchum123" 
-              value={username} 
-              onChange={(e) => setUsername(e.target.value)} 
-              disabled={loading} 
-              className="text-lg py-5"
-            />
-          </div>
-          
-          <div className="space-y-3">
-            <Label className="text-lg">Selecciona tu equipo</Label>
-            <div className="grid grid-cols-3 gap-3">
-              {teams.map((t) => {
-                const selected = team === t.value
-                return (
-                  <button 
-                    type="button" 
-                    key={t.value} 
-                    onClick={() => setTeam(t.value)} 
-                    disabled={loading}
-                    className={`
-                      flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all
-                      ${selected 
-                        ? `${t.bg} border-transparent text-white ring-4 ${t.ring} shadow-lg scale-105` 
-                        : `bg-white ${t.borderColor} hover:bg-gray-50`}
-                    `}
-                  >
-                    <img src={t.icon} alt={t.label} className={`w-12 h-12 transition-all ${selected ? 'brightness-0 invert' : ''}`} />
-                    <span className="font-bold text-sm">{t.label}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {!isAdmin && (
-            <Alert className="bg-yellow-50 border-yellow-200 text-yellow-800">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Debes tener tu nombre de Campfire o usuario de Pokémon GO en mano para verificar que eres tú para reclamar el premio.
-              </AlertDescription>
-            </Alert>
-          )}
-          
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          
-          {success && (
-            <Alert className="bg-green-50 border-green-200 text-green-800">
-              <CheckCircle2 className="h-4 w-4" />
-              <AlertDescription className="font-medium">¡Registro exitoso!</AlertDescription>
-            </Alert>
-          )}
-
-          <Button type="submit" size="lg" className="w-full text-lg font-bold" disabled={loading}>
-            {loading ? 'Registrando...' : isAdmin ? 'Registrar participante' : 'Confirmar Registro'}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    </>
   )
 }
