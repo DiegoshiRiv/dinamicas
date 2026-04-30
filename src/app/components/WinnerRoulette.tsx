@@ -1,268 +1,236 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/app/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card'
-import { motion, animate } from 'motion/react'
-import { Trophy, RotateCw, Check, X, RefreshCw, AlertCircle } from 'lucide-react'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
-import type { Participant, RecentWinner } from '@/hooks/useParticipants'
+import { RotateCcw } from 'lucide-react'
+import type { Participant } from '@/hooks/useParticipants'
+import confetti from 'canvas-confetti'
+
+// IMPORTAMOS TUS LOGOS YA RECORTADOS DE LA CARPETA ASSETS
+import moltres from '@/assets/moltres.png'
+import zapdos from '@/assets/zapdos.png'
+import articuno from '@/assets/articuno.png'
 
 interface WinnerRouletteProps {
   onBack: () => void
   participants: Participant[]
-  recentWinners: RecentWinner[]
+  recentWinners: any[]
   updateStatus: (id: string, status: string) => void
-  onResetGame: () => Promise<void>
+  onResetGame: () => void
 }
 
-const teamColors = { yellow: '#facc15', red: '#ef4444', blue: '#3b82f6' }
-const teamNames = { yellow: 'Instinto', red: 'Valor', blue: 'Sabiduría' }
-
-export function WinnerRoulette({ onBack, participants, recentWinners, updateStatus, onResetGame }: WinnerRouletteProps) {
-  const [activeList, setActiveList] = useState<Participant[]>([])
+export function WinnerRoulette({ onBack, participants, updateStatus, onResetGame }: WinnerRouletteProps) {
+  const [rotation, setRotation] = useState(0)
   const [isSpinning, setIsSpinning] = useState(false)
   const [winner, setWinner] = useState<Participant | null>(null)
-  const [rotation, setRotation] = useState(0)
-  const [processedIds, setProcessedIds] = useState<Set<string>>(new Set())
-  const [isResetting, setIsResetting] = useState(false)
-  const [showResetConfirm, setShowResetConfirm] = useState(false)
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const activePlayers = participants.filter(p => p.status === 'active')
 
+  // Dibuja la ruleta estática una sola vez
   useEffect(() => {
-    if (!isSpinning && !winner) {
-      const cleanList = participants
-        .filter(p => p.status === 'active')
-        .filter(p => !processedIds.has(p.id))
-      setActiveList(cleanList)
-    }
-  }, [participants, isSpinning, winner, processedIds])
-
-  // Lógica de Peso: Asignar tajada más pequeña a ganadores recientes
-  const activeListWithWeights = useMemo(() => {
-    return activeList.map(p => {
-      const isRecent = recentWinners.some(rw => rw.username.toLowerCase() === p.username.toLowerCase())
-      return { ...p, weight: isRecent ? 0.1 : 1.0 } // 10% de probabilidad para repetidos
-    })
-  }, [activeList, recentWinners])
-
-  useEffect(() => {
-    if (activeListWithWeights.length > 0) drawRoulette()
-  }, [activeListWithWeights, rotation])
-
-  const drawRoulette = () => {
     const canvas = canvasRef.current
-    if (!canvas || activeListWithWeights.length === 0) return
+    if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const centerX = canvas.width / 2
-    const centerY = canvas.height / 2
-    const radius = Math.min(centerX, centerY) - 20
-    const totalWeight = activeListWithWeights.reduce((sum, p) => sum + p.weight, 0)
+    const size = canvas.width
+    const center = size / 2
+    const radius = center - 10
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.clearRect(0, 0, size, size)
 
-    let currentAngle = (rotation * Math.PI) / 180
+    if (activePlayers.length === 0) {
+      ctx.beginPath()
+      ctx.arc(center, center, radius, 0, 2 * Math.PI)
+      ctx.fillStyle = '#f3f4f6'
+      ctx.fill()
+      ctx.lineWidth = 2
+      ctx.strokeStyle = '#e5e7eb'
+      ctx.stroke()
+      ctx.fillStyle = '#9ca3af'
+      ctx.font = 'bold 20px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText('Sin participantes', center, center)
+      return
+    }
 
-    activeListWithWeights.forEach((p) => {
-      const sliceAngle = (p.weight / totalWeight) * 2 * Math.PI
-      const endAngle = currentAngle + sliceAngle
+    const sliceAngle = (2 * Math.PI) / activePlayers.length
+
+    activePlayers.forEach((player, i) => {
+      const startAngle = i * sliceAngle - Math.PI / 2
+      const endAngle = startAngle + sliceAngle
 
       ctx.beginPath()
-      ctx.moveTo(centerX, centerY)
-      ctx.arc(centerX, centerY, radius, currentAngle, endAngle)
+      ctx.moveTo(center, center)
+      ctx.arc(center, center, radius, startAngle, endAngle)
       ctx.closePath()
-      
-      // @ts-ignore
-      ctx.fillStyle = teamColors[p.team] ?? '#999999'
+
+      // Colores de los equipos
+      if (player.team === 'blue') ctx.fillStyle = '#3B82F6'
+      else if (player.team === 'yellow') ctx.fillStyle = '#FACC15'
+      else if (player.team === 'red') ctx.fillStyle = '#EF4444'
+
       ctx.fill()
+      ctx.lineWidth = 1.5
       ctx.strokeStyle = '#ffffff'
-      ctx.lineWidth = 2
       ctx.stroke()
 
       ctx.save()
-      ctx.translate(centerX, centerY)
-      ctx.rotate(currentAngle + sliceAngle / 2)
+      ctx.translate(center, center)
+      ctx.rotate(startAngle + sliceAngle / 2)
       ctx.textAlign = 'right'
-      ctx.fillStyle = p.weight < 1 ? 'rgba(255, 255, 255, 0.5)' : '#ffffff' // Texto difuminado para penalizados
-      ctx.font = p.weight < 1 ? 'bold 10px sans-serif' : 'bold 14px sans-serif'
-      ctx.fillText(p.username, radius - 20, 5)
+      ctx.fillStyle = player.team === 'yellow' ? '#000000' : '#ffffff'
+      
+      const fontSize = activePlayers.length > 50 ? 10 : activePlayers.length > 20 ? 12 : 16
+      ctx.font = `bold ${fontSize}px sans-serif`
+      
+      const displayName = player.username.length > 15 ? player.username.substring(0, 15) + '...' : player.username
+      ctx.fillText(displayName, radius - 15, 4)
       ctx.restore()
-
-      currentAngle = endAngle
     })
 
-    // Centro blanco
     ctx.beginPath()
-    ctx.arc(centerX, centerY, 30, 0, 2 * Math.PI)
+    ctx.arc(center, center, radius * 0.15, 0, 2 * Math.PI)
     ctx.fillStyle = '#ffffff'
     ctx.fill()
-    ctx.stroke()
-
-    // Puntero negro (Arriba)
-    ctx.beginPath()
-    ctx.moveTo(centerX - 14, centerY - radius - 18)
-    ctx.lineTo(centerX + 14, centerY - radius - 18)
-    ctx.lineTo(centerX, centerY - radius + 6)
-    ctx.closePath()
-    ctx.fillStyle = '#000000'
-    ctx.fill()
-  }
+  }, [activePlayers])
 
   const spinRoulette = () => {
-    if (isSpinning || activeListWithWeights.length === 0) return
+    if (isSpinning || activePlayers.length === 0) return
     setIsSpinning(true)
     setWinner(null)
 
-    const totalRotation = 360 * 5 + Math.random() * 360
-    
-    animate(rotation, rotation + totalRotation, {
-      duration: 5,
-      ease: [0.32, 0.72, 0, 1],
-      onUpdate: (latest) => setRotation(latest),
-      onComplete: () => {
-        const finalRotation = (rotation + totalRotation) % 360
-        const pointerAngleOnWheel = (270 - finalRotation + 360) % 360
-        
-        const totalWeight = activeListWithWeights.reduce((sum, p) => sum + p.weight, 0)
-        let accumulatedAngle = 0
-        let winningParticipant = activeListWithWeights[0]
+    const extraSpins = 360 * 5
+    const randomDegree = Math.floor(Math.random() * 360)
+    const newRotation = rotation + extraSpins + randomDegree
 
-        for (let p of activeListWithWeights) {
-           const sliceDeg = (p.weight / totalWeight) * 360
-           if (pointerAngleOnWheel >= accumulatedAngle && pointerAngleOnWheel < accumulatedAngle + sliceDeg) {
-               winningParticipant = p
-               break
-           }
-           accumulatedAngle += sliceDeg
-        }
-        
-        setWinner(winningParticipant)
-        setIsSpinning(false)
-      },
-    })
+    setRotation(newRotation)
+
+    setTimeout(() => {
+      setIsSpinning(false)
+      
+      const sliceAngle = 360 / activePlayers.length
+      const normalizedRotation = newRotation % 360
+      const winningIndex = Math.floor(((360 - normalizedRotation) % 360) / sliceAngle)
+      
+      const winningPlayer = activePlayers[winningIndex]
+      setWinner(winningPlayer)
+      updateStatus(winningPlayer.id, 'winner')
+      
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#3B82F6', '#FACC15', '#EF4444'] })
+    }, 5000)
   }
 
-  const handleDecision = async (status: 'winner' | 'discarded') => {
-    if (!winner) return
-    const winnerId = winner.id
-    setProcessedIds(prev => new Set(prev).add(winnerId))
-    setActiveList(prev => prev.filter(p => p.id !== winnerId))
-    setWinner(null)
-    await updateStatus(winnerId, status)
-  }
-
-  const handleResetClick = () => setShowResetConfirm(true)
-
-  const executeReset = async () => {
-    setIsResetting(true)
-    setRotation(0)
-    setProcessedIds(new Set())
-    await onResetGame()
-    setIsResetting(false)
-    setShowResetConfirm(false)
-  }
-
-  if (activeList.length === 0 && !winner) {
-    return (
-      <>
-        <Card className="w-full max-w-lg mx-auto text-center p-10 shadow-lg border-2">
-          <h2 className="text-2xl font-bold text-gray-400 mb-4">¡Ruleta vacía!</h2>
-          <p className="text-gray-500 mb-6">Todos los participantes han pasado.</p>
-          <div className="flex justify-center gap-4">
-            <Button onClick={onBack} variant="outline">Volver</Button>
-            <Button onClick={handleResetClick} disabled={isResetting}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${isResetting ? 'animate-spin' : ''}`} />
-              Reiniciar Todo
-            </Button>
-          </div>
-        </Card>
-        <ResetAlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm} onConfirm={executeReset} />
-      </>
-    )
+  // Variables dinámicas para el diseño del ganador
+  const getTeamColors = (team: string) => {
+    switch (team) {
+      case 'blue': return { bg: '#EFF6FF', border: '#3B82F6', text: '#2563EB', name: 'Sabiduría', icon: articuno }
+      case 'yellow': return { bg: '#FEFCE8', border: '#FACC15', text: '#CA8A04', name: 'Instinto', icon: zapdos }
+      case 'red': return { bg: '#FEF2F2', border: '#EF4444', text: '#DC2626', name: 'Valor', icon: moltres }
+      default: return { bg: '#FFFFFF', border: '#000000', text: '#000000', name: '', icon: '' }
+    }
   }
 
   return (
-    <>
-      <Card className="w-full max-w-4xl mx-auto shadow-2xl border-2 border-indigo-100">
-        <CardHeader className="flex flex-row items-center justify-between border-b">
-          <CardTitle>Ruleta de la Suerte</CardTitle>
+    <div className="flex flex-col items-center justify-center min-h-[85vh] w-full max-w-md mx-auto">
+      <div className="w-full bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative z-10">
+        
+        <div className="p-4 sm:p-5 flex justify-between items-center bg-white">
+          <h2 className="text-xl sm:text-2xl font-black text-gray-900 ml-2">Ruleta</h2>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onBack} disabled={isSpinning}>Volver</Button>
-            <Button variant="ghost" onClick={handleResetClick} disabled={isSpinning || isResetting} title="Reiniciar ronda completa">
-              <RotateCw className={`w-4 h-4 ${isResetting ? 'animate-spin' : ''}`} />
+            <Button 
+              onClick={onResetGame} 
+              disabled={isSpinning}
+              className="bg-[#FBBF24] hover:bg-[#F59E0B] text-black font-bold rounded-xl border-2 border-[#F59E0B] px-3 sm:px-4 h-10"
+              title="Reintegrar todos los participantes"
+            >
+              <RotateCcw className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Reintegrar</span>
+            </Button>
+            <Button 
+              onClick={onBack} 
+              disabled={isSpinning}
+              className="bg-[#FB7185] hover:bg-[#F43F5E] text-black font-bold rounded-xl border-2 border-[#F43F5E] px-4 h-10"
+            >
+              Salir
             </Button>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-8 pt-8">
-          
-          <div className="flex justify-center relative">
-            <canvas ref={canvasRef} width={500} height={500} className="max-w-full h-auto drop-shadow-xl" />
+        </div>
+
+        <hr className="border-gray-200 w-full m-0" />
+
+        <div className="p-6 flex flex-col items-center relative flex-1">
+          <div className="relative z-20 mb-[-10px]">
+            <div className="w-0 h-0 border-l-[16px] border-r-[16px] border-t-[24px] border-l-transparent border-r-transparent border-t-black drop-shadow-md"></div>
           </div>
 
-          {winner && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-              <motion.div 
-                initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                className="text-center p-8 rounded-xl border-4 shadow-2xl bg-white relative overflow-hidden max-w-md w-full"
-                // @ts-ignore
-                style={{ borderColor: teamColors[winner.team] }}
+          <div className="relative w-[300px] h-[300px] sm:w-[340px] sm:h-[340px] mb-8">
+            <canvas
+              ref={canvasRef}
+              width={800}
+              height={800}
+              className="w-full h-full rounded-full drop-shadow-xl"
+              style={{
+                transform: `rotate(${rotation}deg)`,
+                transition: isSpinning ? 'transform 5s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none'
+              }}
+            />
+          </div>
+
+          <Button 
+            onClick={spinRoulette} 
+            disabled={isSpinning || activePlayers.length === 0}
+            className="w-full h-16 sm:h-20 bg-[#A855F7] hover:bg-[#9333EA] text-white rounded-2xl text-2xl sm:text-3xl font-black shadow-lg shadow-purple-500/30 tracking-wider disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95"
+          >
+            {isSpinning ? 'GIRANDO...' : 'GIRAR RULETA'}
+          </Button>
+        </div>
+      </div>
+
+      {/* MODAL DE GANADOR ACTUALIZADO CON TINTA DINÁMICA */}
+      {winner && !isSpinning && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setWinner(null)}>
+          <div 
+            className="bg-white rounded-[32px] p-8 max-w-sm w-full text-center shadow-2xl relative border-4 transition-all" 
+            style={{ borderColor: getTeamColors(winner.team).border }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-center mb-6">
+              <div 
+                className="p-5 rounded-full shadow-inner border-[3px]"
+                style={{ backgroundColor: getTeamColors(winner.team).bg, borderColor: getTeamColors(winner.team).border }}
               >
-                {/* @ts-ignore */}
-                <div className="absolute inset-0 opacity-10" style={{ backgroundColor: teamColors[winner.team] }}></div>
-                <div className="relative z-10">
-                  <Trophy className="mx-auto h-20 w-20 mb-4 text-yellow-500 drop-shadow-md" />
-                  <h3 className="text-4xl font-black mb-2 text-gray-800 break-words">{winner.username}</h3>
-                  {/* @ts-ignore */}
-                  <p className="text-lg font-medium mb-8" style={{ color: teamColors[winner.team] }}>Equipo {teamNames[winner.team]}</p>
-                  <div className="flex flex-col sm:flex-row justify-center gap-3">
-                    <Button size="lg" variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" onClick={() => handleDecision('discarded')}>
-                      <X className="w-5 h-5 mr-2" /> Descartar
-                    </Button>
-                    <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleDecision('winner')}>
-                      <Check className="w-5 h-5 mr-2" /> Confirmar
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
+                {/* MAGIA DE MÁSCARAS CSS: El icono negro se pinta con el color exacto del equipo */}
+                <div 
+                  className="w-16 h-16 drop-shadow-sm"
+                  style={{ 
+                    backgroundColor: getTeamColors(winner.team).border, // Relleno de color
+                    WebkitMask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat`, // Forma del pájaro
+                    mask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat` // Forma del pájaro (estándar)
+                  }}
+                  title={`Equipo ${getTeamColors(winner.team).name}`}
+                />
+              </div>
             </div>
-          )}
+            
+            <h3 className="text-lg font-bold text-gray-600 mb-1 uppercase tracking-widest">
+              ¡Ganador!
+            </h3>
 
-          {!winner && (
-            <div className="flex justify-center pb-4">
-              <Button size="lg" className="px-12 py-6 text-xl rounded-full shadow-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold hover:scale-105 transition" onClick={spinRoulette} disabled={isSpinning}>
-                {isSpinning ? '¡Girando...!' : 'GIRAR RULETA'}
-              </Button>
-            </div>
-          )}
-          <p className="text-center text-sm text-gray-400">Participantes en juego: {activeListWithWeights.length}</p>
-        </CardContent>
-      </Card>
-
-      <ResetAlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm} onConfirm={executeReset} />
-    </>
-  )
-}
-
-function ResetAlertDialog({ open, onOpenChange, onConfirm }: { open: boolean, onOpenChange: (open: boolean) => void, onConfirm: () => void }) {
-  return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="border-amber-200 bg-amber-50">
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2 text-amber-800">
-            <AlertCircle className="w-6 h-6" /> ¿Reiniciar la ronda?
-          </AlertDialogTitle>
-          <AlertDialogDescription className="text-amber-900/80">
-            Esto devolverá a <b>todos los participantes</b> a la ruleta para jugar de nuevo.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel className="bg-white hover:bg-amber-100 border-amber-200 text-amber-900">Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-amber-600 hover:bg-amber-700 text-white border-none">
-            Sí, reiniciar
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+            <h4 
+              className="text-xl font-black mb-2 uppercase tracking-widest"
+              style={{ color: getTeamColors(winner.team).text }}
+            >
+              ¡Equipo {getTeamColors(winner.team).name}!
+            </h4>
+            
+            <p className="text-4xl font-black text-gray-900 mb-8 break-words leading-tight">{winner.username}</p>
+            
+            <Button onClick={() => setWinner(null)} className="w-full py-6 rounded-xl font-bold text-lg bg-gray-900 text-white hover:bg-gray-800">
+              Aceptar
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
