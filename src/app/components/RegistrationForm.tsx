@@ -21,10 +21,11 @@ interface RegistrationFormProps {
 
 type Team = 'blue' | 'yellow' | 'red'
 
-const teams: { value: Team; label: string; borderColor: string; icon: string }[] = [
-  { value: 'blue', label: 'Sabiduría', borderColor: 'border-blue-500', icon: articuno },
-  { value: 'yellow', label: 'Instinto', borderColor: 'border-yellow-400', icon: zapdos },
-  { value: 'red', label: 'Valor', borderColor: 'border-red-500', icon: moltres },
+// ACTUALIZADO: Añadimos colores de fondo, texto y filtros para los iconos cuando se seleccionan
+const teams: { value: Team; label: string; borderColor: string; activeBg: string; activeText: string; activeIcon: string; icon: string }[] = [
+  { value: 'blue', label: 'Sabiduría', borderColor: 'border-blue-500', activeBg: 'bg-blue-500', activeText: 'text-white', activeIcon: 'brightness-0 invert', icon: articuno },
+  { value: 'yellow', label: 'Instinto', borderColor: 'border-yellow-400', activeBg: 'bg-yellow-400', activeText: 'text-black', activeIcon: 'brightness-0', icon: zapdos },
+  { value: 'red', label: 'Valor', borderColor: 'border-red-500', activeBg: 'bg-red-500', activeText: 'text-white', activeIcon: 'brightness-0 invert', icon: moltres },
 ]
 
 export function RegistrationForm({ saveRegistration, isAdmin = false }: RegistrationFormProps) {
@@ -34,7 +35,6 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   
-  // Estado para mostrar la ventana de las fotos de ejemplo
   const [showExamples, setShowExamples] = useState(false)
   
   const inputRef = useRef<HTMLInputElement>(null)
@@ -105,12 +105,22 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
                       onClick={() => setTeam(t.value)} 
                       disabled={loading}
                       className={`
-                        flex flex-col items-center justify-center gap-2 py-4 px-1 rounded-2xl border-2 transition-all duration-200 bg-white
-                        ${selected ? `${t.borderColor} bg-gray-50/50 scale-105 shadow-sm` : `border-gray-200 hover:border-gray-300`}
+                        flex flex-col items-center justify-center gap-2 py-4 px-1 rounded-2xl border-2 transition-all duration-200
+                        ${selected 
+                          ? `${t.borderColor} ${t.activeBg} scale-105 shadow-md` // Relleno de color si está seleccionado
+                          : `${t.borderColor} bg-white hover:bg-gray-50 opacity-80 hover:opacity-100` // Marco de color por defecto
+                        }
                       `}
                     >
-                      <img src={t.icon} alt={t.label} className="w-10 h-10 sm:w-12 sm:h-12 brightness-0 opacity-90 object-contain" />
-                      <span className="font-bold text-xs sm:text-sm text-gray-900">{t.label}</span>
+                      <img 
+                        src={t.icon} 
+                        alt={t.label} 
+                        // Aplicamos el filtro para cambiar a blanco o negro según el color del fondo
+                        className={`w-10 h-10 sm:w-12 sm:h-12 object-contain transition-all duration-200 ${selected ? t.activeIcon : 'brightness-0 opacity-90'}`} 
+                      />
+                      <span className={`font-bold text-xs sm:text-sm transition-colors duration-200 ${selected ? t.activeText : 'text-gray-900'}`}>
+                        {t.label}
+                      </span>
                     </button>
                   )
                 })}
@@ -143,7 +153,7 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
             {success && (
               <Alert className="bg-green-50 border-green-200 text-green-800 rounded-xl">
                 <CheckCircle2 className="h-4 w-4" />
-                <AlertDescription className="font-bold">Ya estás registrado.</AlertDescription>
+                <AlertDescription className="font-bold">Registro completado, ¡buena suerte!</AlertDescription>
               </Alert>
             )}
 
@@ -154,13 +164,11 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
         </CardContent>
       </Card>
 
-      {/* MODAL DE IMÁGENES DE EJEMPLO ACTUALIZADO */}
+      {/* MODAL DE IMÁGENES DE EJEMPLO */}
       {showExamples && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowExamples(false)}>
-          {/* Se agregó max-h-[90vh] y flex-col para que nunca sea más grande que la pantalla */}
           <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-2xl w-full relative shadow-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             
-            {/* BOTÓN X CORREGIDO: Ahora está fijo en la esquina interior superior derecha */}
             <button 
               onClick={() => setShowExamples(false)} 
               className="absolute top-4 right-4 p-2 bg-gray-100 text-gray-600 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors z-10"
@@ -173,12 +181,9 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
               <p className="text-center text-gray-600 mb-4 text-xs sm:text-sm">Asegúrate de mostrar tu perfil así cuando ganes.</p>
             </div>
             
-            {/* Contenedor de imágenes scrollable si es necesario */}
             <div className="overflow-y-auto overflow-x-hidden p-1 flex-1">
-              {/* CORRECCIÓN PRINCIPAL: Se forzó a grid-cols-2 en todas las pantallas */}
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="rounded-xl overflow-hidden shadow-sm border border-gray-100 flex flex-col items-center bg-gray-50">
-                  {/* object-contain y limitante de altura para que no se estiren al infinito */}
                   <img src={pogoImg} alt="Ejemplo Pokémon GO" className="w-full h-auto max-h-[40vh] object-contain p-1" />
                   <span className="py-2 text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wide">Pokémon GO</span>
                 </div>

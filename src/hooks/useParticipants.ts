@@ -5,9 +5,8 @@ export interface Participant { id: string; username: string; team: 'blue' | 'yel
 export interface BannedUser { id: string; ip_address: string; username: string; expires_at: string }
 export interface RecentWinner { id: string; username: string; ip_address: string; won_at: string }
 export interface Sponsor { id: string; name: string; url: string; image_url: string; order_index: number }
-export interface Banner { id: string; image_url: string; }
+export interface Banner { id: string; image_url: string; link_url?: string }
 
-// ALGORITMO MATEMÁTICO PARA DETECTAR NOMBRES CLONADOS O CON ERRORES INTENCIONALES
 function getLevenshteinDistance(a: string, b: string): number {
   const matrix = [];
   for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
@@ -67,8 +66,6 @@ export function useParticipants() {
   const addParticipant = async (username: string, team: string, ip: string, isAdminBypass: boolean = false) => {
     if (!isAdminBypass) {
       const now = new Date()
-      
-      // 1. Verificación Clásica (IP o Nombre Exacto en Lista Negra)
       const { data: bannedIps } = await supabase.from('banned_ips').select('expires_at').eq('ip_address', ip)
       const { data: bannedNames } = await supabase.from('banned_ips').select('expires_at').ilike('username', username)
       const isBannedIp = bannedIps && bannedIps.some(ban => new Date(ban.expires_at) > now)
@@ -79,45 +76,31 @@ export function useParticipants() {
         return; 
       }
 
-      // 2. NUEVO: SISTEMA ANTI-CLONES (Similitud de Nombres)
       const cleanNew = username.toLowerCase().trim().replace(/[^a-z0-9]/g, '')
       const lettersNew = cleanNew.replace(/[0-9]/g, '')
       let isAbuser = false
 
-      // Revisamos la lista de la gente que ya está participando
       const activeList = participants.filter(p => p.status === 'active')
-      
       for (const p of activeList) {
         const cleanExisting = p.username.toLowerCase().trim().replace(/[^a-z0-9]/g, '')
         const lettersExisting = cleanExisting.replace(/[0-9]/g, '')
 
-        // Caso A: Tienen las mismas letras exactas, solo cambiaron el número (Ej: FatedRacketeer3 y FatedRacketeer1)
-        if (lettersNew === lettersExisting && lettersNew.length >= 4) {
-          isAbuser = true; break;
-        }
-        
-        // Caso B: Agregaron o quitaron letras para engañar (Ej: FatedRacketeer y FatedRaccketeer)
+        if (lettersNew === lettersExisting && lettersNew.length >= 4) { isAbuser = true; break; }
         if (cleanNew.length >= 8 && cleanExisting.length >= 8) {
           const dist = getLevenshteinDistance(cleanNew, cleanExisting)
-          // Si la diferencia es de 1 o 2 letras, lo consideramos un clon abusivo
-          if (dist <= 2) {
-            isAbuser = true; break;
-          }
+          if (dist <= 2) { isAbuser = true; break; }
         }
       }
 
-      // Si detectamos al clon, lo shadowbaneamos
       if (isAbuser) {
         await new Promise(resolve => setTimeout(resolve, 950))
         return; 
       }
 
-      // 3. Bloqueo normal de doble registro por dispositivo
       const { data: existingIp } = await supabase.from('participants').select('id').eq('ip_address', ip).limit(1)
       if (existingIp && existingIp.length > 0) throw new Error('Solo se permite un registro por dispositivo.')
     }
     
-    // Si pasa todas las pruebas de seguridad, lo guardamos
     const finalIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
     const { error } = await supabase.from('participants').insert([{ username, team, status: 'active', ip_address: finalIp }])
     if (error) { if (error.code === '23505') throw new Error('Este usuario ya está registrado en la ruleta.'); throw error }
@@ -126,7 +109,6 @@ export function useParticipants() {
 
   const deleteParticipant = async (id: string) => { await supabase.from('participants').delete().eq('id', id); await fetchData() }
   const deleteMultiple = async (ids: string[]) => { await supabase.from('participants').delete().in('id', ids); await fetchData() }
-
   const updateStatus = async (id: string, status: string) => {
     await supabase.from('participants').update({ status }).eq('id', id)
     if (status === 'winner') {
@@ -168,7 +150,15 @@ export function useParticipants() {
   }
   const updateSponsorImage = async (id: string, image_url: string) => { await supabase.from('sponsors').update({ image_url }).eq('id', id); await fetchData() }
 
-  const addBanner = async (image_url: string) => { await supabase.from('sponsor_banners').insert([{ image_url }]); await fetchData() }
+  const addBanner = async (image_url: string, link_url: string = '') => { 
+    await supabase.from('sponsor_banners').insert([{ image_url, link_url }]); 
+    await fetchData() 
+  }
+  // NUEVO: Función para actualizar un banner existente
+  const updateBanner = async (id: string, image_url: string, link_url: string = '') => {
+    await supabase.from('sponsor_banners').update({ image_url, link_url }).eq('id', id);
+    await fetchData();
+  }
   const deleteBanner = async (id: string) => { await supabase.from('sponsor_banners').delete().eq('id', id); await fetchData() }
 
   return {
@@ -176,6 +166,6 @@ export function useParticipants() {
     addParticipant, deleteParticipant, deleteMultiple, updateStatus,
     banUser, unbanUser, resetGame, clearAll, 
     addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorImage,
-    addBanner, deleteBanner
+    addBanner, updateBanner, deleteBanner
   }
 }
