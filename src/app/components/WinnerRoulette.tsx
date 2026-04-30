@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/app/components/ui/button'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, LogOut, Trophy } from 'lucide-react'
 import type { Participant } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 
@@ -134,24 +134,28 @@ export function WinnerRoulette({ onBack, participants, updateStatus, onResetGame
     <div className="flex flex-col items-center justify-center min-h-[85vh] w-full max-w-md mx-auto">
       <div className="w-full bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative z-10">
         
-        <div className="p-4 sm:p-5 flex justify-between items-center bg-white">
+        <div className="p-4 sm:p-5 flex justify-between items-center bg-white gap-2">
           <h2 className="text-xl sm:text-2xl font-black text-gray-900 ml-2">Ruleta</h2>
           <div className="flex gap-2">
+            {/* BOTÓN REINTEGRAR (Icono + Texto siempre visibles) */}
             <Button 
               onClick={onResetGame} 
               disabled={isSpinning}
-              className="bg-[#FBBF24] hover:bg-[#F59E0B] text-black font-bold rounded-xl border-2 border-[#F59E0B] px-3 sm:px-4 h-10"
+              className="bg-[#FBBF24] hover:bg-[#F59E0B] text-black font-bold rounded-xl border-2 border-[#F59E0B] px-3 sm:px-4 h-10 flex items-center gap-1.5 text-xs sm:text-sm"
               title="Reintegrar todos los participantes"
             >
-              <RotateCcw className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Reintegrar</span>
+              <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+              <span>Reintegrar todos</span>
             </Button>
+            
+            {/* BOTÓN SALIR (Añadido Icono LogOut + Texto) */}
             <Button 
               onClick={onBack} 
               disabled={isSpinning}
-              className="bg-[#FB7185] hover:bg-[#F43F5E] text-black font-bold rounded-xl border-2 border-[#F43F5E] px-4 h-10"
+              className="bg-[#FB7185] hover:bg-[#F43F5E] text-black font-bold rounded-xl border-2 border-[#F43F5E] px-3 sm:px-4 h-10 flex items-center gap-1.5 text-xs sm:text-sm"
             >
-              Salir
+              <LogOut className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+              <span>Salir</span>
             </Button>
           </div>
         </div>
@@ -186,7 +190,7 @@ export function WinnerRoulette({ onBack, participants, updateStatus, onResetGame
         </div>
       </div>
 
-      {/* MODAL DE GANADOR ACTUALIZADO CON TINTA DINÁMICA */}
+      {/* MODAL DE GANADOR */}
       {winner && !isSpinning && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setWinner(null)}>
           <div 
@@ -199,13 +203,12 @@ export function WinnerRoulette({ onBack, participants, updateStatus, onResetGame
                 className="p-5 rounded-full shadow-inner border-[3px]"
                 style={{ backgroundColor: getTeamColors(winner.team).bg, borderColor: getTeamColors(winner.team).border }}
               >
-                {/* MAGIA DE MÁSCARAS CSS: El icono negro se pinta con el color exacto del equipo */}
                 <div 
                   className="w-16 h-16 drop-shadow-sm"
                   style={{ 
-                    backgroundColor: getTeamColors(winner.team).border, // Relleno de color
-                    WebkitMask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat`, // Forma del pájaro
-                    mask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat` // Forma del pájaro (estándar)
+                    backgroundColor: getTeamColors(winner.team).border,
+                    WebkitMask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat`,
+                    mask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat`
                   }}
                   title={`Equipo ${getTeamColors(winner.team).name}`}
                 />
