@@ -10,7 +10,6 @@ import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Checkbox } from '@/app/components/ui/checkbox'
 
-// IMPORTANDO TUS ASSETS
 import fondoImg from '@/assets/fondo.png'
 import logoImg from '@/assets/Logo.png'
 import wpIcon from '@/assets/w.png'
@@ -27,19 +26,16 @@ export default function App() {
   
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
 
-  // Estados para la gestión de patrocinadores
   const [showSponsorModal, setShowSponsorModal] = useState(false)
   const [newSponsorUrl, setNewSponsorUrl] = useState('')
   const [addingSponsor, setAddingSponsor] = useState(false)
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<Set<string>>(new Set())
 
-  // NUEVOS Estados para EDITAR Patrocinadores
   const [editingSponsor, setEditingSponsor] = useState<any>(null)
   const [editSponsorImgUrl, setEditSponsorImgUrl] = useState('')
   const [editSponsorDestUrl, setEditSponsorDestUrl] = useState('')
   const [isUpdatingSponsor, setIsUpdatingSponsor] = useState(false)
 
-  // Estados para la gestión de Banners
   const [showBannerModal, setShowBannerModal] = useState(false)
   const [bannerImgInput, setBannerImgInput] = useState('')
   const [bannerLinkInput, setBannerLinkInput] = useState('')
@@ -50,7 +46,8 @@ export default function App() {
     participants, bannedUsers, recentWinners, sponsors, banners,
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
-    addBanner, updateBanner, deleteBanner
+    addBanner, updateBanner, deleteBanner,
+    spectatorView, incomingSpin, broadcastView, broadcastSpin // SE IMPORTAN LAS NUEVAS VARIABLES
   } = useParticipants()
 
   const [isAdmin, setIsAdmin] = useState(() => {
@@ -69,6 +66,13 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false') }, [isAdmin])
   useEffect(() => { if (!showLogin) { setShowPassword(false); setLoginError('') } }, [showLogin])
+
+  // NUEVO: SINCRONIZACIÓN MÁGICA CON EL ADMIN
+  useEffect(() => {
+    if (!isAdmin) {
+      setCurrentView(spectatorView)
+    }
+  }, [spectatorView, isAdmin])
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => { e.preventDefault(); setInstallPrompt(e) }
@@ -99,9 +103,19 @@ export default function App() {
 
   const onLoginSubmit = (e: React.FormEvent) => { e.preventDefault(); handleLogin() }
   const handleUsernameKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); passwordRef.current?.focus() } }
-  const handleLogout = () => { setIsAdmin(false); setActiveTab('register') }
+  const handleLogout = () => { setIsAdmin(false); setActiveTab('register'); broadcastView('main') }
 
-  // Funciones para Patrocinadores
+  // NUEVO: MANEJADORES DE VISTA PARA EL ADMIN
+  const handleStartRoulette = () => {
+    setCurrentView('roulette');
+    broadcastView('roulette');
+  }
+
+  const handleExitRoulette = () => {
+    setCurrentView('main');
+    broadcastView('main');
+  }
+
   const submitSponsor = async () => {
     if (!newSponsorUrl.trim()) return
     setAddingSponsor(true)
@@ -111,7 +125,6 @@ export default function App() {
     setShowSponsorModal(false)
   }
 
-  // NUEVO: Funciones para abrir y guardar el modal de Edición de Patrocinador
   const handleOpenEditSponsor = (s: any) => {
     setEditingSponsor(s)
     setEditSponsorImgUrl(s.image_url)
@@ -143,7 +156,6 @@ export default function App() {
     setSelectedSponsorIds(newSelection)
   }
 
-  // Funciones para Banners
   const handleOpenBannerModal = (id: string = '', img: string = '', link: string = '') => {
     setEditingBannerId(id ? id : null)
     setBannerImgInput(img)
@@ -171,7 +183,16 @@ export default function App() {
   if (currentView === 'roulette') {
     return (
       <div className="min-h-screen p-4 sm:p-6 text-white" style={{ backgroundColor: '#0661C6', backgroundImage: `url(${fondoImg})`, backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat' }}>
-        <WinnerRoulette onBack={() => setCurrentView('main')} participants={participants} recentWinners={recentWinners} updateStatus={updateStatus} onResetGame={resetGame} />
+        <WinnerRoulette 
+          onBack={handleExitRoulette} 
+          participants={participants} 
+          recentWinners={recentWinners} 
+          updateStatus={updateStatus} 
+          onResetGame={resetGame} 
+          isSpectator={!isAdmin} 
+          incomingSpin={incomingSpin} 
+          broadcastSpin={broadcastSpin} 
+        />
       </div>
     )
   }
@@ -224,7 +245,6 @@ export default function App() {
              
              {isAdmin && (
                <div className="w-full bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 mb-6">
-                 {/* BANNERS ADMIN */}
                  <div className="mb-8">
                    <h3 className="font-bold text-[#6B21A8] text-xl flex items-center gap-2 mb-1"><ImageIcon className="w-6 h-6"/> Banners Promocionales</h3>
                    <p className="text-sm text-gray-500 mb-4">Imágenes que rotarán en la vista del público.</p>
@@ -245,7 +265,6 @@ export default function App() {
                    </div>
                  </div>
 
-                 {/* PATROCINADORES ADMIN */}
                  <div>
                    <h3 className="font-bold text-[#9D174D] text-xl flex items-center gap-2 mb-4"><Instagram className="w-6 h-6"/> Cuentas Patrocinadoras</h3>
                    
@@ -273,7 +292,6 @@ export default function App() {
                            <span className="font-bold text-gray-700 truncate text-sm">@{s.name}</span>
                          </div>
                          <div className="flex items-center gap-1 shrink-0">
-                           {/* AHORA ABRE EL MODAL NUEVO AL TOCAR EL LÁPIZ */}
                            <Button variant="ghost" size="icon" onClick={() => handleOpenEditSponsor(s)} className="rounded-lg text-gray-400 hover:text-blue-600 bg-gray-50/50"><Pencil className="h-4 w-4" /></Button>
                            <Button variant="ghost" size="icon" onClick={() => deleteSponsor(s.id)} className="rounded-lg text-gray-400 hover:text-red-600 bg-gray-50/50"><Trash2 className="h-4 w-4" /></Button>
                          </div>
@@ -342,7 +360,8 @@ export default function App() {
               <TabsContent value="ruleta" className="mt-0 outline-none">
                 <AdminPanel 
                   participants={participants} bannedUsers={bannedUsers}
-                  onDelete={deleteParticipant} onDeleteMultiple={deleteMultiple} onClearAll={clearAll} onStartRoulette={() => setCurrentView('roulette')} 
+                  onDelete={deleteParticipant} onDeleteMultiple={deleteMultiple} onClearAll={clearAll} 
+                  onStartRoulette={handleStartRoulette} 
                   onBanUser={banUser} onUnbanUser={unbanUser}
                 />
               </TabsContent>
@@ -367,6 +386,7 @@ export default function App() {
         </footer>
       </div>
 
+      {/* MODALES RESTRINGIDOS... (Mismo código que tenías) */}
       {showLogin && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowLogin(false)}>
           <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
@@ -402,16 +422,12 @@ export default function App() {
         </div>
       )}
 
-      {/* NUEVO MODAL PARA EDITAR PATROCINADORES */}
       {editingSponsor && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setEditingSponsor(null)}>
           <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center mb-5"><div className="bg-pink-50 p-4 rounded-full text-[#D946EF] shadow-inner"><Pencil className="w-8 h-8" /></div></div>
             <h2 className="text-2xl font-black mb-2 text-center text-gray-800">Editar Patrocinador</h2>
-            <p className="text-sm text-gray-500 mb-6 text-center leading-relaxed">
-              Actualiza la foto o el enlace de destino para <span className="font-bold text-gray-900">@{editingSponsor.name}</span>.
-            </p>
-
+            <p className="text-sm text-gray-500 mb-6 text-center leading-relaxed">Actualiza la foto o el enlace para <span className="font-bold text-gray-900">@{editingSponsor.name}</span>.</p>
             <div className="space-y-4 mb-6">
               <div>
                 <label className="text-sm font-bold text-gray-700 block mb-1">Enlace de la imagen (Foto)</label>
@@ -422,27 +438,20 @@ export default function App() {
                 <Input placeholder="Ej: https://instagram.com/..." value={editSponsorDestUrl} onChange={(e) => setEditSponsorDestUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitEditSponsor()} className="border-gray-200 focus-visible:ring-[#D946EF] rounded-xl px-4 py-5 bg-gray-50 text-base" />
               </div>
             </div>
-
             <div className="flex flex-col gap-3">
-              <Button onClick={submitEditSponsor} disabled={isUpdatingSponsor || !editSponsorImgUrl || !editSponsorDestUrl} className="w-full rounded-xl py-6 bg-[#D946EF] hover:bg-[#C026D3] text-white font-bold text-lg">
-                {isUpdatingSponsor ? 'Guardando...' : 'Guardar Cambios'}
-              </Button>
+              <Button onClick={submitEditSponsor} disabled={isUpdatingSponsor || !editSponsorImgUrl || !editSponsorDestUrl} className="w-full rounded-xl py-6 bg-[#D946EF] hover:bg-[#C026D3] text-white font-bold text-lg">{isUpdatingSponsor ? 'Guardando...' : 'Guardar Cambios'}</Button>
               <Button variant="outline" className="w-full rounded-xl py-6 font-bold text-gray-600 border-0 bg-gray-100 hover:bg-gray-200 text-lg" onClick={() => setEditingSponsor(null)}>Cancelar</Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL PARA BANNERS */}
       {showBannerModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowBannerModal(false)}>
           <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center mb-5"><div className="bg-purple-50 p-4 rounded-full text-[#A855F7] shadow-inner"><ImageIcon className="w-8 h-8" /></div></div>
-            <h2 className="text-2xl font-black mb-2 text-center text-gray-800">
-              {editingBannerId ? 'Editar Banner' : 'Añadir Banner'}
-            </h2>
+            <h2 className="text-2xl font-black mb-2 text-center text-gray-800">{editingBannerId ? 'Editar Banner' : 'Añadir Banner'}</h2>
             <p className="text-sm text-gray-500 mb-6 text-center leading-relaxed">Pega el enlace de la imagen y, opcionalmente, hacia dónde debe redirigir al tocarlo.</p>
-            
             <div className="space-y-4 mb-6">
               <div>
                 <label className="text-sm font-bold text-gray-700 block mb-1">Enlace de la imagen (JPG/PNG) *</label>
@@ -453,11 +462,8 @@ export default function App() {
                 <Input placeholder="Ej: https://wa.me/..." value={bannerLinkInput} onChange={(e) => setBannerLinkInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitBanner()} className="border-gray-200 focus-visible:ring-[#A855F7] rounded-xl px-4 py-5 bg-gray-50 text-base" />
               </div>
             </div>
-
             <div className="flex flex-col gap-3">
-              <Button onClick={submitBanner} disabled={addingBanner || !bannerImgInput} className="w-full rounded-xl py-6 bg-[#A855F7] hover:bg-[#9333EA] text-white font-bold text-lg">
-                {addingBanner ? 'Guardando...' : 'Guardar Banner'}
-              </Button>
+              <Button onClick={submitBanner} disabled={addingBanner || !bannerImgInput} className="w-full rounded-xl py-6 bg-[#A855F7] hover:bg-[#9333EA] text-white font-bold text-lg">{addingBanner ? 'Guardando...' : 'Guardar Banner'}</Button>
               <Button variant="outline" className="w-full rounded-xl py-6 font-bold text-gray-600 border-0 bg-gray-100 hover:bg-gray-200 text-lg" onClick={() => setShowBannerModal(false)}>Cancelar</Button>
             </div>
           </div>

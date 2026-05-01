@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 export interface Participant { id: string; username: string; team: 'blue' | 'yellow' | 'red'; status: 'active' | 'winner' | 'discarded'; ip_address?: string }
@@ -31,6 +31,11 @@ export function useParticipants() {
   const [banners, setBanners] = useState<Banner[]>([])
   const [loading, setLoading] = useState(true)
 
+  // NUEVOS ESTADOS PARA RULETA EN VIVO
+  const [spectatorView, setSpectatorView] = useState<'main' | 'roulette'>('main')
+  const [incomingSpin, setIncomingSpin] = useState<{ rotation: number, winnerId: string } | null>(null)
+  const channelRef = useRef<any>(null)
+
   const fetchData = async () => {
     try {
       const { data: pData } = await supabase.from('participants').select('*').order('created_at', { ascending: true })
@@ -53,15 +58,42 @@ export function useParticipants() {
 
   useEffect(() => {
     fetchData()
-    const channel = supabase.channel('public:db_changes')
+    const dbChannel = supabase.channel('public:db_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'banned_ips' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_winners' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsors' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_banners' }, () => fetchData())
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    // NUEVO: CANAL DE BROADCAST PARA SINCRONIZAR A TODOS
+    const syncChannel = supabase.channel('roulette_sync', { config: { broadcast: { self: false } } })
+    
+    syncChannel.on('broadcast', { event: 'set_view' }, (payload) => {
+      setSpectatorView(payload.payload.view)
+    })
+    
+    syncChannel.on('broadcast', { event: 'spin' }, (payload) => {
+      setIncomingSpin(payload.payload)
+    })
+    
+    syncChannel.subscribe()
+    channelRef.current = syncChannel
+
+    return () => { 
+      supabase.removeChannel(dbChannel)
+      supabase.removeChannel(syncChannel)
+    }
   }, [])
+
+  // NUEVAS FUNCIONES PARA TRANSMITIR ESTADO A LOS ESPECTADORES
+  const broadcastView = async (view: 'main' | 'roulette') => {
+    if (channelRef.current) await channelRef.current.send({ type: 'broadcast', event: 'set_view', payload: { view } })
+  }
+
+  const broadcastSpin = async (rotation: number, winnerId: string) => {
+    if (channelRef.current) await channelRef.current.send({ type: 'broadcast', event: 'spin', payload: { rotation, winnerId } })
+  }
 
   const addParticipant = async (username: string, team: string, ip: string, isAdminBypass: boolean = false) => {
     if (!isAdminBypass) {
@@ -71,10 +103,7 @@ export function useParticipants() {
       const isBannedIp = bannedIps && bannedIps.some(ban => new Date(ban.expires_at) > now)
       const isBannedName = bannedNames && bannedNames.some(ban => new Date(ban.expires_at) > now)
 
-      if (isBannedIp || isBannedName) {
-        await new Promise(resolve => setTimeout(resolve, 800))
-        return; 
-      }
+      if (isBannedIp || isBannedName) { await new Promise(resolve => setTimeout(resolve, 800)); return; }
 
       const cleanNew = username.toLowerCase().trim().replace(/[^a-z0-9]/g, '')
       const lettersNew = cleanNew.replace(/[0-9]/g, '')
@@ -92,10 +121,7 @@ export function useParticipants() {
         }
       }
 
-      if (isAbuser) {
-        await new Promise(resolve => setTimeout(resolve, 950))
-        return; 
-      }
+      if (isAbuser) { await new Promise(resolve => setTimeout(resolve, 950)); return; }
 
       const { data: existingIp } = await supabase.from('participants').select('id').eq('ip_address', ip).limit(1)
       if (existingIp && existingIp.length > 0) throw new Error('Solo se permite un registro por dispositivo.')
@@ -149,7 +175,6 @@ export function useParticipants() {
     await supabase.from('sponsors').upsert(updates)
   }
   
-  // NUEVO: Ahora actualiza ambos campos
   const updateSponsorDetails = async (id: string, image_url: string, url: string) => { 
     await supabase.from('sponsors').update({ image_url, url }).eq('id', id); 
     await fetchData() 
@@ -170,6 +195,7 @@ export function useParticipants() {
     addParticipant, deleteParticipant, deleteMultiple, updateStatus,
     banUser, unbanUser, resetGame, clearAll, 
     addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
-    addBanner, updateBanner, deleteBanner
+    addBanner, updateBanner, deleteBanner,
+    spectatorView, incomingSpin, broadcastView, broadcastSpin // NUEVAS VARIABLES EXPORTADAS
   }
 }
