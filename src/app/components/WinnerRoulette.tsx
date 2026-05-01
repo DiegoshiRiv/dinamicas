@@ -15,7 +15,6 @@ interface WinnerRouletteProps {
   updateStatus: (id: string, status: string) => void
   onResetGame: () => void
   
-  // NUEVAS PROPIEDADES PARA ESPECTADORES
   isSpectator?: boolean
   incomingSpin?: { rotation: number, winnerId: string } | null
   broadcastSpin?: (rotation: number, winnerId: string) => void
@@ -100,7 +99,6 @@ export function WinnerRoulette({
     ctx.fill()
   }, [activePlayers])
 
-  // NUEVO EFECTO: ESCUCHAR SI EL ADMIN GIRÓ LA RULETA (Solo Espectadores)
   useEffect(() => {
     if (isSpectator && incomingSpin) {
       setIsSpinning(true)
@@ -116,7 +114,6 @@ export function WinnerRoulette({
     }
   }, [incomingSpin, isSpectator])
 
-  // GIRO ORIGINAL: Solo lo puede hacer el Admin
   const spinRoulette = () => {
     if (isSpinning || activePlayers.length === 0 || isSpectator) return
     setIsSpinning(true)
@@ -133,7 +130,6 @@ export function WinnerRoulette({
 
     setRotation(newRotation)
 
-    // ¡EL ADMIN AVISA A TODOS LOS CELULARES POR INTERNET QUE LA RULETA SE MOVIÓ!
     if (broadcastSpin) {
       broadcastSpin(newRotation, winningPlayer.id)
     }
@@ -162,22 +158,24 @@ export function WinnerRoulette({
         <div className="p-4 sm:p-5 flex justify-between items-center bg-white gap-2">
           <h2 className="text-xl sm:text-2xl font-black text-gray-900 ml-2">Ruleta</h2>
           
-          {/* SI NO ES ESPECTADOR (ES ADMIN), VE BOTONES NORMALES */}
           {!isSpectator ? (
             <div className="flex gap-2">
               <Button onClick={onResetGame} disabled={isSpinning} className="bg-[#FBBF24] hover:bg-[#F59E0B] text-black font-bold rounded-xl border-2 border-[#F59E0B] px-3 sm:px-4 h-10 flex items-center gap-1.5 text-xs sm:text-sm">
-                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" /><span>Reintegrar todos</span>
+                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" /><span className="hidden sm:inline">Reintegrar</span>
               </Button>
               <Button onClick={onBack} disabled={isSpinning} className="bg-[#FB7185] hover:bg-[#F43F5E] text-black font-bold rounded-xl border-2 border-[#F43F5E] px-3 sm:px-4 h-10 flex items-center gap-1.5 text-xs sm:text-sm">
-                <LogOut className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" /><span>Salir</span>
+                <LogOut className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" /><span className="hidden sm:inline">Salir</span>
               </Button>
             </div>
           ) : (
-            // SI ES ESPECTADOR, VE UN INDICADOR DE TRANSMISIÓN EN VIVO
+            /* NUEVO: ESPECTADORES AHORA VEN UN BOTÓN DE CERRAR BLANCO Y LIMPIO */
             <div className="flex gap-2 mr-2">
-              <span className="bg-red-50 text-red-600 border border-red-200 px-4 py-1.5 rounded-full font-black text-sm animate-pulse flex items-center gap-2 shadow-inner">
-                <Radio className="w-4 h-4" /> En Vivo
+              <span className="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl font-black text-xs sm:text-sm animate-pulse flex items-center gap-1.5 shadow-inner">
+                <Radio className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">En Vivo</span>
               </span>
+              <Button onClick={onBack} disabled={isSpinning} className="bg-white hover:bg-gray-50 text-gray-500 font-bold rounded-xl border-2 border-gray-200 px-3 sm:px-4 h-10 flex items-center gap-1.5 text-xs sm:text-sm" title="Volver al registro">
+                <LogOut className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Cerrar</span>
+              </Button>
             </div>
           )}
         </div>
@@ -199,15 +197,11 @@ export function WinnerRoulette({
             />
           </div>
 
-          {/* EL ADMIN VE BOTON MORADO, EL ESPECTADOR VE UN TEXTO GRIS */}
-          {!isSpectator ? (
+          {/* NUEVO: SI ES ESPECTADOR, SE OCULTA TOTALMENTE EL BOTÓN PARA UNA VISTA MUCHO MÁS LIMPIA */}
+          {!isSpectator && (
             <Button onClick={spinRoulette} disabled={isSpinning || activePlayers.length === 0} className="w-full h-16 sm:h-20 bg-[#A855F7] hover:bg-[#9333EA] text-white rounded-2xl text-2xl sm:text-3xl font-black shadow-lg shadow-purple-500/30 tracking-wider disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95">
               {isSpinning ? 'GIRANDO...' : 'GIRAR RULETA'}
             </Button>
-          ) : (
-            <div className="w-full h-16 sm:h-20 bg-gray-50 border-2 border-dashed border-gray-200 text-gray-400 rounded-2xl flex items-center justify-center text-xl sm:text-2xl font-black shadow-inner">
-              {isSpinning ? 'GIRANDO...' : 'ESPERANDO AL ADMIN...'}
-            </div>
           )}
         </div>
       </div>

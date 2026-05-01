@@ -47,7 +47,7 @@ export default function App() {
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner,
-    spectatorView, incomingSpin, broadcastView, broadcastSpin // SE IMPORTAN LAS NUEVAS VARIABLES
+    spectatorView, incomingSpin, broadcastView, broadcastSpin 
   } = useParticipants()
 
   const [isAdmin, setIsAdmin] = useState(() => {
@@ -67,7 +67,6 @@ export default function App() {
   useEffect(() => { localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false') }, [isAdmin])
   useEffect(() => { if (!showLogin) { setShowPassword(false); setLoginError('') } }, [showLogin])
 
-  // NUEVO: SINCRONIZACIÓN MÁGICA CON EL ADMIN
   useEffect(() => {
     if (!isAdmin) {
       setCurrentView(spectatorView)
@@ -105,7 +104,6 @@ export default function App() {
   const handleUsernameKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); passwordRef.current?.focus() } }
   const handleLogout = () => { setIsAdmin(false); setActiveTab('register'); broadcastView('main') }
 
-  // NUEVO: MANEJADORES DE VISTA PARA EL ADMIN
   const handleStartRoulette = () => {
     setCurrentView('roulette');
     broadcastView('roulette');
@@ -184,7 +182,7 @@ export default function App() {
     return (
       <div className="min-h-screen p-4 sm:p-6 text-white" style={{ backgroundColor: '#0661C6', backgroundImage: `url(${fondoImg})`, backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat' }}>
         <WinnerRoulette 
-          onBack={handleExitRoulette} 
+          onBack={isAdmin ? handleExitRoulette : () => setCurrentView('main')} 
           participants={participants} 
           recentWinners={recentWinners} 
           updateStatus={updateStatus} 
@@ -386,7 +384,6 @@ export default function App() {
         </footer>
       </div>
 
-      {/* MODALES RESTRINGIDOS... (Mismo código que tenías) */}
       {showLogin && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowLogin(false)}>
           <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
