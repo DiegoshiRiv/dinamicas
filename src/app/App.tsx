@@ -4,7 +4,8 @@ import { RegistrationForm } from '@/app/components/RegistrationForm'
 import { AdminPanel } from '@/app/components/AdminPanel'
 import { WinnerRoulette } from '@/app/components/WinnerRoulette'
 import { QRCodeDisplay } from '@/app/components/QRCodeDisplay'
-import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, Instagram, Facebook, Twitter, Download, Heart, Image as ImageIcon, Plus, Trash2, ChevronUp, ChevronDown, Pencil } from 'lucide-react'
+// NUEVO: Agregamos Radio y ChevronRight a los iconos importados
+import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, Instagram, Facebook, Twitter, Download, Heart, Image as ImageIcon, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Radio, ChevronRight } from 'lucide-react'
 import { useParticipants } from '@/hooks/useParticipants'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
@@ -214,6 +215,26 @@ export default function App() {
         <header className="text-center mb-6 mt-4">
           <img src={logoImg} alt="Pokémon GO GDL" className="w-full max-w-[280px] sm:max-w-[320px] mx-auto drop-shadow-xl relative z-10" />
         </header>
+
+        {/* NUEVO: BANNER ROJO PARA ESPECTADORES QUE SALIERON DE LA RULETA */}
+        {!isAdmin && spectatorView === 'roulette' && (
+          <div 
+            onClick={() => setCurrentView('roulette')}
+            className="w-full bg-red-500 hover:bg-red-600 text-white rounded-2xl p-4 mb-6 cursor-pointer flex items-center justify-between shadow-lg shadow-red-500/30 transition-all transform hover:scale-[1.02] relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+            <div className="flex items-center gap-4 relative z-10">
+              <div className="bg-white text-red-500 p-2.5 rounded-full shadow-inner">
+                <Radio className="w-6 h-6 animate-pulse" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-black text-lg leading-tight drop-shadow-sm">¡Ruleta en Vivo!</h3>
+                <p className="text-sm font-medium text-red-100">Toca aquí para volver a verla.</p>
+              </div>
+            </div>
+            <ChevronRight className="w-6 h-6 relative z-10" />
+          </div>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full grid grid-cols-2 gap-3 sm:gap-4 bg-transparent h-auto p-0 mb-6">
