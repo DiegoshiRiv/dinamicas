@@ -3,27 +3,151 @@ import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Swords, Eye, Trophy, Plus, Shield, User, Trash2, AlertCircle, Check } from 'lucide-react'
 import { useTournaments, Pokemon, TournamentMatch, TournamentPlayer } from '@/hooks/useTournaments'
+import pokebola from '@/assets/pokeball.png'
+
+import typeNormal from '@/assets/normal.png'
+import typeLucha from '@/assets/lucha.png'
+import typeVolador from '@/assets/volador.png'
+import typeVeneno from '@/assets/veneno.png'
+import typeTierra from '@/assets/tierra.png'
+import typeRoca from '@/assets/roca.png'
+import typeBicho from '@/assets/bicho.png'
+import typeFantasma from '@/assets/fantasma.png'
+import typeAcero from '@/assets/acero.png'
+import typeFuego from '@/assets/fuego.png'
+import typeAgua from '@/assets/agua.png'
+import typePlanta from '@/assets/planta.png'
+import typeElectrico from '@/assets/electrico.png'
+import typePsiquico from '@/assets/psiquico.png'
+import typeHielo from '@/assets/hielo.png'
+import typeDragon from '@/assets/dragon.png'
+import typeSiniestro from '@/assets/siniestro.png'
+import typeHada from '@/assets/hada.png'
+
+import imgOscuro from '@/assets/oscuro.png'
+import imgPurificado from '@/assets/purificado.png'
+
+const POKEMON_TYPES = [
+  { name: 'Normal', icon: typeNormal }, { name: 'Fuego', icon: typeFuego },
+  { name: 'Agua', icon: typeAgua }, { name: 'Planta', icon: typePlanta },
+  { name: 'Eléctrico', icon: typeElectrico }, { name: 'Hielo', icon: typeHielo },
+  { name: 'Lucha', icon: typeLucha }, { name: 'Veneno', icon: typeVeneno },
+  { name: 'Tierra', icon: typeTierra }, { name: 'Volador', icon: typeVolador },
+  { name: 'Psíquico', icon: typePsiquico }, { name: 'Bicho', icon: typeBicho },
+  { name: 'Roca', icon: typeRoca }, { name: 'Fantasma', icon: typeFantasma },
+  { name: 'Dragón', icon: typeDragon }, { name: 'Siniestro', icon: typeSiniestro },
+  { name: 'Acero', icon: typeAcero }, { name: 'Hada', icon: typeHada },
+];
 
 const REGIONAL_FORMS: Record<string, string[]> = {
   "Rattata": ["Alola"], "Raticate": ["Alola"], "Raichu": ["Alola"], "Sandshrew": ["Alola"], "Sandslash": ["Alola"], "Vulpix": ["Alola"], "Ninetales": ["Alola"], "Diglett": ["Alola"], "Dugtrio": ["Alola"], "Meowth": ["Alola", "Galar"], "Persian": ["Alola"], "Geodude": ["Alola"], "Graveler": ["Alola"], "Golem": ["Alola"], "Grimer": ["Alola"], "Muk": ["Alola"], "Exeggutor": ["Alola"], "Marowak": ["Alola"],
   "Ponyta": ["Galar"], "Rapidash": ["Galar"], "Slowpoke": ["Galar"], "Slowbro": ["Galar"], "Farfetch'd": ["Galar"], "Weezing": ["Galar"], "Mr. Mime": ["Galar"], "Articuno": ["Galar"], "Zapdos": ["Galar"], "Moltres": ["Galar"], "Slowking": ["Galar"], "Corsola": ["Galar"], "Zigzagoon": ["Galar"], "Linoone": ["Galar"], "Darumaka": ["Galar"], "Darmanitan": ["Galar"], "Yamask": ["Galar"], "Stunfisk": ["Galar"],
-  "Growlithe": ["Hisui"], "Arcanine": ["Hisui"], "Voltorb": ["Hisui"], "Electrode": ["Hisui"], "Typhlosion": ["Hisui"], "Qwilfish": ["Hisui"], "Sneasel": ["Hisui"], "Samurott": ["Hisui"], "Lilligant": ["Hisui"], "Basculin": ["Hisui"], "Zorua": ["Hisui"], "Zoroark": ["Hisui"], "Braviary": ["Hisui"], "Sliggoo": ["Hisui"], "Goodra": ["Hisui"], "Avalugg": ["Hisui"], "Decidueye": ["Hisui"]
+  "Growlithe": ["Hisui"], "Arcanine": ["Hisui"], "Voltorb": ["Hisui"], "Electrode": ["Hisui"], "Typhlosion": ["Hisui"], "Qwilfish": ["Hisui"], "Sneasel": ["Hisui"], "Samurott": ["Hisui"], "Lilligant": ["Hisui"], "Basculin": ["Hisui"], "Zorua": ["Hisui"], "Zoroark": ["Hisui"], "Braviary": ["Hisui"], "Sliggoo": ["Hisui"], "Goodra": ["Hisui"], "Avalugg": ["Hisui"], "Decidueye": ["Hisui"],
+  "Tauros": ["Paldea"], "Wooper": ["Paldea"]
 };
 
-const POKEMON_LIST = "Abomasnow,Aegislash,Aerodactyl,Aggron,Alakazam,Alomomola,Altaria,Ampharos,Annihilape,Arbok,Arboliva,Arcanine,Arceus,Archeops,Ariados,Armarouge,Armaldo,Aromatisse,Articuno,Audino,Aurorus,Avalugg,Azelf,Azumarill,Baxcalibur,Bastiodon,Beedrill,Bellibolt,Bellossom,Bewear,Bidoof,Bisharp,Blastoise,Blaziken,Blissey,Bramblin,Breloom,Bronzong,Bruxish,Butterfree,Buzzwole,Camerupt,Carbink,Carkol,Carnivine,Carracosta,Castform,Ceruledge,Cetitan,Chandelure,Charizard,Chatot,Cherrim,Chesnaught,Chien-Pao,Chi-Yu,Chimecho,Cinccino,Cinderace,Clamperl,Claydol,Clefable,Cloyster,Cobalion,Cofagrigus,Comfey,Conkeldurr,Copperajah,Corviknight,Crabominable,Cradily,Cramorant,Cranidos,Crawdaunt,Cresselia,Crobat,Crustle,Cryogonal,Dachsbun,Darkrai,Darmanitan,Decidueye,Dedenne,Delcatty,Delibird,Delphox,Deoxys,Dewgong,Dialga,Diancie,Diggersby,Ditto,Dodrio,Donphan,Dondozo,Dragalge,Dragapult,Dragonite,Drapion,Drednaw,Drifblim,Dugtrio,Dunsparce,Duraludon,Durant,Dusknoir,Dustox,Eelektross,Electivire,Electrode,Emboar,Empoleon,Entei,Escavalier,Espeon,Excadrill,Exeggutor,Exploud,Falinks,Farfetch'd,Feraligatr,Ferrothorn,Flamigo,Flareon,Fletchinder,Florges,Flygon,Forretress,Froslass,Frosmoth,Furret,Gallade,Galvantula,Garbodor,Garchomp,Gardevoir,Garganacl,Gastrodon,Gengar,Gholdengo,Gigalith,Girafarig,Giratina,Glaceon,Glalie,Gligar,Gliscor,Gogoat,Golbat,Golduck,Golem,Golisopod,Golurk,Goodra,Gorebyss,Gothitelle,Gourgeist,Granbull,Grafaiai,Greedent,Greninja,Grimer,Grimmsnarl,Groudon,Grovyle,Grumpig,Guzzlord,Gyarados,Hariyama,Haxorus,Heatmor,Heatran,Heracross,Hippowdon,Hitmonchan,Hitmonlee,Hitmontop,Ho-Oh,Honchkrow,Hoopa,Houndoom,Huntail,Hydreigon,Hypno,Incineroar,Infernape,Inteleon,Ivysaur,Jellicent,Jigglypuff,Jirachi,Jolteon,Jumpluff,Jynx,Kabutops,Kadabra,Kangaskhan,Kecleon,Keldeo,Kingambit,Kingdra,Kingler,Klang,Kleavor,Klefki,Klinklang,Kommo-o,Krabby,Kricketune,Krookodile,Kyogre,Kyurem,Lairon,Lanturn,Lapras,Latias,Latios,Leafeon,Leavanny,Ledian,Lickilicky,Lickitung,Liepard,Lilligant,Linoone,Lokix,Lopunny,Lucario,Ludicolo,Lugia,Lumineon,Lunala,Lunatone,Lurantis,Luvdisc,Luxray,Lycanroc,Machamp,Machoke,Magcargo,Magearna,Magmortar,Magneton,Magnezone,Malamar,Mamoswine,Manaphy,Mandibuzz,Manectric,Mantine,Maractus,Marill,Marowak,Marshtomp,Masquerain,Mawile,Medicham,Meganium,Melmetal,Meloetta,Meowscarada,Mesprit,Metagross,Metang,Mew,Mewtwo,Mienshao,Mightyena,Milotic,Miltank,Mimikyu,Minun,Mismagius,Moltres,Mothim,Mr. Mime,Mudsdale,Muk,Musharna,Naganadel,Natu,Nidoking,Nidoqueen,Nihilego,Ninetales,Ninjask,Noctowl,Noivern,Nosepass,Obstagoon,Octillery,Oddish,Omastar,Orthworm,Oranguru,Oricorio,Pachirisu,Palafin,Palkia,Palossand,Pangoro,Parasect,Passimian,Pawmot,Pelipper,Perrserker,Persian,Pidgeot,Pikachu,Piloswine,Pinsir,Plusle,Politoed,Poliwrath,Porygon-Z,Porygon2,Primarina,Primeape,Probopass,Purugly,Pyroar,Quagsire,Quaquaval,Qwilfish,Raichu,Raikou,Rapidash,Raticate,Rayquaza,Regice,Regidrago,Regieleki,Regigigas,Regirock,Registeel,Relicanth,Reshiram,Reuniclus,Revavroom,Rhydon,Rhyperior,Rillaboom,Roaring Moon,Roselia,Roserade,Rotom,Sableye,Salamence,Samurott,Sandslash,Sawk,Sawsbuck,Sceptile,Scizor,Scolipede,Scrafty,Scyther,Seaking,Sealeo,Secret Sword,Seismitoad,Serperior,Seviper,Sharpedo,Shedinja,Shiftry,Shiinotic,Shuckle,Sigilyph,Silvally,Simipour,Simisage,Simisear,Sirfetch'd,Skarmory,Skeledirge,Slaking,Slowbro,Slowking,Slugma,Smeargle,Sneasel,Sneasler,Snorlax,Snubbull,Solgaleo,Solrock,Spinda,Spiritomb,Stantler,Staraptor,Starmie,Steelix,Stoutland,Stunfisk,Sudowoodo,Suicune,Sunflora,Swalot,Swampert,Swanna,Swellow,Swoobat,Sylveon,Talonflame,Tangela,Tangrowth,Tapu Bulu,Tapu Fini,Tapu Koko,Tapu Lele,Tauros,Tentacruel,Terapagos,Togekiss,Togetic,Torkoal,Tornadus,Torterra,Toxapex,Toxicroak,Toxtricity,Trevenant,Tropius,Tsareena,Typhlosion,Tyranitar,Tyrantrum,Umbreon,Unfezant,Unown,Ursaluna,Ursaring,Uxie,Vaporeon,Veluza,Venomoth,Venusaur,Vespiquen,Victini,Victreebel,Vigoroth,Vileplume,Virizion,Vivillon,Volbeat,Volcanion,Volcarona,Wailord,Walrein,Watchog,Weavile,Weezing,Whimsicott,Whiscash,Wigglytuff,Wobbuffet,Wormadam,Wyrdeer,Xatu,Xerneas,Yveltal,Zangoose,Zapdos,Zarude,Zebstrika,Zekrom,Zeraora,Zoroark,Zygarde".split(",")
+const POKEMON_LIST = "Abomasnow,Aegislash,Aerodactyl,Aggron,Alakazam,Altaria,Ampharos,Annihilape,Arbok,Arboliva,Arcanine,Arceus,Articuno,Azumarill,Baxcalibur,Bastiodon,Beedrill,Bellibolt,Bisharp,Blastoise,Blaziken,Blissey,Breloom,Bronzong,Buzzwole,Camerupt,Carbink,Carnivine,Carracosta,Castform,Ceruledge,Chandelure,Charizard,Chesnaught,Chien-Pao,Chi-Yu,Cinderace,Clefable,Cobalion,Cofagrigus,Conkeldurr,Corviknight,Cradily,Cresselia,Crobat,Crustle,Darkrai,Darmanitan,Decidueye,Dedenne,Delphox,Deoxys,Dewgong,Dialga,Diancie,Diggersby,Ditto,Dondozo,Dragalge,Dragapult,Dragonite,Drapion,Drifblim,Duraludon,Dusknoir,Eelektross,Electivire,Electrode,Emboar,Empoleon,Entei,Escavalier,Espeon,Excadrill,Exeggutor,Feraligatr,Ferrothorn,Florges,Flygon,Forretress,Froslass,Gallade,Galvantula,Garchomp,Gardevoir,Garganacl,Gastrodon,Gengar,Gholdengo,Gigalith,Giratina,Glaceon,Glalie,Gligar,Gliscor,Golisopod,Golurk,Goodra,Gothitelle,Gourgeist,Granbull,Grafaiai,Greedent,Greninja,Grimer,Grimmsnarl,Groudon,Guzzlord,Gyarados,Hariyama,Haxorus,Heatran,Heracross,Hippowdon,Hitmontop,Ho-Oh,Honchkrow,Houndoom,Hydreigon,Hypno,Incineroar,Infernape,Inteleon,Jellicent,Jirachi,Jolteon,Jumpluff,Kangaskhan,Kecleon,Keldeo,Kingambit,Kingdra,Klefki,Kommo-o,Krookodile,Kyogre,Kyurem,Lanturn,Lapras,Latias,Latios,Leafeon,Lickilicky,Lickitung,Lilligant,Linoone,Lokix,Lucario,Ludicolo,Lugia,Lunala,Lycanroc,Machamp,Magnezone,Malamar,Mamoswine,Mandibuzz,Mantine,Marowak,Mawile,Medicham,Meganium,Melmetal,Meloetta,Meowscarada,Metagross,Mew,Mewtwo,Milotic,Miltank,Mimikyu,Mismagius,Moltres,Mr. Mime,Mudsdale,Muk,Naganadel,Nidoking,Nidoqueen,Nihilego,Ninetales,Noctowl,Noivern,Obstagoon,Omastar,Oranguru,Pachirisu,Palafin,Palkia,Palossand,Pangoro,Passimian,Pawmot,Pelipper,Perrserker,Persian,Pidgeot,Pikachu,Pinsir,Politoed,Poliwrath,Porygon-Z,Porygon2,Primarina,Primeape,Probopass,Pyroar,Quagsire,Quaquaval,Qwilfish,Raichu,Raikou,Rapidash,Raticate,Rayquaza,Regice,Regidrago,Regieleki,Regigigas,Regirock,Registeel,Relicanth,Reshiram,Reuniclus,Rhyperior,Rillaboom,Roaring Moon,Roserade,Rotom,Sableye,Salamence,Samurott,Sandslash,Sceptile,Scizor,Scolipede,Scrafty,Seismitoad,Serperior,Seviper,Shiftry,Shuckle,Sigilyph,Silvally,Sirfetch'd,Skarmory,Skeledirge,Slaking,Slowbro,Slowking,Sneasler,Snorlax,Solgaleo,Spiritomb,Staraptor,Starmie,Steelix,Stoutland,Stunfisk,Suicune,Swalot,Swampert,Swanna,Sylveon,Talonflame,Tangrowth,Tapu Bulu,Tapu Fini,Tapu Koko,Tapu Lele,Tauros,Tentacruel,Terapagos,Togekiss,Torkoal,Tornadus,Torterra,Toxapex,Toxicroak,Toxtricity,Trevenant,Tropius,Tsareena,Typhlosion,Tyranitar,Tyrantrum,Umbreon,Ursaluna,Ursaring,Uxie,Vaporeon,Venusaur,Vespiquen,Victini,Victreebel,Vigoroth,Vileplume,Virizion,Volcanion,Volcarona,Walrein,Weavile,Weezing,Whimsicott,Whiscash,Wigglytuff,Wobbuffet,Wyrdeer,Xerneas,Yveltal,Zangoose,Zapdos,Zarude,Zekrom,Zeraora,Zoroark,Zygarde".split(",");
+
+const POKEMON_LEGAL_MOVES: Record<string, { fast: string[], charge: string[] }> = {
+  "Swampert": { fast: ["Disparo Lodo", "Pistola Agua"], charge: ["Hidrocañón", "Terremoto", "Onda Tóxica", "Agua Lodosa"] },
+  "Charizard": { fast: ["Giro Fuego", "Ataque Ala", "Ascuas", "Dragoaliento"], charge: ["Anillo Ígneo", "Garra Dragón", "Sofoco", "Llamarada"] },
+  "Trevenant": { fast: ["Garra Umbría", "Finta"], charge: ["Bomba Germen", "Bola Sombra", "Juego Sucio"] },
+  "Medicham": { fast: ["Contraataque", "Psicocorte"], charge: ["Puño Dinámico", "Puño Hielo", "Psíquico", "Puño Incremento"] },
+  "Lanturn": { fast: ["Chispa", "Pistola Agua", "Rayo Carga"], charge: ["Surf", "Rayo", "Trueno"] },
+  "Noctowl": { fast: ["Ataque Ala", "Paranormal"], charge: ["Bola Sombra", "Ataque Aéreo", "Psíquico"] },
+  "Sableye": { fast: ["Garra Umbría", "Finta"], charge: ["Juego Sucio", "Retribución", "Sombra Vil", "Joya de Luz"] },
+  "Azumarill": { fast: ["Burbuja", "Golpe Roca"], charge: ["Carantoña", "Rayo Hielo", "Hidrobomba"] },
+  "Venusaur": { fast: ["Látigo Cepa", "Hoja Afilada"], charge: ["Planta Feroz", "Bomba Lodo", "Tormenta Floral"] },
+  "Stunfisk": { fast: ["Disparo Lodo", "Impactrueno"], charge: ["Terremoto", "Avalancha", "Agua Lodosa", "Chispazo"] },
+  "Pelipper": { fast: ["Ataque Ala", "Pistola Agua"], charge: ["Meteorobola", "Vendaval", "Ventisca"] },
+  "Scrafty": { fast: ["Contraataque", "Alarido"], charge: ["Juego Sucio", "Puño Incremento", "Bomba Ácida"] },
+  "Umbreon": { fast: ["Alarido", "Finta"], charge: ["Juego Sucio", "Última Baza", "Pulso Umbrío"] },
+  "Giratina": { fast: ["Garra Umbría", "Dragoaliento"], charge: ["Garra Dragón", "Sombra Vil", "Poder Pasado"] },
+  "Talonflame": { fast: ["Calcinación", "Picotazo", "Giro Fuego"], charge: ["Pájaro Osado", "Nitrocarga", "Huracán"] }
+};
+
+const FAST_MOVES_DICT: Record<string, string> = {
+  "Placaje": "Normal", "Ataque Rápido": "Normal", "Arañazo": "Normal", "Fijar Blanco": "Normal", "Poder Oculto": "Normal",
+  "Ascuas": "Fuego", "Giro Fuego": "Fuego", "Colmillo Ígneo": "Fuego", "Calcinación": "Fuego", 
+  "Pistola Agua": "Agua", "Cascada": "Agua", "Burbuja": "Agua", 
+  "Látigo Cepa": "Planta", "Hoja Afilada": "Planta", "Semilladora": "Planta", "Hoja Mágica": "Planta", 
+  "Impactrueno": "Eléctrico", "Chispa": "Eléctrico", "Voltiocambio": "Eléctrico", 
+  "Nieve Polvo": "Hielo", "Canto Helado": "Hielo", "Vaho Gélido": "Hielo", 
+  "Contraataque": "Lucha", "Golpe Kárate": "Lucha", "Doble Patada": "Lucha", 
+  "Picotazo Venenoso": "Veneno", "Puya Nociva": "Veneno", "Ácido": "Veneno", 
+  "Disparo Lodo": "Tierra", "Bofetón Lodo": "Tierra", "Ataque Arena": "Tierra", 
+  "Ataque Ala": "Volador", "Tajo Aéreo": "Volador", "Picotazo": "Volador", 
+  "Confusión": "Psíquico", "Psicocorte": "Psíquico", "Cabezazo Zen": "Psíquico", 
+  "Picadura": "Bicho", "Corte Furia": "Bicho", "Estoicismo": "Bicho", 
+  "Lanzarrocas": "Roca", "Antiaéreo": "Roca", 
+  "Infortunio": "Fantasma", "Lengüetazo": "Fantasma", "Garra Umbría": "Fantasma", 
+  "Dragoaliento": "Dragón", "Cola Dragón": "Dragón", 
+  "Mordisco": "Siniestro", "Finta": "Siniestro", "Alarido": "Siniestro", 
+  "Ala de Acero": "Acero", "Puño Bala": "Acero", "Cola Férrea": "Acero", 
+  "Encanto": "Hada", "Viento Feérico": "Hada"
+};
+
+const CHARGE_MOVES_DICT: Record<string, string> = {
+  "Hiperrayo": "Normal", "Golpe Cuerpo": "Normal", "Retroceso": "Normal", "Retribución": "Normal",
+  "Lanzallamas": "Fuego", "Llamarada": "Fuego", "Anillo Ígneo": "Fuego", "Puño Fuego": "Fuego", "Meteorobola": "Normal", "Sofoco": "Fuego", "Nitrocarga": "Fuego", 
+  "Hidrobomba": "Agua", "Surf": "Agua", "Acua Cola": "Agua", "Hidrocañón": "Agua", "Agua Lodosa": "Agua", 
+  "Planta Feroz": "Planta", "Latigazo": "Planta", "Rayo Solar": "Planta", "Bomba Germen": "Planta", "Energibola": "Planta", 
+  "Rayo": "Eléctrico", "Trueno": "Eléctrico", "Voltio Cruel": "Eléctrico", "Puño Trueno": "Eléctrico", "Chispazo": "Eléctrico", 
+  "Rayo Hielo": "Hielo", "Ventisca": "Hielo", "Alud": "Hielo", "Puño Hielo": "Hielo", "Viento Hielo": "Hielo", 
+  "Puño Dinámico": "Lucha", "A bocajarro": "Lucha", "Tajo Cruzado": "Lucha", "Onda Certera": "Lucha", "Fuerza Bruta": "Lucha", "Puño Incremento": "Lucha", 
+  "Bomba Lodo": "Veneno", "Onda Tóxica": "Veneno", "Colmillo Veneno": "Veneno", "Bomba Ácida": "Veneno", 
+  "Terremoto": "Tierra", "Tierra Viva": "Tierra", "Taladradora": "Tierra", "Bucle Arena": "Tierra", "Hueso Palo": "Tierra", 
+  "Pájaro Osado": "Volador", "Ataque Aéreo": "Volador", "Golpe Aéreo": "Volador", "Vendaval": "Volador", "Huracán": "Volador",
+  "Psíquico": "Psíquico", "Premonición": "Psíquico", "Psicocarga": "Psíquico", 
+  "Zumbido": "Bicho", "Tijera X": "Bicho", "Megacuerno": "Bicho", "Plancha": "Bicho", 
+  "Roca Afilada": "Roca", "Avalancha": "Roca", "Tumba Rocas": "Roca", "Pedrada": "Roca", "Joya de Luz": "Roca", 
+  "Bola Sombra": "Fantasma", "Puño Sombra": "Fantasma", "Golpe Umbrío": "Fantasma", "Sombra Vil": "Fantasma", 
+  "Garra Dragón": "Dragón", "Pulso Dragón": "Dragón", "Enfado": "Dragón", "Cometa Draco": "Dragón", 
+  "Triturar": "Siniestro", "Juego Sucio": "Siniestro", "Pulso Umbrío": "Siniestro", "Tajo Umbrío": "Siniestro", "Última Baza": "Normal",
+  "Cuerpo Pesado": "Acero", "Cabeza de Hierro": "Acero", "Foco Resplandor": "Acero", "Puño Meteoro": "Acero", 
+  "Brillo Mágico": "Hada", "Carantoña": "Hada", "Fuerza Lunar": "Hada", "Beso Drenaje": "Hada"
+};
+
+const FAST_MOVES_GLOBAL = Object.keys(FAST_MOVES_DICT);
+const CHARGE_MOVES_GLOBAL = Object.keys(CHARGE_MOVES_DICT);
+
+// MOTOR DE IMÁGENES CORREGIDO: AHORA LEE LA FORMA REGIONAL CORRECTAMENTE
+const getPokemonDBSprite = (species: string, regional: string = 'Normal') => {
+  if (!species) return pokebola;
+  let cleanName = species.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  
+  if (regional !== 'Normal') {
+    const regionSuffix: Record<string, string> = {
+      'Alola': 'alolan',
+      'Galar': 'galarian',
+      'Hisui': 'hisuian',
+      'Paldea': 'paldean'
+    };
+    const suffix = regionSuffix[regional] || regional.toLowerCase();
+    cleanName = `${cleanName}-${suffix}`;
+  }
+  
+  return `https://img.pokemondb.net/sprites/home/normal/${cleanName}.png`;
+};
+
+const getPMDAvatar = (dexNumber: string | undefined) => {
+  if (!dexNumber) return pokebola;
+  return `https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/portrait/${dexNumber.padStart(4, '0')}/Normal.png`;
+};
 
 export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
   const { tournaments, players, matches, createTournament, updateTournamentStatus, deleteTournament, registerPlayer, generateRound, setWinner } = useTournaments()
   const [newTName, setNewTName] = useState('')
   const [leagueChoice, setLeagueChoice] = useState<'super' | 'ultra' | 'master'>('super')
   const [selectedT, setSelectedT] = useState<string | null>(null)
+  
   const [playerName, setPlayerName] = useState('')
-  const [team, setTeam] = useState<Pokemon[]>(Array(6).fill({ species: '', state: 'Normal', regional: 'Normal', cp: '', fast: '', charge1: '', charge2: '' }))
+  const [avatarDex, setAvatarDex] = useState('')
+  
+  const [team, setTeam] = useState<Pokemon[]>(Array(6).fill({ species: '', state: 'Normal', regional: 'Normal', cp: '', fast: '', fastType: 'Normal', charge1: '', charge1Type: 'Normal', charge2: '', charge2Type: 'Normal' }))
   
   const [viewPlayer, setViewPlayer] = useState<TournamentPlayer | null>(null)
   const [confirmWinnerData, setConfirmWinnerData] = useState<{matchId: string, playerId: string, playerName: string} | null>(null)
-  
-  // NUEVO ESTADO PARA NUESTRO MODAL ESTÉTICO
   const [alertInfo, setAlertInfo] = useState<{ title: string, message: string, type: 'error' | 'success' | 'champion' } | null>(null);
 
   const activeT = tournaments.find(t => t.id === selectedT)
@@ -32,8 +156,17 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
 
   const handleUpdatePokemon = (index: number, field: keyof Pokemon, value: string) => {
     const newTeam = [...team]
-    newTeam[index] = { ...newTeam[index], [field]: value }
-    if (field === 'species') newTeam[index].regional = 'Normal';
+    
+    if (field === 'species') {
+      newTeam[index] = { ...newTeam[index], species: value, regional: 'Normal', fast: '', fastType: 'Normal', charge1: '', charge1Type: 'Normal', charge2: '', charge2Type: 'Normal' }
+    } else {
+      newTeam[index] = { ...newTeam[index], [field]: value }
+    }
+    
+    if (field === 'fast' && FAST_MOVES_DICT[value]) newTeam[index].fastType = FAST_MOVES_DICT[value];
+    if (field === 'charge1' && CHARGE_MOVES_DICT[value]) newTeam[index].charge1Type = CHARGE_MOVES_DICT[value];
+    if (field === 'charge2' && CHARGE_MOVES_DICT[value]) newTeam[index].charge2Type = CHARGE_MOVES_DICT[value];
+
     setTeam(newTeam)
   }
 
@@ -48,9 +181,11 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
       return;
     }
 
-    await registerPlayer(selectedT, playerName, team)
-    setPlayerName(''); setTeam(Array(6).fill({ species: '', state: 'Normal', regional: 'Normal', cp: '', fast: '', charge1: '', charge2: '' }))
-    setAlertInfo({ title: "¡Inscripción Exitosa!", message: "Tu equipo ha sido registrado exitosamente y tu Hoja Abierta ha sido enviada al torneo.", type: 'success' });
+    await registerPlayer(selectedT, playerName, avatarDex, team)
+    setPlayerName(''); 
+    setAvatarDex('');
+    setTeam(Array(6).fill({ species: '', state: 'Normal', regional: 'Normal', cp: '', fast: '', fastType: 'Normal', charge1: '', charge1Type: 'Normal', charge2: '', charge2Type: 'Normal' }))
+    setAlertInfo({ title: "¡Inscripción Exitosa!", message: "Tu equipo ha sido registrado exitosamente. Ya estás participando en el torneo, ¡mucha suerte!", type: 'success' });
   }
 
   const handleNextRound = async (tId: string, round: number) => {
@@ -71,7 +206,7 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
       {isAdmin && (
         <div className="bg-white p-6 rounded-[24px] shadow-xl space-y-4 border border-gray-100">
           <h3 className="font-black text-gray-800 text-lg">Crear Nuevo Torneo</h3>
-          <Input placeholder="Ej: Copa Evento..." value={newTName} onChange={e => setNewTName(e.target.value)} className="bg-gray-50 border-0 py-6 text-lg" />
+          <Input placeholder="Ej: Copa Pawmistica..." value={newTName} onChange={e => setNewTName(e.target.value)} className="bg-gray-50 border-0 py-6 text-lg" />
           
           <div>
             <span className="text-sm font-bold text-gray-500 mb-2 block">Formato / Liga:</span>
@@ -107,9 +242,17 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6">
-      <datalist id="pokemon-list">
-        {POKEMON_LIST.map(poke => <option key={poke} value={poke} />)}
-      </datalist>
+      
+      <datalist id="pokemon-list">{POKEMON_LIST.map(poke => <option key={poke} value={poke} />)}</datalist>
+      <datalist id="fast-moves-global">{FAST_MOVES_GLOBAL.map(move => <option key={move} value={move} />)}</datalist>
+      <datalist id="charge-moves-global">{CHARGE_MOVES_GLOBAL.map(move => <option key={move} value={move} />)}</datalist>
+
+      {Object.entries(POKEMON_LEGAL_MOVES).map(([pokemon, moves]) => (
+        <div key={pokemon}>
+          <datalist id={`fast-moves-${pokemon}`}>{moves.fast.map(m => <option key={m} value={m} />)}</datalist>
+          <datalist id={`charge-moves-${pokemon}`}>{moves.charge.map(m => <option key={m} value={m} />)}</datalist>
+        </div>
+      ))}
 
       <div className="bg-white rounded-[24px] shadow-xl p-6 flex justify-between items-center">
         <div>
@@ -137,44 +280,109 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
           <h3 className="text-xl font-black mb-1">Registro de Hoja Abierta</h3>
           <p className="text-sm text-gray-500 mb-6 flex items-center gap-1.5"><AlertCircle className="w-4 h-4"/> Límite: {activeT?.league === 'super' ? '1500 PC' : activeT?.league === 'ultra' ? '2500 PC' : 'Sin límite'}</p>
           
-          <Input placeholder="Tu Nombre o Gamertag *" value={playerName} onChange={e => setPlayerName(e.target.value)} className="mb-6 bg-gray-50 text-lg py-6 border-2 border-gray-200" />
+          <div className="flex flex-col gap-4 mb-6">
+            <div>
+              <label className="text-sm font-bold text-gray-700 block mb-1">Nombre de Entrenador *</label>
+              <Input placeholder="Tu Nombre o Gamertag" value={playerName} onChange={e => setPlayerName(e.target.value)} className="bg-gray-50 text-lg py-6 border-2 border-gray-200 font-bold" />
+            </div>
+            
+            <div>
+              <label className="text-sm font-bold text-gray-700 block mb-1">Foto de Perfil para el Torneo (Opcional)</label>
+              <div className="flex items-center gap-4 bg-blue-50 p-4 rounded-xl border-2 border-blue-100 shadow-inner">
+                 <div className="w-16 h-16 rounded-full bg-white shadow-md flex items-center justify-center shrink-0 border-4 border-white overflow-hidden">
+                    <img 
+                      src={getPMDAvatar(avatarDex)} 
+                      alt="Preview" 
+                      className="w-14 h-14 object-contain scale-[1.2]" 
+                      style={avatarDex ? { imageRendering: 'pixelated' } : {}}
+                      onError={(e) => { (e.target as HTMLImageElement).src = pokebola }}
+                    />
+                 </div>
+                 <div className="flex-1">
+                    <p className="text-xs text-blue-800 font-medium mb-2 hidden sm:block">Ingresa el <span className="font-black">Número de la Pokédex</span> de tu Pokémon favorito para usarlo como avatar en los combates.</p>
+                    <Input type="number" min="1" max="1025" placeholder="Ej: 25 (Pikachu), 94 (Gengar)..." value={avatarDex} onChange={e => setAvatarDex(e.target.value)} className="bg-white font-bold h-10 text-sm w-full sm:w-2/3" />
+                 </div>
+              </div>
+            </div>
+          </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {[0, 1, 2, 3, 4, 5].map(i => {
-              const availableForms = REGIONAL_FORMS[team[i].species] || [];
+              const currentSpecies = team[i].species;
+              const hasSpecificMoves = !!POKEMON_LEGAL_MOVES[currentSpecies];
+              const fastListId = hasSpecificMoves ? `fast-moves-${currentSpecies}` : "fast-moves-global";
+              const chargeListId = hasSpecificMoves ? `charge-moves-${currentSpecies}` : "charge-moves-global";
+              
+              // SE ENVÍA LA FORMA REGIONAL A LA FUNCIÓN DE LA IMAGEN
+              const sprite = getPokemonDBSprite(currentSpecies, team[i].regional);
               
               return (
-                <div key={i} className="bg-gray-50 border border-gray-200 p-4 rounded-xl space-y-3 relative shadow-sm">
-                  <span className="absolute -top-3 -left-3 bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black shadow-md">{i + 1}</span>
+                <div key={i} className="bg-gray-50 border border-gray-200 p-5 rounded-xl space-y-4 relative shadow-sm hover:shadow-md transition-shadow">
+                  <span className="absolute -top-3 -left-3 bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black shadow-md z-10">{i + 1}</span>
                   
-                  <div className="flex gap-2">
-                    <Input list="pokemon-list" placeholder="Pokémon" value={team[i].species} onChange={e => handleUpdatePokemon(i, 'species', e.target.value)} className="flex-1 bg-white border-gray-300" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center relative shrink-0">
+                       <img src={sprite} alt="Pokemon" className="w-11 h-11 object-contain drop-shadow-md z-0" onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
+                       {team[i].state === 'Oscuro' && <img src={imgOscuro} alt="Oscuro" className="absolute -bottom-1.5 -right-1.5 w-6 h-6 drop-shadow-md z-10" />}
+                       {team[i].state === 'Purificado' && <img src={imgPurificado} alt="Purificado" className="absolute -bottom-1.5 -right-1.5 w-6 h-6 drop-shadow-md z-10" />}
+                    </div>
+
+                    <div className="flex-1 flex flex-col gap-2">
+                      <Input list="pokemon-list" placeholder="Especie de Pokémon" value={team[i].species} onChange={e => handleUpdatePokemon(i, 'species', e.target.value)} className="w-full bg-white border-gray-300 font-black text-lg" />
+                      
+                      <div className="flex gap-2">
+                        <select value={team[i].state} onChange={e => handleUpdatePokemon(i, 'state', e.target.value)} className="w-1/2 bg-white text-xs border border-gray-300 rounded-md px-2 focus:ring-2 focus:ring-blue-500 outline-none h-9 font-medium text-gray-600">
+                          <option value="Normal">Normal</option>
+                          <option value="Oscuro">Oscuro</option>
+                          <option value="Purificado">Purificado</option>
+                        </select>
+                        <Input type="number" placeholder="PC Exacto" value={team[i].cp} onChange={e => handleUpdatePokemon(i, 'cp', e.target.value)} className="w-1/2 bg-white border-gray-300 h-9 font-mono font-bold text-center" />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <select value={team[i].state} onChange={e => handleUpdatePokemon(i, 'state', e.target.value)} className="flex-1 bg-white text-xs border border-gray-300 rounded-md px-2 focus:ring-2 focus:ring-blue-500 outline-none h-10 font-medium">
-                      <option value="Normal">Normal</option>
-                      <option value="Oscuro">Oscuro</option>
-                      <option value="Purificado">Purificado</option>
-                    </select>
-
-                    {availableForms.length > 0 && (
-                      <select value={team[i].regional} onChange={e => handleUpdatePokemon(i, 'regional', e.target.value)} className="flex-1 bg-white text-xs border border-gray-300 rounded-md px-2 focus:ring-2 focus:ring-blue-500 outline-none h-10 font-bold text-blue-700 bg-blue-50 border-blue-200">
+                  {/* SELECTOR DE FORMA REGIONAL DEBAJO DEL NOMBRE */}
+                  {REGIONAL_FORMS[currentSpecies] && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-2">
+                      <select value={team[i].regional} onChange={e => handleUpdatePokemon(i, 'regional', e.target.value)} className="w-full bg-white text-xs border border-blue-200 rounded-md px-2 focus:ring-2 focus:ring-blue-500 outline-none h-8 font-bold text-blue-700">
                         <option value="Normal">Forma Estándar</option>
-                        {availableForms.map(form => <option key={form} value={form}>{form}</option>)}
+                        {REGIONAL_FORMS[currentSpecies].map(form => <option key={form} value={form}>Forma {form}</option>)}
                       </select>
-                    )}
+                    </div>
+                  )}
+
+                  <div className="space-y-2 pt-2 border-t border-gray-200">
+                    <div className="flex gap-2 items-center">
+                      <div className="relative w-10 h-10 shrink-0 bg-white rounded-md border border-gray-200 shadow-sm hover:bg-gray-100 transition-colors flex items-center justify-center cursor-pointer">
+                        <img src={POKEMON_TYPES.find(t => t.name === team[i].fastType)?.icon || typeNormal} className="w-6 h-6 object-contain drop-shadow-sm" alt="Tipo" />
+                        <select value={team[i].fastType} onChange={e => handleUpdatePokemon(i, 'fastType', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                          {POKEMON_TYPES.map(pt => <option key={pt.name} value={pt.name}>{pt.name}</option>)}
+                        </select>
+                      </div>
+                      <Input list={fastListId} placeholder="Ataque Rápido" value={team[i].fast} onChange={e => handleUpdatePokemon(i, 'fast', e.target.value)} className="flex-1 bg-white border-gray-300 font-bold text-gray-700" />
+                    </div>
+                    
+                    <div className="flex gap-2 items-center">
+                      <div className="relative w-10 h-10 shrink-0 bg-white rounded-md border border-gray-200 shadow-sm hover:bg-gray-100 transition-colors flex items-center justify-center cursor-pointer">
+                        <img src={POKEMON_TYPES.find(t => t.name === team[i].charge1Type)?.icon || typeNormal} className="w-6 h-6 object-contain drop-shadow-sm" alt="Tipo" />
+                        <select value={team[i].charge1Type} onChange={e => handleUpdatePokemon(i, 'charge1Type', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                          {POKEMON_TYPES.map(pt => <option key={pt.name} value={pt.name}>{pt.name}</option>)}
+                        </select>
+                      </div>
+                      <Input list={chargeListId} placeholder="Cargado Primario" value={team[i].charge1} onChange={e => handleUpdatePokemon(i, 'charge1', e.target.value)} className="flex-1 bg-white border-gray-300 font-bold text-gray-700" />
+                    </div>
+
+                    <div className="flex gap-2 items-center">
+                      <div className="relative w-10 h-10 shrink-0 bg-white rounded-md border border-gray-200 shadow-sm hover:bg-gray-100 transition-colors flex items-center justify-center cursor-pointer">
+                        <img src={POKEMON_TYPES.find(t => t.name === team[i].charge2Type)?.icon || typeNormal} className="w-6 h-6 object-contain drop-shadow-sm" alt="Tipo" />
+                        <select value={team[i].charge2Type} onChange={e => handleUpdatePokemon(i, 'charge2Type', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                          {POKEMON_TYPES.map(pt => <option key={pt.name} value={pt.name}>{pt.name}</option>)}
+                        </select>
+                      </div>
+                      <Input list={chargeListId} placeholder="Cargado Secundario (Opc.)" value={team[i].charge2} onChange={e => handleUpdatePokemon(i, 'charge2', e.target.value)} className="flex-1 bg-white border-gray-300 font-bold text-gray-700" />
+                    </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <Input type="number" placeholder="PC Exacto" value={team[i].cp} onChange={e => handleUpdatePokemon(i, 'cp', e.target.value)} className="w-1/3 bg-white border-gray-300" />
-                    <Input placeholder="Ataque Rápido" value={team[i].fast} onChange={e => handleUpdatePokemon(i, 'fast', e.target.value)} className="flex-1 bg-white border-gray-300" />
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Input placeholder="Cargado 1" value={team[i].charge1} onChange={e => handleUpdatePokemon(i, 'charge1', e.target.value)} className="flex-1 bg-white border-gray-300" />
-                    <Input placeholder="Cargado 2 (Opcional)" value={team[i].charge2} onChange={e => handleUpdatePokemon(i, 'charge2', e.target.value)} className="flex-1 bg-white border-gray-300" />
-                  </div>
                 </div>
               )
             })}
@@ -183,9 +391,8 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* DISEÑO TIPO BRACKET CON TROFEO CENTRAL */}
       {activeT?.status === 'active' && (
-        <div className="flex flex-col items-center gap-8 mt-8">
+        <div className="flex flex-col items-center gap-6 mt-8 overflow-hidden w-full">
           
           <div className="flex flex-col justify-center items-center relative z-10 shrink-0 mb-4">
              <div className="bg-gradient-to-br from-yellow-100 to-yellow-200 p-5 rounded-full border-4 border-yellow-400 shadow-xl mb-3">
@@ -196,56 +403,61 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
              </span>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-6 w-full">
+          <div className="flex flex-col gap-6 w-full max-w-4xl px-4">
             {tMatches.map(m => {
               const p1 = players.find(p => p.id === m.player1_id);
               const p2 = players.find(p => p.id === m.player2_id);
               
               return (
-                <div key={m.id} className="relative flex flex-col items-center w-full sm:w-[320px]">
-                  
-                  <div className="w-0.5 h-6 bg-gray-300 -mt-6"></div>
-                  
-                  <div className="bg-white border-2 border-gray-200 rounded-2xl w-full shadow-lg overflow-hidden flex flex-col relative z-10">
+                <div key={m.id} className="relative w-full">
+                  <div className="bg-white rounded-[24px] shadow-lg border-2 border-gray-100 flex flex-col md:flex-row overflow-hidden relative group">
                     
-                    {/* JUGADOR 1 */}
                     <div 
-                      className={`p-4 flex items-center justify-between transition-colors ${m.winner_id === p1?.id ? 'bg-green-100 border-b-2 border-green-200' : 'bg-white border-b-2 border-gray-100'} hover:bg-gray-50 cursor-pointer`}
+                      className={`flex-1 p-4 md:p-6 flex items-center gap-4 transition-all cursor-pointer ${m.winner_id === p1?.id ? 'bg-gradient-to-r from-blue-50 to-white' : 'hover:bg-gray-50'}`}
                       onClick={() => isAdmin && !m.winner_id && p1 && p2 && handleWinnerClick(m.id, p1.id, p1.player_name)}
                     >
-                      <div className="flex items-center gap-3">
-                        <button onClick={(e) => { e.stopPropagation(); if (p1) setViewPlayer(p1); }} className="bg-gray-100 hover:bg-blue-100 text-gray-500 hover:text-blue-500 p-2 rounded-lg shadow-sm"><Eye className="w-4 h-4"/></button>
-                        <span className={`font-black text-lg ${m.winner_id === p1?.id ? 'text-green-800' : 'text-gray-800'}`}>{p1?.player_name}</span>
-                      </div>
-                      {m.winner_id === p1?.id && <Check className="w-6 h-6 text-green-600 drop-shadow-sm"/>}
-                    </div>
-
-                    {/* CENTRO: VS o AVANZA AUTOMÁTICO */}
-                    <div className="relative h-0 flex justify-center items-center z-20">
-                       {p2 ? (
-                         <div className="bg-gray-800 text-white text-xs font-black px-3 py-1 rounded-full border-2 border-white shadow-md">VS</div>
-                       ) : (
-                         <div className="bg-yellow-400 text-yellow-900 text-xs font-black px-4 py-1 rounded-full border-2 border-white shadow-md flex items-center gap-1">
-                           <Trophy className="w-3 h-3"/> AVANZA
+                       <div className="relative">
+                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 border-2 border-white shadow-md flex items-center justify-center overflow-hidden z-10 relative">
+                           <img src={getPMDAvatar(p1?.avatar_dex)} alt={p1?.player_name} className="w-full h-full object-contain scale-[1.2]" style={p1?.avatar_dex ? { imageRendering: 'pixelated' } : {}} onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
                          </div>
-                       )}
+                         {m.winner_id === p1?.id && <div className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-1 border-2 border-white z-20"><Check className="w-4 h-4 text-white"/></div>}
+                       </div>
+                       
+                       <div className="flex flex-col items-start flex-1 min-w-0">
+                         <span className={`font-black text-xl truncate w-full ${m.winner_id === p1?.id ? 'text-blue-700' : 'text-gray-800'}`}>{p1?.player_name}</span>
+                         <button onClick={(e) => { e.stopPropagation(); if (p1) setViewPlayer(p1); }} className="text-xs font-bold text-gray-400 hover:text-blue-500 flex items-center gap-1 mt-1 transition-colors"><Eye className="w-3.5 h-3.5"/> Ver Equipo</button>
+                       </div>
                     </div>
 
-                    {/* JUGADOR 2 (O ESPACIO VACÍO SI ES IMPAR) */}
+                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 hidden md:flex items-center justify-center">
+                      <div className="bg-gray-900 text-white font-black italic px-4 py-2 rounded-lg border-4 border-white shadow-xl -skew-x-12 tracking-widest">VS</div>
+                    </div>
+                    <div className="w-full h-0.5 bg-gray-100 md:hidden flex items-center justify-center relative">
+                      <div className="bg-gray-900 text-white font-black text-xs px-2 py-0.5 rounded-md border-2 border-white shadow-sm absolute">VS</div>
+                    </div>
+
                     {p2 ? (
                       <div 
-                        className={`p-4 flex items-center justify-between transition-colors ${m.winner_id === p2?.id ? 'bg-green-100' : 'bg-gray-50'} hover:bg-gray-100 cursor-pointer`}
+                        className={`flex-1 p-4 md:p-6 flex items-center gap-4 flex-row-reverse text-right transition-all cursor-pointer ${m.winner_id === p2?.id ? 'bg-gradient-to-l from-red-50 to-white' : 'hover:bg-gray-50'}`}
                         onClick={() => isAdmin && !m.winner_id && p2 && handleWinnerClick(m.id, p2.id, p2.player_name)}
                       >
-                        <div className="flex items-center gap-3">
-                          <button onClick={(e) => { e.stopPropagation(); setViewPlayer(p2); }} className="bg-white border border-gray-200 hover:bg-blue-100 text-gray-500 hover:text-blue-500 p-2 rounded-lg shadow-sm"><Eye className="w-4 h-4"/></button>
-                          <span className={`font-black text-lg ${m.winner_id === p2?.id ? 'text-green-800' : 'text-gray-800'}`}>{p2.player_name}</span>
-                        </div>
-                        {m.winner_id === p2?.id && <Check className="w-6 h-6 text-green-600 drop-shadow-sm"/>}
+                         <div className="relative">
+                           <div className="w-16 h-16 rounded-full bg-gradient-to-bl from-red-100 to-red-200 border-2 border-white shadow-md flex items-center justify-center overflow-hidden z-10 relative">
+                             <img src={getPMDAvatar(p2?.avatar_dex)} alt={p2?.player_name} className="w-full h-full object-contain scale-[1.2]" style={p2?.avatar_dex ? { imageRendering: 'pixelated' } : {}} onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
+                           </div>
+                           {m.winner_id === p2?.id && <div className="absolute -bottom-2 -left-2 bg-green-500 rounded-full p-1 border-2 border-white z-20"><Check className="w-4 h-4 text-white"/></div>}
+                         </div>
+
+                         <div className="flex flex-col items-end flex-1 min-w-0">
+                           <span className={`font-black text-xl truncate w-full ${m.winner_id === p2?.id ? 'text-red-700' : 'text-gray-800'}`}>{p2?.player_name}</span>
+                           <button onClick={(e) => { e.stopPropagation(); setViewPlayer(p2); }} className="text-xs font-bold text-gray-400 hover:text-red-500 flex items-center gap-1 mt-1 transition-colors"><Eye className="w-3.5 h-3.5"/> Ver Equipo</button>
+                         </div>
                       </div>
                     ) : (
-                      <div className="p-4 bg-gray-50 flex justify-center items-center h-[76px]">
-                        <div className="w-1/2 h-1.5 bg-gray-200 rounded-full opacity-60"></div>
+                      <div className="flex-1 p-4 md:p-6 flex items-center justify-center bg-gray-50">
+                        <div className="bg-yellow-100 text-yellow-700 font-black text-sm px-6 py-2 rounded-full border border-yellow-200 shadow-inner flex items-center gap-2">
+                          <Trophy className="w-4 h-4"/> AVANZA AUTOMÁTICO (BYE)
+                        </div>
                       </div>
                     )}
                     
@@ -257,16 +469,12 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* MODAL CONFIRMAR GANADOR */}
       {confirmWinnerData && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
            <div className="bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl border-4 border-yellow-400 transform transition-all">
-              <div className="bg-yellow-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                <Trophy className="w-12 h-12 text-yellow-500 drop-shadow-md" />
-              </div>
-              <h3 className="text-2xl font-black text-gray-900 mb-2 uppercase tracking-wide">¡Ganador de esta ronda!</h3>
+              <div className="bg-yellow-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner"><Trophy className="w-12 h-12 text-yellow-500 drop-shadow-md" /></div>
+              <h3 className="text-2xl font-black text-gray-900 mb-2 uppercase tracking-wide">¡Ganador de la ronda!</h3>
               <p className="text-gray-600 mb-8 text-lg">¿Confirmar victoria para <span className="font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">{confirmWinnerData.playerName}</span>?</p>
-              
               <div className="flex gap-3">
                  <Button onClick={() => setConfirmWinnerData(null)} variant="outline" className="flex-1 py-6 text-gray-500 font-bold border-2 border-gray-200 hover:bg-gray-50 text-lg">Cancelar</Button>
                  <Button onClick={() => { setWinner(confirmWinnerData.matchId, confirmWinnerData.playerId); setConfirmWinnerData(null); }} className="flex-1 py-6 bg-green-500 hover:bg-green-600 text-white font-black shadow-lg text-lg">Confirmar</Button>
@@ -275,37 +483,67 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* MODAL HOJA ABIERTA INDIVIDUAL */}
       {viewPlayer && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setViewPlayer(null)}>
-          <div className="bg-white rounded-[32px] p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-black mb-6 text-center text-gray-900 border-b pb-4 flex items-center justify-center gap-2">
-              <User className="w-6 h-6 text-blue-500"/> Hoja de {viewPlayer.player_name}
+          <div className="bg-white rounded-[32px] p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h2 className="text-2xl font-black mb-6 text-center text-gray-900 border-b pb-4 flex items-center justify-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden border border-blue-200 shadow-inner">
+                 <img src={getPMDAvatar(viewPlayer.avatar_dex)} className="w-full h-full object-contain scale-[1.2]" style={viewPlayer.avatar_dex ? { imageRendering: 'pixelated' } : {}} onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
+              </div>
+              Hoja de {viewPlayer.player_name}
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {viewPlayer.team.map((poke, i) => (
-                <div key={i} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 ${poke.state === 'Oscuro' ? 'border-purple-600' : poke.state === 'Purificado' ? 'border-yellow-400' : 'border-blue-400'} border-t border-r border-b border-gray-100`}>
-                  <div className="flex justify-between items-center mb-3 border-b pb-2">
-                    <span className="font-black text-gray-800 text-lg">{poke.species} 
-                      {poke.regional !== 'Normal' && <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{poke.regional}</span>}
-                      {poke.state !== 'Normal' && <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${poke.state === 'Oscuro' ? 'bg-purple-100 text-purple-700' : 'bg-yellow-100 text-yellow-700'}`}>{poke.state}</span>}
-                    </span>
-                    <span className="font-mono font-black text-sm bg-gray-900 text-white px-2 py-1 rounded-md">PC {poke.cp}</span>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {viewPlayer.team.map((poke, i) => {
+                const sprite = getPokemonDBSprite(poke.species, poke.regional);
+                const fType = POKEMON_TYPES.find(t => t.name === poke.fastType)?.icon || typeNormal;
+                const c1Type = POKEMON_TYPES.find(t => t.name === poke.charge1Type)?.icon || typeNormal;
+                const c2Type = POKEMON_TYPES.find(t => t.name === poke.charge2Type)?.icon || typeNormal;
+
+                return (
+                  <div key={i} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 ${poke.state === 'Oscuro' ? 'border-purple-600' : poke.state === 'Purificado' ? 'border-yellow-400' : 'border-blue-400'} border-t border-r border-b border-gray-100 flex gap-4 items-center`}>
+                    
+                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center shrink-0 border border-gray-100 shadow-inner relative">
+                       <img src={sprite} alt="Pokemon" className="w-16 h-16 object-contain drop-shadow-md z-0" onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
+                       {poke.state === 'Oscuro' && <img src={imgOscuro} alt="Oscuro" className="absolute -bottom-1 -right-1 w-7 h-7 drop-shadow-md z-10" />}
+                       {poke.state === 'Purificado' && <img src={imgPurificado} alt="Purificado" className="absolute -bottom-1 -right-1 w-7 h-7 drop-shadow-md z-10" />}
+                    </div>
+
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center mb-2 border-b pb-1">
+                        <span className="font-black text-gray-800 text-lg leading-tight">{poke.species} 
+                          {poke.regional !== 'Normal' && <span className="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{poke.regional}</span>}
+                        </span>
+                        <span className="font-mono font-black text-sm bg-gray-900 text-white px-2 py-0.5 rounded-md shrink-0">PC {poke.cp}</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-1.5 text-sm mt-2">
+                        <div className="flex items-center gap-2">
+                           <img src={fType} alt={poke.fastType} className="w-5 h-5 object-contain" />
+                           <span className="text-gray-700 font-bold">{poke.fast || '-'}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <img src={c1Type} alt={poke.charge1Type} className="w-5 h-5 object-contain" />
+                           <span className="text-gray-700 font-bold">{poke.charge1 || '-'}</span>
+                        </div>
+                        {poke.charge2 && (
+                          <div className="flex items-center gap-2">
+                             <img src={c2Type} alt={poke.charge2Type} className="w-5 h-5 object-contain" />
+                             <span className="text-gray-700 font-bold">{poke.charge2}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                   </div>
-                  <div className="grid grid-cols-1 gap-2 text-sm">
-                    <div className="flex items-center gap-2"><Swords className="w-4 h-4 text-red-500"/> <span className="text-gray-700 font-bold">{poke.fast || '-'}</span></div>
-                    <div className="flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500"/> <span className="text-gray-700 font-bold">{poke.charge1 || '-'}</span></div>
-                    {poke.charge2 && <div className="flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500"/> <span className="text-gray-700 font-bold">{poke.charge2}</span></div>}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
             <Button onClick={() => setViewPlayer(null)} className="w-full mt-6 bg-gray-900 hover:bg-gray-800 text-white font-bold py-6 rounded-xl text-lg">Cerrar</Button>
           </div>
         </div>
       )}
 
-      {/* NUEVO MODAL DE ALERTAS ESTÉTICO */}
       {alertInfo && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-200" onClick={() => setAlertInfo(null)}>
            <div className={`bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl border-4 ${alertInfo.type === 'error' ? 'border-red-400' : alertInfo.type === 'success' ? 'border-green-400' : 'border-yellow-400'} transform transition-all`} onClick={e => e.stopPropagation()}>

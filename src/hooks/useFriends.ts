@@ -7,7 +7,9 @@ export interface FriendProfile {
   game_codes: Record<string, string>;
   social_ig?: string;
   social_x?: string;
-  social_discord?: string;
+  social_other_type?: string;
+  social_other_value?: string;
+  avatar_dex?: string;
   created_at: string;
 }
 

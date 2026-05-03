@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
-export interface Pokemon { species: string; state: string; regional: string; cp: string; fast: string; charge1: string; charge2: string; }
+export interface Pokemon { species: string; state: string; regional: string; cp: string; fast: string; fastType: string; charge1: string; charge1Type: string; charge2: string; charge2Type: string; }
 export interface Tournament { id: string; name: string; status: 'open' | 'active' | 'finished'; current_round: number; league: 'super' | 'ultra' | 'master'; }
-export interface TournamentPlayer { id: string; tournament_id: string; player_name: string; team: Pokemon[]; }
+export interface TournamentPlayer { id: string; tournament_id: string; player_name: string; avatar_dex?: string; team: Pokemon[]; }
 export interface TournamentMatch { id: string; tournament_id: string; round: number; player1_id: string; player2_id: string | null; winner_id: string | null; }
 
 export function useTournaments() {
@@ -43,11 +43,10 @@ export function useTournaments() {
   
   const deleteTournament = async (id: string) => { await supabase.from('tournaments').delete().eq('id', id); await fetchData(); }
   
-  const registerPlayer = async (tournament_id: string, player_name: string, team: Pokemon[]) => {
-    await supabase.from('tournament_players').insert([{ tournament_id, player_name, team }]); await fetchData();
+  const registerPlayer = async (tournament_id: string, player_name: string, avatar_dex: string, team: Pokemon[]) => {
+    await supabase.from('tournament_players').insert([{ tournament_id, player_name, avatar_dex, team }]); await fetchData();
   }
 
-  // AHORA RETORNA OBJETOS EN LUGAR DE USAR ALERT()
   const generateRound = async (tournament_id: string, round: number) => {
     let eligiblePlayers = [];
     
