@@ -4,8 +4,9 @@ import { RegistrationForm } from '@/app/components/RegistrationForm'
 import { AdminPanel } from '@/app/components/AdminPanel'
 import { WinnerRoulette } from '@/app/components/WinnerRoulette'
 import { QRCodeDisplay } from '@/app/components/QRCodeDisplay'
-// NUEVO: Agregamos Radio y ChevronRight a los iconos importados
-import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, Instagram, Facebook, Twitter, Download, Heart, Image as ImageIcon, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Radio, ChevronRight } from 'lucide-react'
+import { FriendBoard } from '@/app/components/FriendBoard'
+import { TournamentBoard } from '@/app/components/TournamentBoard' // <-- COMPONENTE DE TORNEOS IMPORTADO
+import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, Instagram, Facebook, Twitter, Download, Heart, Image as ImageIcon, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Radio, ChevronRight, Contact, Swords } from 'lucide-react'
 import { useParticipants } from '@/hooks/useParticipants'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
@@ -216,7 +217,6 @@ export default function App() {
           <img src={logoImg} alt="Pokémon GO GDL" className="w-full max-w-[280px] sm:max-w-[320px] mx-auto drop-shadow-xl relative z-10" />
         </header>
 
-        {/* NUEVO: BANNER ROJO PARA ESPECTADORES QUE SALIERON DE LA RULETA */}
         {!isAdmin && spectatorView === 'roulette' && (
           <div 
             onClick={() => setCurrentView('roulette')}
@@ -237,22 +237,31 @@ export default function App() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-2 gap-3 sm:gap-4 bg-transparent h-auto p-0 mb-6">
-            <TabsTrigger value="register" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm border-0 shadow-md transition-all">
-              <Users className="w-4 h-4" /> Registro
+          {/* NUEVO MENÚ: 4 Columnas para que quepan Registro, Torneos, Amigos y Patrocinadores */}
+          <TabsList className="w-full grid grid-cols-4 gap-1.5 sm:gap-2 bg-transparent h-auto p-0 mb-6">
+            <TabsTrigger value="register" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col sm:flex-row items-center justify-center gap-1 font-bold text-[10px] sm:text-[13px] border-0 shadow-md transition-all">
+              <Users className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" /> <span className="truncate">Registro</span>
             </TabsTrigger>
             
-            <TabsTrigger value="sponsors" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm border-0 shadow-md transition-all">
-              <Heart className="w-4 h-4 text-pink-500" /> Patrocinadores
+            <TabsTrigger value="tournaments" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col sm:flex-row items-center justify-center gap-1 font-bold text-[10px] sm:text-[13px] border-0 shadow-md transition-all">
+              <Swords className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-purple-600" /> <span className="truncate">Torneos</span>
+            </TabsTrigger>
+
+            <TabsTrigger value="friends" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col sm:flex-row items-center justify-center gap-1 font-bold text-[10px] sm:text-[13px] border-0 shadow-md transition-all">
+              <Contact className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-blue-500" /> <span className="truncate">Amigos</span>
+            </TabsTrigger>
+
+            <TabsTrigger value="sponsors" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col sm:flex-row items-center justify-center gap-1 font-bold text-[10px] sm:text-[13px] border-0 shadow-md transition-all">
+              <Heart className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-pink-500" /> <span className="truncate">Patro...</span>
             </TabsTrigger>
             
             {isAdmin && (
               <>
-                <TabsTrigger value="ruleta" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm border-0 shadow-md transition-all">
-                  <Trophy className="w-4 h-4" /> Ruleta
+                <TabsTrigger value="ruleta" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col sm:flex-row items-center justify-center gap-1.5 font-bold text-[11px] sm:text-sm border-0 shadow-md transition-all col-span-2">
+                  <Trophy className="w-4 h-4 sm:w-5 sm:h-5" /> Ruleta
                 </TabsTrigger>
-                <TabsTrigger value="qr" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-bold text-sm border-0 shadow-md transition-all">
-                  <QrCode className="w-4 h-4" /> QR
+                <TabsTrigger value="qr" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col sm:flex-row items-center justify-center gap-1.5 font-bold text-[11px] sm:text-sm border-0 shadow-md transition-all col-span-2">
+                  <QrCode className="w-4 h-4 sm:w-5 sm:h-5" /> QR
                 </TabsTrigger>
               </>
             )}
@@ -260,8 +269,16 @@ export default function App() {
 
           <TabsContent value="register" className="mt-0 outline-none"><RegistrationForm saveRegistration={addParticipant} isAdmin={isAdmin} /></TabsContent>
 
+          {/* VISTA DE TORNEOS */}
+          <TabsContent value="tournaments" className="mt-0 outline-none">
+            <TournamentBoard isAdmin={isAdmin} />
+          </TabsContent>
+
+          <TabsContent value="friends" className="mt-0 outline-none">
+            <FriendBoard isAdmin={isAdmin} />
+          </TabsContent>
+
           <TabsContent value="sponsors" className="mt-0 outline-none">
-             
              {isAdmin && (
                <div className="w-full bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 mb-6">
                  <div className="mb-8">
@@ -322,7 +339,6 @@ export default function App() {
              )}
 
              <div className="w-full bg-white rounded-[24px] shadow-2xl p-6 sm:p-8">
-               
                {isAdmin && (
                  <div className="mb-6 border-b-2 border-gray-100 pb-3">
                    <h2 className="text-2xl font-black text-gray-800">Vista Previa</h2>
