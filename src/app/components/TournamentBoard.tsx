@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
-import { Swords, Eye, Trophy, Plus, Shield, User, Trash2, AlertCircle, Check, AlertTriangle } from 'lucide-react'
-import { useTournaments, Pokemon, TournamentMatch, TournamentPlayer } from '@/hooks/useTournaments'
+import { Swords, Eye, Trophy, Plus, User, Trash2, AlertCircle, Check, AlertTriangle } from 'lucide-react'
+import { useTournaments, Pokemon, TournamentPlayer } from '@/hooks/useTournaments'
 import pokebola from '@/assets/pokeball.png'
 
 import typeNormal from '@/assets/normal.png'
@@ -28,15 +28,11 @@ import imgOscuro from '@/assets/oscuro.png'
 import imgPurificado from '@/assets/purificado.png'
 
 const POKEMON_TYPES = [
-  { name: 'Normal', icon: typeNormal }, { name: 'Fuego', icon: typeFuego },
-  { name: 'Agua', icon: typeAgua }, { name: 'Planta', icon: typePlanta },
-  { name: 'Eléctrico', icon: typeElectrico }, { name: 'Hielo', icon: typeHielo },
-  { name: 'Lucha', icon: typeLucha }, { name: 'Veneno', icon: typeVeneno },
-  { name: 'Tierra', icon: typeTierra }, { name: 'Volador', icon: typeVolador },
-  { name: 'Psíquico', icon: typePsiquico }, { name: 'Bicho', icon: typeBicho },
-  { name: 'Roca', icon: typeRoca }, { name: 'Fantasma', icon: typeFantasma },
-  { name: 'Dragón', icon: typeDragon }, { name: 'Siniestro', icon: typeSiniestro },
-  { name: 'Acero', icon: typeAcero }, { name: 'Hada', icon: typeHada },
+  { name: 'Normal', icon: typeNormal }, { name: 'Fuego', icon: typeFuego }, { name: 'Agua', icon: typeAgua }, { name: 'Planta', icon: typePlanta },
+  { name: 'Eléctrico', icon: typeElectrico }, { name: 'Hielo', icon: typeHielo }, { name: 'Lucha', icon: typeLucha }, { name: 'Veneno', icon: typeVeneno },
+  { name: 'Tierra', icon: typeTierra }, { name: 'Volador', icon: typeVolador }, { name: 'Psíquico', icon: typePsiquico }, { name: 'Bicho', icon: typeBicho },
+  { name: 'Roca', icon: typeRoca }, { name: 'Fantasma', icon: typeFantasma }, { name: 'Dragón', icon: typeDragon }, { name: 'Siniestro', icon: typeSiniestro },
+  { name: 'Acero', icon: typeAcero }, { name: 'Hada', icon: typeHada }
 ];
 
 const REGIONAL_FORMS: Record<string, string[]> = {
@@ -113,25 +109,14 @@ const CHARGE_MOVES_GLOBAL = Object.keys(CHARGE_MOVES_DICT);
 const getPokemonDBSprite = (species: string, regional: string = 'Normal') => {
   if (!species) return pokebola;
   let cleanName = species.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  
   if (regional !== 'Normal') {
-    const regionSuffix: Record<string, string> = {
-      'Alola': 'alolan',
-      'Galar': 'galarian',
-      'Hisui': 'hisuian',
-      'Paldea': 'paldean'
-    };
-    const suffix = regionSuffix[regional] || regional.toLowerCase();
-    cleanName = `${cleanName}-${suffix}`;
+    const regionSuffix: Record<string, string> = { 'Alola': 'alolan', 'Galar': 'galarian', 'Hisui': 'hisuian', 'Paldea': 'paldean' };
+    cleanName = `${cleanName}-${regionSuffix[regional] || regional.toLowerCase()}`;
   }
-  
   return `https://img.pokemondb.net/sprites/home/normal/${cleanName}.png`;
 };
 
-const getPMDAvatar = (dexNumber: string | undefined) => {
-  if (!dexNumber) return pokebola;
-  return `https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/portrait/${dexNumber.padStart(4, '0')}/Normal.png`;
-};
+const getPMDAvatar = (dexNumber: string | undefined) => dexNumber ? `https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/portrait/${dexNumber.padStart(4, '0')}/Normal.png` : pokebola;
 
 export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
   const { tournaments, players, matches, createTournament, updateTournamentStatus, deleteTournament, registerPlayer, generateRound, setWinner } = useTournaments()
@@ -148,7 +133,6 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
   const [confirmWinnerData, setConfirmWinnerData] = useState<{matchId: string, playerId: string, playerName: string} | null>(null)
   const [alertInfo, setAlertInfo] = useState<{ title: string, message: string, type: 'error' | 'success' | 'champion' } | null>(null);
   
-  // ESTADOS DE PREVENCIÓN
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
@@ -158,59 +142,32 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
 
   const handleUpdatePokemon = (index: number, field: keyof Pokemon, value: string) => {
     const newTeam = [...team]
-    
-    if (field === 'species') {
-      newTeam[index] = { ...newTeam[index], species: value, regional: 'Normal', fast: '', fastType: 'Normal', charge1: '', charge1Type: 'Normal', charge2: '', charge2Type: 'Normal' }
-    } else {
-      newTeam[index] = { ...newTeam[index], [field]: value }
-    }
+    if (field === 'species') { newTeam[index] = { ...newTeam[index], species: value, regional: 'Normal', fast: '', fastType: 'Normal', charge1: '', charge1Type: 'Normal', charge2: '', charge2Type: 'Normal' } } 
+    else { newTeam[index] = { ...newTeam[index], [field]: value } }
     
     if (field === 'fast' && FAST_MOVES_DICT[value]) newTeam[index].fastType = FAST_MOVES_DICT[value];
     if (field === 'charge1' && CHARGE_MOVES_DICT[value]) newTeam[index].charge1Type = CHARGE_MOVES_DICT[value];
     if (field === 'charge2' && CHARGE_MOVES_DICT[value]) newTeam[index].charge2Type = CHARGE_MOVES_DICT[value];
-
     setTeam(newTeam)
   }
 
   const handleRegister = async () => {
     if (!playerName.trim() || !selectedT || isSubmitting) return
-
-    // VALIDACIÓN DE DUPLICADOS EN EL TORNEO
     const exists = tPlayers.some(p => p.player_name.trim().toLowerCase() === playerName.trim().toLowerCase());
-    if (exists) {
-      setAlertInfo({ title: "Entrenador Duplicado", message: "Ya existe un entrenador registrado con ese nombre en este torneo.", type: 'error' });
-      return;
-    }
+    if (exists) { setAlertInfo({ title: "Entrenador Duplicado", message: "Ya existe un entrenador registrado con ese nombre.", type: 'error' }); return; }
 
     const maxCP = activeT?.league === 'super' ? 1500 : activeT?.league === 'ultra' ? 2500 : 99999;
-    const overCP = team.some(p => parseInt(p.cp || '0') > maxCP);
+    if (team.some(p => parseInt(p.cp || '0') > maxCP)) { setAlertInfo({ title: "Límite Excedido", message: `PC máximo permitido: ${maxCP}.`, type: 'error' }); return; }
 
-    if (overCP) {
-      setAlertInfo({ title: "Límite de PC Excedido", message: `El torneo es formato ${activeT?.league.toUpperCase()} (PC máximo: ${maxCP}). Uno de tus Pokémon excede el límite permitido.`, type: 'error' });
-      return;
-    }
-
-    setIsSubmitting(true);
-    await registerPlayer(selectedT, playerName, avatarDex, team)
-    setIsSubmitting(false);
-    
-    setPlayerName(''); 
-    setAvatarDex('');
-    setTeam(Array(6).fill({ species: '', state: 'Normal', regional: 'Normal', cp: '', fast: '', fastType: 'Normal', charge1: '', charge1Type: 'Normal', charge2: '', charge2Type: 'Normal' }))
-    setAlertInfo({ title: "¡Inscripción Exitosa!", message: "Tu equipo ha sido registrado exitosamente. Ya estás participando en el torneo, ¡mucha suerte!", type: 'success' });
+    setIsSubmitting(true); await registerPlayer(selectedT, playerName, avatarDex, team); setIsSubmitting(false);
+    setPlayerName(''); setAvatarDex(''); setTeam(Array(6).fill({ species: '', state: 'Normal', regional: 'Normal', cp: '', fast: '', fastType: 'Normal', charge1: '', charge1Type: 'Normal', charge2: '', charge2Type: 'Normal' }))
+    setAlertInfo({ title: "¡Inscripción Exitosa!", message: "Ya estás participando en el torneo, ¡suerte!", type: 'success' });
   }
 
   const handleNextRound = async (tId: string, round: number) => {
     const res = await generateRound(tId, round);
-    if (res?.error) {
-      setAlertInfo({ title: "Acción Denegada", message: res.error, type: 'error' });
-    } else if (res?.champion) {
-      setAlertInfo({ title: "¡Tenemos un Campeón!", message: res.message || "", type: 'champion' });
-    }
-  }
-
-  const handleWinnerClick = (matchId: string, playerId: string, playerName: string) => {
-    setConfirmWinnerData({ matchId, playerId, playerName })
+    if (res?.error) setAlertInfo({ title: "Acción Denegada", message: res.error, type: 'error' });
+    else if (res?.champion) setAlertInfo({ title: "¡Tenemos un Campeón!", message: res.message || "", type: 'champion' });
   }
 
   if (!selectedT) return (
@@ -219,32 +176,20 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
         <div className="bg-white p-6 rounded-[24px] shadow-xl space-y-4 border border-gray-100">
           <h3 className="font-black text-gray-800 text-lg">Crear Nuevo Torneo</h3>
           <Input placeholder="Ej: Copa Pawmistica..." value={newTName} onChange={e => setNewTName(e.target.value)} className="bg-gray-50 border-0 py-6 text-lg" />
-          
           <div>
-            <span className="text-sm font-bold text-gray-500 mb-2 block">Formato / Liga:</span>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Button onClick={() => setLeagueChoice('super')} className={`py-6 font-bold ${leagueChoice === 'super' ? 'bg-blue-600 text-white border-b-4 border-red-500 shadow-md transform scale-105' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Superball (1500 PC)</Button>
-              <Button onClick={() => setLeagueChoice('ultra')} className={`py-6 font-bold ${leagueChoice === 'ultra' ? 'bg-gray-900 text-yellow-400 border-b-4 border-yellow-500 shadow-md transform scale-105' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>UltraBall (2500 PC)</Button>
-              <Button onClick={() => setLeagueChoice('master')} className={`py-6 font-bold ${leagueChoice === 'master' ? 'bg-purple-700 text-white border-b-4 border-pink-400 shadow-md transform scale-105' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Masterball (Sin Límite)</Button>
+              <Button onClick={() => setLeagueChoice('super')} className={`py-6 font-bold ${leagueChoice === 'super' ? 'bg-blue-600 text-white shadow-md scale-105' : 'bg-gray-100 text-gray-500'}`}>Superball</Button>
+              <Button onClick={() => setLeagueChoice('ultra')} className={`py-6 font-bold ${leagueChoice === 'ultra' ? 'bg-gray-900 text-yellow-400 shadow-md scale-105' : 'bg-gray-100 text-gray-500'}`}>UltraBall</Button>
+              <Button onClick={() => setLeagueChoice('master')} className={`py-6 font-bold ${leagueChoice === 'master' ? 'bg-purple-700 text-white shadow-md scale-105' : 'bg-gray-100 text-gray-500'}`}>Masterball</Button>
             </div>
           </div>
-
-          <Button onClick={() => { createTournament(newTName, leagueChoice); setNewTName('') }} disabled={!newTName} className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white font-black py-6 text-lg">
-            <Plus className="w-6 h-6 mr-2"/> Publicar Torneo
-          </Button>
+          <Button onClick={() => { createTournament(newTName, leagueChoice); setNewTName('') }} disabled={!newTName} className="w-full bg-green-500 text-white font-black py-6 text-lg">Publicar Torneo</Button>
         </div>
       )}
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {tournaments.length === 0 ? <p className="text-white/80 col-span-2 text-center py-10 bg-black/10 rounded-2xl">No hay torneos activos.</p> : tournaments.map(t => (
-          <div key={t.id} onClick={() => setSelectedT(t.id)} className="bg-white p-6 rounded-[24px] shadow-xl cursor-pointer hover:scale-[1.02] transition-transform flex justify-between items-center border-l-8" style={{ borderLeftColor: t.league === 'super' ? '#3B82F6' : t.league === 'ultra' ? '#111827' : '#7E22CE' }}>
-            <div>
-              <h3 className="text-xl font-black text-gray-900">{t.name}</h3>
-              <p className="text-xs font-black text-gray-400 uppercase tracking-wider mb-1">Formato {t.league}ball</p>
-              <p className={`text-sm font-bold ${t.status === 'open' ? 'text-green-500' : t.status === 'finished' ? 'text-gray-400' : 'text-blue-500'}`}>
-                {t.status === 'open' ? 'Inscripciones Abiertas' : t.status === 'active' ? `Ronda ${t.current_round}` : 'Finalizado'}
-              </p>
-            </div>
+        {tournaments.map(t => (
+          <div key={t.id} onClick={() => setSelectedT(t.id)} className="bg-white p-6 rounded-[24px] shadow-xl cursor-pointer hover:scale-[1.02] border-l-8 border-blue-500 flex justify-between items-center">
+            <div><h3 className="text-xl font-black">{t.name}</h3><p className="text-xs font-black text-gray-400 uppercase">Liga {t.league}</p></div>
             <Swords className="w-8 h-8 text-gray-300" />
           </div>
         ))}
@@ -267,38 +212,29 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
       ))}
 
       <div className="bg-white rounded-[24px] shadow-xl p-6 flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-black text-gray-900">{activeT?.name}</h2>
-          <div className="flex gap-3 items-center mt-1">
-            <span className={`px-3 py-1 rounded-full text-xs font-black text-white ${activeT?.league === 'super' ? 'bg-blue-600' : activeT?.league === 'ultra' ? 'bg-gray-900 text-yellow-400' : 'bg-purple-700'}`}>Formato {activeT?.league.toUpperCase()}</span>
-            <p className="text-gray-500 font-medium text-sm">{tPlayers.length} Participantes</p>
-          </div>
-        </div>
-        <Button onClick={() => setSelectedT(null)} variant="outline" className="border-0 bg-gray-100 font-bold text-gray-600 hover:bg-gray-200">Volver</Button>
+        <div><h2 className="text-2xl font-black">{activeT?.name}</h2></div>
+        <Button onClick={() => setSelectedT(null)} variant="outline" className="border-0 bg-gray-100 font-bold">Volver</Button>
       </div>
 
       {isAdmin && (
-        <div className="bg-purple-50 rounded-[24px] p-6 shadow-inner border border-purple-100 flex flex-wrap gap-3 items-center">
+        <div className="bg-purple-50 rounded-[24px] p-6 shadow-inner flex flex-wrap gap-3 items-center">
           <span className="font-bold text-purple-900 w-full mb-2">Panel de Admin</span>
-          {activeT?.status === 'open' && <Button onClick={() => handleNextRound(selectedT, 1)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold flex-1">Cerrar Inscripciones e Iniciar Ronda 1</Button>}
-          {activeT?.status === 'active' && <Button onClick={() => handleNextRound(selectedT, (activeT.current_round || 1) + 1)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold flex-1">Generar Siguiente Ronda</Button>}
-          {activeT?.status !== 'finished' && <Button onClick={() => updateTournamentStatus(selectedT, 'finished')} className="bg-gray-800 text-white font-bold flex-1">Finalizar Torneo</Button>}
-          
-          {/* BOTÓN BORRAR ABRE MODAL EN VEZ DE BORRAR DIRECTO */}
-          <Button onClick={() => setShowDeleteConfirm(selectedT)} variant="destructive" size="icon" className="shrink-0"><Trash2 className="w-5 h-5"/></Button>
+          {activeT?.status === 'open' && <Button onClick={() => handleNextRound(selectedT, 1)} className="bg-blue-600 text-white flex-1">Iniciar Ronda 1</Button>}
+          {activeT?.status === 'active' && <Button onClick={() => handleNextRound(selectedT, (activeT.current_round || 1) + 1)} className="bg-blue-600 text-white flex-1">Siguiente Ronda</Button>}
+          {activeT?.status !== 'finished' && <Button onClick={() => updateTournamentStatus(selectedT, 'finished')} className="bg-gray-800 text-white flex-1">Finalizar Torneo</Button>}
+          <Button onClick={() => setShowDeleteConfirm(selectedT)} variant="destructive" size="icon"><Trash2 className="w-5 h-5"/></Button>
         </div>
       )}
 
-      {/* MODAL CONFIRMAR BORRAR TORNEO */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-           <div className="bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl border-4 border-red-400 transform transition-all">
+           <div className="bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl border-4 border-red-400">
               <div className="bg-red-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner"><AlertTriangle className="w-10 h-10 text-red-500 drop-shadow-md" /></div>
-              <h3 className="text-2xl font-black text-gray-900 mb-2 tracking-wide">¿Borrar Torneo?</h3>
-              <p className="text-gray-600 mb-8 text-base">Esta acción es irreversible y eliminará a todos los participantes y llaves generadas.</p>
+              <h3 className="text-2xl font-black mb-2">¿Borrar Torneo?</h3>
+              <p className="text-gray-600 mb-8">Esta acción es irreversible.</p>
               <div className="flex gap-3">
-                 <Button onClick={() => setShowDeleteConfirm(null)} variant="outline" className="flex-1 py-6 text-gray-500 font-bold border-2 border-gray-200 hover:bg-gray-50 text-lg">Cancelar</Button>
-                 <Button onClick={() => { deleteTournament(showDeleteConfirm); setShowDeleteConfirm(null); setSelectedT(null); }} className="flex-1 py-6 bg-red-500 hover:bg-red-600 text-white font-black shadow-lg text-lg">Borrar</Button>
+                 <Button onClick={() => setShowDeleteConfirm(null)} variant="outline" className="flex-1">Cancelar</Button>
+                 <Button onClick={() => { deleteTournament(showDeleteConfirm); setShowDeleteConfirm(null); setSelectedT(null); }} className="flex-1 bg-red-500 text-white">Borrar</Button>
               </div>
            </div>
         </div>
@@ -306,203 +242,133 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
 
       {activeT?.status === 'open' && (
         <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8">
-          <h3 className="text-xl font-black mb-1">Registro de Hoja Abierta</h3>
-          <p className="text-sm text-gray-500 mb-6 flex items-center gap-1.5"><AlertCircle className="w-4 h-4"/> Límite: {activeT?.league === 'super' ? '1500 PC' : activeT?.league === 'ultra' ? '2500 PC' : 'Sin límite'}</p>
-          
+          <h3 className="text-xl font-black mb-4">Registro de Hoja Abierta</h3>
           <div className="flex flex-col gap-4 mb-6">
-            <div>
-              <label className="text-sm font-bold text-gray-700 block mb-1">Nombre de Entrenador *</label>
-              <Input placeholder="Tu Nombre o Gamertag" value={playerName} onChange={e => setPlayerName(e.target.value)} className="bg-gray-50 text-lg py-6 border-2 border-gray-200 font-bold" />
-            </div>
-            
-            <div>
-              <label className="text-sm font-bold text-gray-700 block mb-1">Foto de Perfil para el Torneo (Opcional)</label>
-              <div className="flex items-center gap-4 bg-blue-50 p-4 rounded-xl border-2 border-blue-100 shadow-inner">
-                 <div className="w-16 h-16 rounded-full bg-white shadow-md flex items-center justify-center shrink-0 border-4 border-white overflow-hidden">
-                    <img 
-                      src={getPMDAvatar(avatarDex)} 
-                      alt="Preview" 
-                      className="w-14 h-14 object-contain scale-[1.2]" 
-                      style={avatarDex ? { imageRendering: 'pixelated' } : {}}
-                      onError={(e) => { (e.target as HTMLImageElement).src = pokebola }}
-                    />
-                 </div>
-                 <div className="flex-1">
-                    <p className="text-xs text-blue-800 font-medium mb-2 hidden sm:block">Ingresa el <span className="font-black">Número de la Pokédex</span> de tu Pokémon favorito para usarlo como avatar en los combates.</p>
-                    <Input type="number" min="1" max="1025" placeholder="Ej: 25 (Pikachu), 94 (Gengar)..." value={avatarDex} onChange={e => setAvatarDex(e.target.value)} className="bg-white font-bold h-10 text-sm w-full sm:w-2/3" />
-                 </div>
-              </div>
+            <Input placeholder="Tu Nombre de Entrenador *" value={playerName} onChange={e => setPlayerName(e.target.value)} className="bg-gray-50 text-lg py-6 border-2 font-bold" />
+            <div className="flex items-center gap-4 bg-blue-50 p-4 rounded-xl border-2 border-blue-100 shadow-inner">
+               <div className="w-16 h-16 rounded-full bg-white shadow-md flex items-center justify-center border-4 border-white overflow-hidden">
+                  <img src={getPMDAvatar(avatarDex)} className="w-14 h-14 object-contain scale-[1.2]" style={{ imageRendering: 'pixelated' }} onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
+               </div>
+               <div className="flex-1"><Input type="number" min="1" max="1025" placeholder="Nº de Pokédex para Avatar" value={avatarDex} onChange={e => setAvatarDex(e.target.value)} className="bg-white font-bold h-10" /></div>
             </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {[0, 1, 2, 3, 4, 5].map(i => {
-              const currentSpecies = team[i].species;
-              const hasSpecificMoves = !!POKEMON_LEGAL_MOVES[currentSpecies];
-              const fastListId = hasSpecificMoves ? `fast-moves-${currentSpecies}` : "fast-moves-global";
-              const chargeListId = hasSpecificMoves ? `charge-moves-${currentSpecies}` : "charge-moves-global";
-              
-              const sprite = getPokemonDBSprite(currentSpecies, team[i].regional);
+              const sp = team[i].species; const sprite = getPokemonDBSprite(sp, team[i].regional);
+              const fastListId = POKEMON_LEGAL_MOVES[sp] ? `fast-moves-${sp}` : "fast-moves-global";
+              const chargeListId = POKEMON_LEGAL_MOVES[sp] ? `charge-moves-${sp}` : "charge-moves-global";
               
               return (
-                <div key={i} className="bg-gray-50 border border-gray-200 p-5 rounded-xl space-y-4 relative shadow-sm hover:shadow-md transition-shadow">
+                <div key={i} className="bg-gray-50 border border-gray-200 p-5 rounded-xl space-y-4 relative shadow-sm">
                   <span className="absolute -top-3 -left-3 bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-black shadow-md z-10">{i + 1}</span>
-                  
                   <div className="flex items-center gap-3">
                     <div className="w-14 h-14 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center relative shrink-0">
-                       <img src={sprite} alt="Pokemon" className="w-11 h-11 object-contain drop-shadow-md z-0" onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
-                       {team[i].state === 'Oscuro' && <img src={imgOscuro} alt="Oscuro" className="absolute -bottom-1.5 -right-1.5 w-6 h-6 drop-shadow-md z-10" />}
-                       {team[i].state === 'Purificado' && <img src={imgPurificado} alt="Purificado" className="absolute -bottom-1.5 -right-1.5 w-6 h-6 drop-shadow-md z-10" />}
+                       <img src={sprite} className="w-11 h-11 object-contain drop-shadow-md z-0" onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
+                       {team[i].state === 'Oscuro' && <img src={imgOscuro} className="absolute -bottom-1.5 -right-1.5 w-6 h-6 drop-shadow-md z-10" />}
+                       {team[i].state === 'Purificado' && <img src={imgPurificado} className="absolute -bottom-1.5 -right-1.5 w-6 h-6 drop-shadow-md z-10" />}
                     </div>
-
                     <div className="flex-1 flex flex-col gap-2">
-                      <Input list="pokemon-list" placeholder="Especie de Pokémon" value={team[i].species} onChange={e => handleUpdatePokemon(i, 'species', e.target.value)} className="w-full bg-white border-gray-300 font-black text-lg" />
-                      
+                      <Input list="pokemon-list" placeholder="Especie" value={team[i].species} onChange={e => handleUpdatePokemon(i, 'species', e.target.value)} className="w-full bg-white font-black" />
                       <div className="flex gap-2">
-                        <select value={team[i].state} onChange={e => handleUpdatePokemon(i, 'state', e.target.value)} className="w-1/2 bg-white text-xs border border-gray-300 rounded-md px-2 focus:ring-2 focus:ring-blue-500 outline-none h-9 font-medium text-gray-600">
-                          <option value="Normal">Normal</option>
-                          <option value="Oscuro">Oscuro</option>
-                          <option value="Purificado">Purificado</option>
-                        </select>
-                        <Input type="number" placeholder="PC Exacto" value={team[i].cp} onChange={e => handleUpdatePokemon(i, 'cp', e.target.value)} className="w-1/2 bg-white border-gray-300 h-9 font-mono font-bold text-center" />
+                        <select value={team[i].state} onChange={e => handleUpdatePokemon(i, 'state', e.target.value)} className="w-1/2 bg-white text-xs border border-gray-300 rounded-md px-2 font-medium text-gray-600"><option value="Normal">Normal</option><option value="Oscuro">Oscuro</option><option value="Purificado">Purificado</option></select>
+                        <Input type="number" placeholder="PC" value={team[i].cp} onChange={e => handleUpdatePokemon(i, 'cp', e.target.value)} className="w-1/2 bg-white border-gray-300 font-mono font-bold text-center" />
                       </div>
                     </div>
                   </div>
 
-                  {REGIONAL_FORMS[currentSpecies] && (
+                  {REGIONAL_FORMS[sp] && (
                     <div className="bg-blue-50 border border-blue-100 rounded-lg p-2">
-                      <select value={team[i].regional} onChange={e => handleUpdatePokemon(i, 'regional', e.target.value)} className="w-full bg-white text-xs border border-blue-200 rounded-md px-2 focus:ring-2 focus:ring-blue-500 outline-none h-8 font-bold text-blue-700">
-                        <option value="Normal">Forma Estándar</option>
-                        {REGIONAL_FORMS[currentSpecies].map(form => <option key={form} value={form}>Forma {form}</option>)}
+                      <select value={team[i].regional} onChange={e => handleUpdatePokemon(i, 'regional', e.target.value)} className="w-full bg-white text-xs rounded-md px-2 font-bold text-blue-700 h-8">
+                        <option value="Normal">Forma Estándar</option>{REGIONAL_FORMS[sp].map(form => <option key={form} value={form}>Forma {form}</option>)}
                       </select>
                     </div>
                   )}
 
                   <div className="space-y-2 pt-2 border-t border-gray-200">
                     <div className="flex gap-2 items-center">
-                      <div className="relative w-10 h-10 shrink-0 bg-white rounded-md border border-gray-200 shadow-sm hover:bg-gray-100 transition-colors flex items-center justify-center cursor-pointer">
-                        <img src={POKEMON_TYPES.find(t => t.name === team[i].fastType)?.icon || typeNormal} className="w-6 h-6 object-contain drop-shadow-sm" alt="Tipo" />
-                        <select value={team[i].fastType} onChange={e => handleUpdatePokemon(i, 'fastType', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
-                          {POKEMON_TYPES.map(pt => <option key={pt.name} value={pt.name}>{pt.name}</option>)}
-                        </select>
+                      <div className="relative w-10 h-10 shrink-0 bg-white rounded-md border flex items-center justify-center cursor-pointer">
+                        <img src={POKEMON_TYPES.find(t => t.name === team[i].fastType)?.icon || typeNormal} className="w-6 h-6 object-contain" />
+                        <select value={team[i].fastType} onChange={e => handleUpdatePokemon(i, 'fastType', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full">{POKEMON_TYPES.map(pt => <option key={pt.name} value={pt.name}>{pt.name}</option>)}</select>
                       </div>
-                      <Input list={fastListId} placeholder="Ataque Rápido" value={team[i].fast} onChange={e => handleUpdatePokemon(i, 'fast', e.target.value)} className="flex-1 bg-white border-gray-300 font-bold text-gray-700" />
+                      <Input list={fastListId} placeholder="Ataque Rápido" value={team[i].fast} onChange={e => handleUpdatePokemon(i, 'fast', e.target.value)} className="flex-1 bg-white font-bold" />
                     </div>
                     
                     <div className="flex gap-2 items-center">
-                      <div className="relative w-10 h-10 shrink-0 bg-white rounded-md border border-gray-200 shadow-sm hover:bg-gray-100 transition-colors flex items-center justify-center cursor-pointer">
-                        <img src={POKEMON_TYPES.find(t => t.name === team[i].charge1Type)?.icon || typeNormal} className="w-6 h-6 object-contain drop-shadow-sm" alt="Tipo" />
-                        <select value={team[i].charge1Type} onChange={e => handleUpdatePokemon(i, 'charge1Type', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
-                          {POKEMON_TYPES.map(pt => <option key={pt.name} value={pt.name}>{pt.name}</option>)}
-                        </select>
+                      <div className="relative w-10 h-10 shrink-0 bg-white rounded-md border flex items-center justify-center cursor-pointer">
+                        <img src={POKEMON_TYPES.find(t => t.name === team[i].charge1Type)?.icon || typeNormal} className="w-6 h-6 object-contain" />
+                        <select value={team[i].charge1Type} onChange={e => handleUpdatePokemon(i, 'charge1Type', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full">{POKEMON_TYPES.map(pt => <option key={pt.name} value={pt.name}>{pt.name}</option>)}</select>
                       </div>
-                      <Input list={chargeListId} placeholder="Cargado Primario" value={team[i].charge1} onChange={e => handleUpdatePokemon(i, 'charge1', e.target.value)} className="flex-1 bg-white border-gray-300 font-bold text-gray-700" />
+                      <Input list={chargeListId} placeholder="Cargado Primario" value={team[i].charge1} onChange={e => handleUpdatePokemon(i, 'charge1', e.target.value)} className="flex-1 bg-white font-bold" />
                     </div>
 
                     <div className="flex gap-2 items-center">
-                      <div className="relative w-10 h-10 shrink-0 bg-white rounded-md border border-gray-200 shadow-sm hover:bg-gray-100 transition-colors flex items-center justify-center cursor-pointer">
-                        <img src={POKEMON_TYPES.find(t => t.name === team[i].charge2Type)?.icon || typeNormal} className="w-6 h-6 object-contain drop-shadow-sm" alt="Tipo" />
-                        <select value={team[i].charge2Type} onChange={e => handleUpdatePokemon(i, 'charge2Type', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
-                          {POKEMON_TYPES.map(pt => <option key={pt.name} value={pt.name}>{pt.name}</option>)}
-                        </select>
+                      <div className="relative w-10 h-10 shrink-0 bg-white rounded-md border flex items-center justify-center cursor-pointer">
+                        <img src={POKEMON_TYPES.find(t => t.name === team[i].charge2Type)?.icon || typeNormal} className="w-6 h-6 object-contain" />
+                        <select value={team[i].charge2Type} onChange={e => handleUpdatePokemon(i, 'charge2Type', e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full">{POKEMON_TYPES.map(pt => <option key={pt.name} value={pt.name}>{pt.name}</option>)}</select>
                       </div>
-                      <Input list={chargeListId} placeholder="Cargado Secundario (Opc.)" value={team[i].charge2} onChange={e => handleUpdatePokemon(i, 'charge2', e.target.value)} className="flex-1 bg-white border-gray-300 font-bold text-gray-700" />
+                      <Input list={chargeListId} placeholder="Cargado Secundario" value={team[i].charge2} onChange={e => handleUpdatePokemon(i, 'charge2', e.target.value)} className="flex-1 bg-white font-bold" />
                     </div>
                   </div>
-
                 </div>
               )
             })}
           </div>
-          <Button onClick={handleRegister} disabled={isSubmitting || !playerName.trim() || team.some(p => !p.species)} className="w-full bg-green-500 hover:bg-green-600 text-white font-black py-6 text-xl rounded-xl shadow-lg transition-all">
-             {isSubmitting ? "Inscribiendo Equipo..." : "Inscribir mi Equipo"}
+          <Button onClick={handleRegister} disabled={isSubmitting || !playerName.trim() || team.some(p => !p.species)} className="w-full bg-green-500 hover:bg-green-600 text-white font-black py-6 text-xl rounded-xl">
+             {isSubmitting ? "Inscribiendo..." : "Inscribir mi Equipo"}
           </Button>
         </div>
       )}
 
-      {/* DISEÑO BRACKET CON GANADOR EN DORADO */}
+      {/* DISEÑO BRACKET ANIMÉ (IZQUIERDA VS DERECHA, CON GANADOR DORADO) */}
       {activeT?.status === 'active' && (
-        <div className="flex flex-col items-center gap-6 mt-8 overflow-hidden w-full">
-          
-          <div className="flex flex-col justify-center items-center relative z-10 shrink-0 mb-4">
-             <div className="bg-gradient-to-br from-yellow-100 to-yellow-200 p-5 rounded-full border-4 border-yellow-400 shadow-xl mb-3">
-                 <Trophy className="w-12 h-12 text-yellow-600 drop-shadow-md" />
-             </div>
-             <span className="font-black text-gray-800 text-xl uppercase tracking-widest bg-white border-2 border-gray-200 px-6 py-2 rounded-full shadow-sm">
-                Ronda {activeT.current_round}
-             </span>
+        <div className="flex flex-col items-center gap-6 mt-8 w-full">
+          <div className="flex flex-col justify-center items-center z-10 shrink-0 mb-4">
+             <div className="bg-gradient-to-br from-yellow-100 to-yellow-200 p-5 rounded-full border-4 border-yellow-400 shadow-xl mb-3"><Trophy className="w-12 h-12 text-yellow-600 drop-shadow-md" /></div>
+             <span className="font-black text-xl uppercase tracking-widest bg-white border-2 px-6 py-2 rounded-full shadow-sm">Ronda {activeT.current_round}</span>
           </div>
 
           <div className="flex flex-col gap-6 w-full max-w-4xl px-4">
             {tMatches.map(m => {
-              const p1 = players.find(p => p.id === m.player1_id);
-              const p2 = players.find(p => p.id === m.player2_id);
-              
+              const p1 = players.find(p => p.id === m.player1_id); const p2 = players.find(p => p.id === m.player2_id);
               return (
                 <div key={m.id} className="relative w-full">
                   <div className="bg-transparent flex flex-col md:flex-row relative group gap-1">
                     
-                    {/* PLAYER 1 (IZQUIERDA) - AHORA DORADO SI GANA */}
-                    <div 
-                      className={`flex-1 p-4 md:p-6 flex items-center gap-4 transition-all cursor-pointer rounded-2xl md:rounded-l-2xl md:rounded-r-none border-2 shadow-lg ${
-                        m.winner_id === p1?.id 
-                          ? 'bg-gradient-to-r from-yellow-100 to-amber-50 border-yellow-400 shadow-yellow-200/50 z-20 scale-[1.02]' 
-                          : 'bg-white border-gray-100 hover:bg-gray-50'
-                      }`}
-                      onClick={() => isAdmin && !m.winner_id && p1 && p2 && handleWinnerClick(m.id, p1.id, p1.player_name)}
-                    >
+                    {/* JUGADOR 1 (IZQ) */}
+                    <div className={`flex-1 p-4 md:p-6 flex items-center gap-4 cursor-pointer rounded-2xl md:rounded-l-2xl md:rounded-r-none border-2 shadow-lg ${m.winner_id === p1?.id ? 'bg-gradient-to-r from-yellow-100 to-amber-50 border-yellow-400 shadow-yellow-200/50 z-20 scale-[1.02]' : 'bg-white hover:bg-gray-50'}`} onClick={() => isAdmin && !m.winner_id && p1 && p2 && setConfirmWinnerData({matchId: m.id, playerId: p1.id, playerName: p1.player_name})}>
                        <div className="relative">
-                         <div className={`w-16 h-16 rounded-full border-2 shadow-md flex items-center justify-center overflow-hidden z-10 relative ${
-                           m.winner_id === p1?.id ? 'bg-gradient-to-br from-yellow-200 to-amber-300 border-yellow-400' : 'bg-gradient-to-br from-blue-100 to-blue-200 border-white'
-                         }`}>
-                           <img src={getPMDAvatar(p1?.avatar_dex)} alt={p1?.player_name} className="w-full h-full object-contain scale-[1.2]" style={p1?.avatar_dex ? { imageRendering: 'pixelated' } : {}} onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
+                         <div className={`w-16 h-16 rounded-full border-2 shadow-md flex items-center justify-center overflow-hidden z-10 relative ${m.winner_id === p1?.id ? 'bg-gradient-to-br from-yellow-200 to-amber-300 border-yellow-400' : 'bg-gradient-to-br from-blue-100 to-blue-200'}`}>
+                           <img src={getPMDAvatar(p1?.avatar_dex)} className="w-full h-full object-contain scale-[1.2]" style={{ imageRendering: 'pixelated' }} onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
                          </div>
-                         {m.winner_id === p1?.id && <div className="absolute -bottom-2 -right-2 bg-yellow-400 rounded-full p-1 border-2 border-white z-20 shadow-sm"><Trophy className="w-4 h-4 text-yellow-900"/></div>}
+                         {m.winner_id === p1?.id && <div className="absolute -bottom-2 -right-2 bg-yellow-400 rounded-full p-1 border-2 border-white z-20"><Trophy className="w-4 h-4 text-yellow-900"/></div>}
                        </div>
-                       
                        <div className="flex flex-col items-start flex-1 min-w-0">
                          <span className={`font-black text-xl truncate w-full ${m.winner_id === p1?.id ? 'text-yellow-800' : 'text-gray-800'}`}>{p1?.player_name}</span>
-                         <button onClick={(e) => { e.stopPropagation(); if (p1) setViewPlayer(p1); }} className={`text-xs font-bold flex items-center gap-1 mt-1 transition-colors ${m.winner_id === p1?.id ? 'text-yellow-600 hover:text-yellow-800' : 'text-gray-400 hover:text-blue-500'}`}><Eye className="w-3.5 h-3.5"/> Ver Equipo</button>
+                         <button onClick={(e) => { e.stopPropagation(); if (p1) setViewPlayer(p1); }} className={`text-xs font-bold flex items-center gap-1 mt-1 ${m.winner_id === p1?.id ? 'text-yellow-600' : 'text-gray-400 hover:text-blue-500'}`}><Eye className="w-3.5 h-3.5"/> Ver Equipo</button>
                        </div>
                     </div>
 
-                    {/* CENTRO (VS) */}
-                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 hidden md:flex items-center justify-center">
-                      <div className="bg-gray-900 text-white font-black italic px-4 py-2 rounded-lg border-4 border-white shadow-xl -skew-x-12 tracking-widest">VS</div>
-                    </div>
+                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 hidden md:flex items-center justify-center"><div className="bg-gray-900 text-white font-black italic px-4 py-2 rounded-lg border-4 border-white shadow-xl -skew-x-12">VS</div></div>
+                    <div className="w-full h-0.5 bg-gray-100 md:hidden flex items-center justify-center relative"><div className="bg-gray-900 text-white font-black text-xs px-2 py-0.5 rounded-md border-2 border-white absolute">VS</div></div>
 
-                    {/* PLAYER 2 (DERECHA) - DORADO SI GANA */}
+                    {/* JUGADOR 2 (DER) */}
                     {p2 ? (
-                      <div 
-                        className={`flex-1 p-4 md:p-6 flex items-center gap-4 flex-row-reverse text-right transition-all cursor-pointer rounded-2xl md:rounded-r-2xl md:rounded-l-none border-2 shadow-lg ${
-                          m.winner_id === p2?.id 
-                            ? 'bg-gradient-to-l from-yellow-100 to-amber-50 border-yellow-400 shadow-yellow-200/50 z-20 scale-[1.02]' 
-                            : 'bg-white border-gray-100 hover:bg-gray-50'
-                        }`}
-                        onClick={() => isAdmin && !m.winner_id && p2 && handleWinnerClick(m.id, p2.id, p2.player_name)}
-                      >
+                      <div className={`flex-1 p-4 md:p-6 flex items-center gap-4 flex-row-reverse text-right cursor-pointer rounded-2xl md:rounded-r-2xl md:rounded-l-none border-2 shadow-lg ${m.winner_id === p2?.id ? 'bg-gradient-to-l from-yellow-100 to-amber-50 border-yellow-400 shadow-yellow-200/50 z-20 scale-[1.02]' : 'bg-white hover:bg-gray-50'}`} onClick={() => isAdmin && !m.winner_id && p2 && setConfirmWinnerData({matchId: m.id, playerId: p2.id, playerName: p2.player_name})}>
                          <div className="relative">
-                           <div className={`w-16 h-16 rounded-full border-2 shadow-md flex items-center justify-center overflow-hidden z-10 relative ${
-                             m.winner_id === p2?.id ? 'bg-gradient-to-bl from-yellow-200 to-amber-300 border-yellow-400' : 'bg-gradient-to-bl from-red-100 to-red-200 border-white'
-                           }`}>
-                             <img src={getPMDAvatar(p2?.avatar_dex)} alt={p2?.player_name} className="w-full h-full object-contain scale-[1.2]" style={p2?.avatar_dex ? { imageRendering: 'pixelated' } : {}} onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
+                           <div className={`w-16 h-16 rounded-full border-2 shadow-md flex items-center justify-center overflow-hidden z-10 relative ${m.winner_id === p2?.id ? 'bg-gradient-to-bl from-yellow-200 to-amber-300 border-yellow-400' : 'bg-gradient-to-bl from-red-100 to-red-200'}`}>
+                             <img src={getPMDAvatar(p2?.avatar_dex)} className="w-full h-full object-contain scale-[1.2]" style={{ imageRendering: 'pixelated' }} onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
                            </div>
-                           {m.winner_id === p2?.id && <div className="absolute -bottom-2 -left-2 bg-yellow-400 rounded-full p-1 border-2 border-white z-20 shadow-sm"><Trophy className="w-4 h-4 text-yellow-900"/></div>}
+                           {m.winner_id === p2?.id && <div className="absolute -bottom-2 -left-2 bg-yellow-400 rounded-full p-1 border-2 border-white z-20"><Trophy className="w-4 h-4 text-yellow-900"/></div>}
                          </div>
-
                          <div className="flex flex-col items-end flex-1 min-w-0">
                            <span className={`font-black text-xl truncate w-full ${m.winner_id === p2?.id ? 'text-yellow-800' : 'text-gray-800'}`}>{p2?.player_name}</span>
-                           <button onClick={(e) => { e.stopPropagation(); setViewPlayer(p2); }} className={`text-xs font-bold flex items-center gap-1 mt-1 transition-colors ${m.winner_id === p2?.id ? 'text-yellow-600 hover:text-yellow-800' : 'text-gray-400 hover:text-red-500'}`}><Eye className="w-3.5 h-3.5"/> Ver Equipo</button>
+                           <button onClick={(e) => { e.stopPropagation(); setViewPlayer(p2); }} className={`text-xs font-bold flex items-center gap-1 mt-1 ${m.winner_id === p2?.id ? 'text-yellow-600' : 'text-gray-400 hover:text-red-500'}`}><Eye className="w-3.5 h-3.5"/> Ver Equipo</button>
                          </div>
                       </div>
                     ) : (
-                      <div className="flex-1 p-4 md:p-6 flex items-center justify-center bg-gray-50 rounded-2xl md:rounded-r-2xl md:rounded-l-none border-2 border-gray-100">
-                        <div className="bg-yellow-100 text-yellow-700 font-black text-sm px-6 py-2 rounded-full border border-yellow-200 shadow-inner flex items-center gap-2">
-                          <Trophy className="w-4 h-4"/> AVANZA AUTOMÁTICO
-                        </div>
-                      </div>
+                      <div className="flex-1 p-4 md:p-6 flex items-center justify-center bg-gray-50 rounded-2xl md:rounded-r-2xl md:rounded-l-none border-2 border-gray-100"><div className="bg-yellow-100 text-yellow-700 font-black text-sm px-6 py-2 rounded-full border border-yellow-200 shadow-inner flex items-center gap-2"><Trophy className="w-4 h-4"/> AVANZA AUTOMÁTICO</div></div>
                     )}
-                    
                   </div>
                 </div>
               )
@@ -511,29 +377,27 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* MODAL CONFIRMAR GANADOR */}
+      {/* CONFIRMAR GANADOR */}
       {confirmWinnerData && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-           <div className="bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl border-4 border-yellow-400 transform transition-all">
-              <div className="bg-yellow-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner"><Trophy className="w-12 h-12 text-yellow-500 drop-shadow-md" /></div>
-              <h3 className="text-2xl font-black text-gray-900 mb-2 uppercase tracking-wide">¡Ganador de la ronda!</h3>
-              <p className="text-gray-600 mb-8 text-lg">¿Confirmar victoria para <span className="font-bold text-yellow-700 bg-yellow-50 px-2 py-1 rounded-md border border-yellow-200">{confirmWinnerData.playerName}</span>?</p>
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+           <div className="bg-white rounded-3xl p-8 max-w-sm text-center border-4 border-yellow-400 shadow-2xl">
+              <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+              <h3 className="text-2xl font-black mb-2 uppercase">¡Ganador!</h3>
+              <p className="text-gray-600 mb-8">Confirmar victoria para <span className="font-bold text-yellow-700">{confirmWinnerData.playerName}</span></p>
               <div className="flex gap-3">
-                 <Button onClick={() => setConfirmWinnerData(null)} variant="outline" className="flex-1 py-6 text-gray-500 font-bold border-2 border-gray-200 hover:bg-gray-50 text-lg">Cancelar</Button>
-                 <Button onClick={() => { setWinner(confirmWinnerData.matchId, confirmWinnerData.playerId); setConfirmWinnerData(null); }} className="flex-1 py-6 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black shadow-lg text-lg">Confirmar</Button>
+                 <Button onClick={() => setConfirmWinnerData(null)} variant="outline" className="flex-1">Cancelar</Button>
+                 <Button onClick={() => { setWinner(confirmWinnerData.matchId, confirmWinnerData.playerId); setConfirmWinnerData(null); }} className="flex-1 bg-yellow-400 text-yellow-900 font-black">Confirmar</Button>
               </div>
            </div>
         </div>
       )}
 
-      {/* VISTA HOJA ABIERTA INDIVIDUAL */}
+      {/* VISTA HOJA DEL JUGADOR CON LOS ICONOS DE TIPOS CORRECTOS */}
       {viewPlayer && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setViewPlayer(null)}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setViewPlayer(null)}>
           <div className="bg-white rounded-[32px] p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-black mb-6 text-center text-gray-900 border-b pb-4 flex items-center justify-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden border border-blue-200 shadow-inner">
-                 <img src={getPMDAvatar(viewPlayer.avatar_dex)} className="w-full h-full object-contain scale-[1.2]" style={viewPlayer.avatar_dex ? { imageRendering: 'pixelated' } : {}} onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
-              </div>
+            <h2 className="text-2xl font-black mb-6 text-center flex justify-center items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-100 overflow-hidden border border-blue-200"><img src={getPMDAvatar(viewPlayer.avatar_dex)} className="w-full h-full object-contain scale-[1.2]" style={{ imageRendering: 'pixelated' }} /></div>
               Hoja de {viewPlayer.player_name}
             </h2>
             
@@ -546,62 +410,38 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
 
                 return (
                   <div key={i} className={`bg-white p-4 rounded-2xl shadow-sm border-l-4 ${poke.state === 'Oscuro' ? 'border-purple-600' : poke.state === 'Purificado' ? 'border-yellow-400' : 'border-blue-400'} border-t border-r border-b border-gray-100 flex gap-4 items-center`}>
-                    
-                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center shrink-0 border border-gray-100 shadow-inner relative">
-                       <img src={sprite} alt="Pokemon" className="w-16 h-16 object-contain drop-shadow-md z-0" onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
-                       {poke.state === 'Oscuro' && <img src={imgOscuro} alt="Oscuro" className="absolute -bottom-1 -right-1 w-7 h-7 drop-shadow-md z-10" />}
-                       {poke.state === 'Purificado' && <img src={imgPurificado} alt="Purificado" className="absolute -bottom-1 -right-1 w-7 h-7 drop-shadow-md z-10" />}
+                    <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center border border-gray-100 shadow-inner relative">
+                       <img src={sprite} className="w-16 h-16 object-contain z-0" onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} />
+                       {poke.state === 'Oscuro' && <img src={imgOscuro} className="absolute -bottom-1 -right-1 w-7 h-7 drop-shadow-md z-10" />}
+                       {poke.state === 'Purificado' && <img src={imgPurificado} className="absolute -bottom-1 -right-1 w-7 h-7 drop-shadow-md z-10" />}
                     </div>
-
                     <div className="flex-1">
                       <div className="flex justify-between items-center mb-2 border-b pb-1">
-                        <span className="font-black text-gray-800 text-lg leading-tight">{poke.species} 
-                          {poke.regional !== 'Normal' && <span className="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{poke.regional}</span>}
-                        </span>
-                        <span className="font-mono font-black text-sm bg-gray-900 text-white px-2 py-0.5 rounded-md shrink-0">PC {poke.cp}</span>
+                        <span className="font-black text-gray-800 text-lg">{poke.species} {poke.regional !== 'Normal' && <span className="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{poke.regional}</span>}</span>
+                        <span className="font-mono font-black text-sm bg-gray-900 text-white px-2 py-0.5 rounded-md">PC {poke.cp}</span>
                       </div>
-                      
                       <div className="grid grid-cols-1 gap-1.5 text-sm mt-2">
-                        <div className="flex items-center gap-2">
-                           <img src={fType} alt={poke.fastType} className="w-5 h-5 object-contain" />
-                           <span className="text-gray-700 font-bold">{poke.fast || '-'}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                           <img src={c1Type} alt={poke.charge1Type} className="w-5 h-5 object-contain" />
-                           <span className="text-gray-700 font-bold">{poke.charge1 || '-'}</span>
-                        </div>
-                        {poke.charge2 && (
-                          <div className="flex items-center gap-2">
-                             <img src={c2Type} alt={poke.charge2Type} className="w-5 h-5 object-contain" />
-                             <span className="text-gray-700 font-bold">{poke.charge2}</span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2"><img src={fType} className="w-5 h-5 object-contain" /><span className="text-gray-700 font-bold">{poke.fast || '-'}</span></div>
+                        <div className="flex items-center gap-2"><img src={c1Type} className="w-5 h-5 object-contain" /><span className="text-gray-700 font-bold">{poke.charge1 || '-'}</span></div>
+                        {poke.charge2 && <div className="flex items-center gap-2"><img src={c2Type} className="w-5 h-5 object-contain" /><span className="text-gray-700 font-bold">{poke.charge2}</span></div>}
                       </div>
                     </div>
-
                   </div>
                 )
               })}
             </div>
-            <Button onClick={() => setViewPlayer(null)} className="w-full mt-6 bg-gray-900 hover:bg-gray-800 text-white font-bold py-6 rounded-xl text-lg">Cerrar</Button>
+            <Button onClick={() => setViewPlayer(null)} className="w-full mt-6 bg-gray-900 text-white font-bold py-6 rounded-xl">Cerrar</Button>
           </div>
         </div>
       )}
 
       {alertInfo && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-200" onClick={() => setAlertInfo(null)}>
-           <div className={`bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl border-4 ${alertInfo.type === 'error' ? 'border-red-400' : alertInfo.type === 'success' ? 'border-green-400' : 'border-yellow-400'} transform transition-all`} onClick={e => e.stopPropagation()}>
-              <div className={`${alertInfo.type === 'error' ? 'bg-red-100 text-red-500' : alertInfo.type === 'success' ? 'bg-green-100 text-green-500' : 'bg-yellow-100 text-yellow-500'} w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner`}>
-                {alertInfo.type === 'error' && <AlertCircle className="w-10 h-10" />}
-                {alertInfo.type === 'success' && <Check className="w-10 h-10" />}
-                {alertInfo.type === 'champion' && <Trophy className="w-10 h-10" />}
-              </div>
-              <h3 className="text-2xl font-black text-gray-900 mb-2">{alertInfo.title}</h3>
-              <p className="text-gray-600 mb-8 text-base">{alertInfo.message}</p>
-              
-              <Button onClick={() => setAlertInfo(null)} className={`w-full py-6 font-black shadow-lg text-lg text-white ${alertInfo.type === 'error' ? 'bg-red-500 hover:bg-red-600' : alertInfo.type === 'success' ? 'bg-green-500 hover:bg-green-600' : 'bg-yellow-500 hover:bg-yellow-600'}`}>
-                Entendido
-              </Button>
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setAlertInfo(null)}>
+           <div className="bg-white p-8 rounded-3xl text-center max-w-sm shadow-2xl border-4 border-blue-400" onClick={e => e.stopPropagation()}>
+              <Check className="w-16 h-16 text-green-500 mx-auto mb-4" />
+              <h3 className="text-2xl font-black mb-2">{alertInfo.title}</h3>
+              <p className="text-gray-600 mb-8">{alertInfo.message}</p>
+              <Button onClick={() => setAlertInfo(null)} className="w-full bg-blue-600 text-white py-4 font-bold">Entendido</Button>
            </div>
         </div>
       )}

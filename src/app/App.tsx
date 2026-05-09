@@ -75,17 +75,15 @@ export default function App() {
     }
   }, [spectatorView, isAdmin])
 
+  // LÓGICA DEL BOTÓN DE INSTALACIÓN PWA
   useEffect(() => {
-    const handleBeforeInstallPrompt = (e: any) => { e.preventDefault(); setInstallPrompt(e) }
+    const handleBeforeInstallPrompt = (e: any) => { 
+      e.preventDefault(); 
+      setInstallPrompt(e) 
+    }
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
   }, [])
-
-  useEffect(() => {
-    if (banners.length <= 1) return;
-    const interval = setInterval(() => { setCurrentBannerIndex((prev) => (prev + 1) % banners.length) }, 4000);
-    return () => clearInterval(interval);
-  }, [banners.length]);
 
   const handleInstallApp = async () => {
     if (!installPrompt) return
@@ -93,6 +91,12 @@ export default function App() {
     const { outcome } = await installPrompt.userChoice
     if (outcome === 'accepted') setInstallPrompt(null)
   }
+
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    const interval = setInterval(() => { setCurrentBannerIndex((prev) => (prev + 1) % banners.length) }, 4000);
+    return () => clearInterval(interval);
+  }, [banners.length]);
 
   const handleLogin = () => {
     if (validAdmins.includes(usernameInput.toLowerCase()) && passwordInput === validPassword) {
@@ -108,17 +112,17 @@ export default function App() {
   const handleLogout = () => { 
     setIsAdmin(false); 
     setActiveTab('register'); 
-    broadcastView('main'); // Asegura que los espectadores también salgan
+    broadcastView('main'); 
   }
 
   const handleStartRoulette = () => {
     setCurrentView('roulette');
-    broadcastView('roulette'); // Esto hace aparecer el botón de "Ruleta en Vivo" en el público
+    broadcastView('roulette'); 
   }
 
   const handleExitRoulette = () => {
     setCurrentView('main');
-    broadcastView('main'); // Esto esconde el botón al público
+    broadcastView('main'); 
   }
 
   const submitSponsor = async () => {
@@ -222,7 +226,6 @@ export default function App() {
           <img src={logoImg} alt="Pokémon GO GDL" className="w-full max-w-[280px] sm:max-w-[320px] mx-auto drop-shadow-xl relative z-10" />
         </header>
 
-        {/* LÓGICA INTACTA: SÓLO APARECE SI EL ADMIN ABRIÓ LA RULETA */}
         {!isAdmin && spectatorView === 'roulette' && (
           <div 
             onClick={() => setCurrentView('roulette')}
@@ -417,6 +420,7 @@ export default function App() {
             <a href="https://www.facebook.com/profile.php?id=61577260873239" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform"><Facebook className="w-9 h-9 sm:w-10 sm:h-10 drop-shadow-lg" strokeWidth={1.5} /></a>
             <a href="https://x.com/PokemonGo_GDL" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform"><Twitter className="w-9 h-9 sm:w-10 sm:h-10 drop-shadow-lg" strokeWidth={1.5} /></a>
           </div>
+          {/* EL BOTÓN PWA ESTÁ AQUÍ Y APARECERÁ SI EL NAVEGADOR LO PERMITE */}
           {installPrompt && (
             <button onClick={handleInstallApp} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-white text-blue-600 font-bold shadow-xl mx-auto hover:bg-gray-50 active:scale-95 transition-all text-sm">
               <Download className="w-5 h-5" /> Crear Acceso Directo
