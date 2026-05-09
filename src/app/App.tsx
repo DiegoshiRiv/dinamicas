@@ -5,7 +5,7 @@ import { AdminPanel } from '@/app/components/AdminPanel'
 import { WinnerRoulette } from '@/app/components/WinnerRoulette'
 import { QRCodeDisplay } from '@/app/components/QRCodeDisplay'
 import { FriendBoard } from '@/app/components/FriendBoard'
-import { TournamentBoard } from '@/app/components/TournamentBoard' // <-- COMPONENTE DE TORNEOS IMPORTADO
+import { TournamentBoard } from '@/app/components/TournamentBoard'
 import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, Instagram, Facebook, Twitter, Download, Heart, Image as ImageIcon, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Radio, ChevronRight, Contact, Swords } from 'lucide-react'
 import { useParticipants } from '@/hooks/useParticipants'
 import { Button } from '@/app/components/ui/button'
@@ -104,16 +104,21 @@ export default function App() {
 
   const onLoginSubmit = (e: React.FormEvent) => { e.preventDefault(); handleLogin() }
   const handleUsernameKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); passwordRef.current?.focus() } }
-  const handleLogout = () => { setIsAdmin(false); setActiveTab('register'); broadcastView('main') }
+  
+  const handleLogout = () => { 
+    setIsAdmin(false); 
+    setActiveTab('register'); 
+    broadcastView('main'); // Asegura que los espectadores también salgan
+  }
 
   const handleStartRoulette = () => {
     setCurrentView('roulette');
-    broadcastView('roulette');
+    broadcastView('roulette'); // Esto hace aparecer el botón de "Ruleta en Vivo" en el público
   }
 
   const handleExitRoulette = () => {
     setCurrentView('main');
-    broadcastView('main');
+    broadcastView('main'); // Esto esconde el botón al público
   }
 
   const submitSponsor = async () => {
@@ -217,6 +222,7 @@ export default function App() {
           <img src={logoImg} alt="Pokémon GO GDL" className="w-full max-w-[280px] sm:max-w-[320px] mx-auto drop-shadow-xl relative z-10" />
         </header>
 
+        {/* LÓGICA INTACTA: SÓLO APARECE SI EL ADMIN ABRIÓ LA RULETA */}
         {!isAdmin && spectatorView === 'roulette' && (
           <div 
             onClick={() => setCurrentView('roulette')}
@@ -229,7 +235,7 @@ export default function App() {
               </div>
               <div className="text-left">
                 <h3 className="font-black text-lg leading-tight drop-shadow-sm">¡Ruleta en Vivo!</h3>
-                <p className="text-sm font-medium text-red-100">Toca aquí para volver a verla.</p>
+                <p className="text-sm font-medium text-red-100">Toca aquí para ver los sorteos.</p>
               </div>
             </div>
             <ChevronRight className="w-6 h-6 relative z-10" />
@@ -237,7 +243,6 @@ export default function App() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          {/* NUEVO MENÚ: 4 Columnas para que quepan Registro, Torneos, Amigos y Patrocinadores */}
           <TabsList className="w-full grid grid-cols-4 gap-1.5 sm:gap-2 bg-transparent h-auto p-0 mb-6">
             <TabsTrigger value="register" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col sm:flex-row items-center justify-center gap-1 font-bold text-[10px] sm:text-[13px] border-0 shadow-md transition-all">
               <Users className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" /> <span className="truncate">Registro</span>
@@ -269,7 +274,6 @@ export default function App() {
 
           <TabsContent value="register" className="mt-0 outline-none"><RegistrationForm saveRegistration={addParticipant} isAdmin={isAdmin} /></TabsContent>
 
-          {/* VISTA DE TORNEOS */}
           <TabsContent value="tournaments" className="mt-0 outline-none">
             <TournamentBoard isAdmin={isAdmin} />
           </TabsContent>

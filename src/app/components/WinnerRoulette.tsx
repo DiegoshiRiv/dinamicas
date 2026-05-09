@@ -16,7 +16,7 @@ interface WinnerRouletteProps {
   onResetGame: () => void
   
   isSpectator?: boolean
-  incomingSpin?: { rotation: number, winnerId: string } | null
+  incomingSpin?: { rotation: number, winnerId: string, localReceivedAt: number } | null
   broadcastSpin?: (rotation: number, winnerId: string) => void
 }
 
@@ -28,9 +28,18 @@ export function WinnerRoulette({
   const [rotation, setRotation] = useState(0)
   const [isSpinning, setIsSpinning] = useState(false)
   const [winner, setWinner] = useState<Participant | null>(null)
+  const [clientIp, setClientIp] = useState<string>('')
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const activePlayers = participants.filter(p => p.status === 'active')
+
+  // OBTENER LA IP DEL DISPOSITIVO AL ABRIR LA RULETA
+  useEffect(() => {
+    fetch('https://api.ipify.org?format=json')
+      .then(res => res.json())
+      .then(data => setClientIp(data.ip))
+      .catch(() => console.error("No se pudo obtener IP"));
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -101,6 +110,17 @@ export function WinnerRoulette({
 
   useEffect(() => {
     if (isSpectator && incomingSpin) {
+      // PREVENCIÓN: Verificamos si la señal llegó hace más de 2 segundos.
+      const isOldSpin = Date.now() - incomingSpin.localReceivedAt > 2000;
+      
+      if (isOldSpin) {
+        // SI ES VIEJO: Solo ajustamos la posición visual, NO animamos ni mostramos ganador
+        setRotation(incomingSpin.rotation);
+        setWinner(null);
+        return;
+      }
+
+      // SI ES NUEVO: Hacemos la animación completa
       setIsSpinning(true)
       setWinner(null)
       setRotation(incomingSpin.rotation)
@@ -151,6 +171,9 @@ export function WinnerRoulette({
     }
   }
 
+  // VALIDAR SI YO SOY EL GANADOR
+  const isMe = winner && clientIp && winner.ip_address === clientIp;
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[85vh] w-full max-w-md mx-auto">
       <div className="w-full bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative z-10">
@@ -168,7 +191,6 @@ export function WinnerRoulette({
               </Button>
             </div>
           ) : (
-            /* NUEVO: ESPECTADORES AHORA VEN UN BOTÓN DE CERRAR BLANCO Y LIMPIO */
             <div className="flex gap-2 mr-2">
               <span className="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl font-black text-xs sm:text-sm animate-pulse flex items-center gap-1.5 shadow-inner">
                 <Radio className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">En Vivo</span>
@@ -197,7 +219,6 @@ export function WinnerRoulette({
             />
           </div>
 
-          {/* NUEVO: SI ES ESPECTADOR, SE OCULTA TOTALMENTE EL BOTÓN PARA UNA VISTA MUCHO MÁS LIMPIA */}
           {!isSpectator && (
             <Button onClick={spinRoulette} disabled={isSpinning || activePlayers.length === 0} className="w-full h-16 sm:h-20 bg-[#A855F7] hover:bg-[#9333EA] text-white rounded-2xl text-2xl sm:text-3xl font-black shadow-lg shadow-purple-500/30 tracking-wider disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95">
               {isSpinning ? 'GIRANDO...' : 'GIRAR RULETA'}
@@ -208,13 +229,18 @@ export function WinnerRoulette({
 
       {winner && !isSpinning && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setWinner(null)}>
-          <div className="bg-white rounded-[32px] p-8 max-w-sm w-full text-center shadow-2xl relative border-4 transition-all" style={{ borderColor: getTeamColors(winner.team).border }} onClick={e => e.stopPropagation()}>
+          <div className={`bg-white rounded-[32px] p-8 max-w-sm w-full text-center shadow-2xl relative border-4 transition-all ${isMe ? 'animate-bounce' : ''}`} style={{ borderColor: getTeamColors(winner.team).border }} onClick={e => e.stopPropagation()}>
             <div className="flex justify-center mb-6">
               <div className="p-5 rounded-full shadow-inner border-[3px]" style={{ backgroundColor: getTeamColors(winner.team).bg, borderColor: getTeamColors(winner.team).border }}>
                 <div className="w-16 h-16 drop-shadow-sm" style={{ backgroundColor: getTeamColors(winner.team).border, WebkitMask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat`, mask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat` }} title={`Equipo ${getTeamColors(winner.team).name}`} />
               </div>
             </div>
-            <h3 className="text-lg font-bold text-gray-600 mb-1 uppercase tracking-widest">¡Ganador!</h3>
+            
+            {/* LÓGICA DE "¡TÚ GANASTE!" */}
+            <h3 className={`text-xl font-black mb-1 uppercase tracking-widest ${isMe ? 'text-green-500 text-2xl drop-shadow-sm' : 'text-gray-600'}`}>
+              {isMe ? '¡TÚ GANASTE!' : '¡Ganador!'}
+            </h3>
+            
             <h4 className="text-xl font-black mb-2 uppercase tracking-widest" style={{ color: getTeamColors(winner.team).text }}>¡Equipo {getTeamColors(winner.team).name}!</h4>
             <p className="text-4xl font-black text-gray-900 mb-8 break-words leading-tight">{winner.username}</p>
             <Button onClick={() => setWinner(null)} className="w-full py-6 rounded-xl font-bold text-lg bg-gray-900 text-white hover:bg-gray-800">Aceptar</Button>

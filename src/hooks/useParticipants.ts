@@ -31,9 +31,11 @@ export function useParticipants() {
   const [banners, setBanners] = useState<Banner[]>([])
   const [loading, setLoading] = useState(true)
 
-  // NUEVOS ESTADOS PARA RULETA EN VIVO
   const [spectatorView, setSpectatorView] = useState<'main' | 'roulette'>('main')
-  const [incomingSpin, setIncomingSpin] = useState<{ rotation: number, winnerId: string } | null>(null)
+  
+  // SOLUCIÓN: Usamos localReceivedAt para evitar los problemas de relojes desincronizados
+  const [incomingSpin, setIncomingSpin] = useState<{ rotation: number, winnerId: string, localReceivedAt: number } | null>(null)
+  
   const channelRef = useRef<any>(null)
 
   const fetchData = async () => {
@@ -66,7 +68,6 @@ export function useParticipants() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_banners' }, () => fetchData())
       .subscribe()
 
-    // NUEVO: CANAL DE BROADCAST PARA SINCRONIZAR A TODOS
     const syncChannel = supabase.channel('roulette_sync', { config: { broadcast: { self: false } } })
     
     syncChannel.on('broadcast', { event: 'set_view' }, (payload) => {
@@ -74,7 +75,12 @@ export function useParticipants() {
     })
     
     syncChannel.on('broadcast', { event: 'spin' }, (payload) => {
-      setIncomingSpin(payload.payload)
+      // EL SECRETO: Guardamos la hora exacta local del espectador en el instante en que recibe la señal
+      setIncomingSpin({
+        rotation: payload.payload.rotation,
+        winnerId: payload.payload.winnerId,
+        localReceivedAt: Date.now() 
+      })
     })
     
     syncChannel.subscribe()
@@ -86,7 +92,6 @@ export function useParticipants() {
     }
   }, [])
 
-  // NUEVAS FUNCIONES PARA TRANSMITIR ESTADO A LOS ESPECTADORES
   const broadcastView = async (view: 'main' | 'roulette') => {
     if (channelRef.current) await channelRef.current.send({ type: 'broadcast', event: 'set_view', payload: { view } })
   }
@@ -196,6 +201,6 @@ export function useParticipants() {
     banUser, unbanUser, resetGame, clearAll, 
     addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner,
-    spectatorView, incomingSpin, broadcastView, broadcastSpin // NUEVAS VARIABLES EXPORTADAS
+    spectatorView, incomingSpin, broadcastView, broadcastSpin
   }
 }
