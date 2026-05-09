@@ -195,7 +195,8 @@ export function WinnerRoulette({
               <span className="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl font-black text-xs sm:text-sm animate-pulse flex items-center gap-1.5 shadow-inner">
                 <Radio className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">En Vivo</span>
               </span>
-              <Button onClick={onBack} disabled={isSpinning} className="bg-white hover:bg-gray-50 text-gray-500 font-bold rounded-xl border-2 border-gray-200 px-3 sm:px-4 h-10 flex items-center gap-1.5 text-xs sm:text-sm" title="Volver al registro">
+              {/* EL ESPECTADOR AHORA PUEDE SALIR AUNQUE ESTÉ GIRANDO (disabled removido) */}
+              <Button onClick={onBack} className="bg-white hover:bg-gray-50 text-gray-500 font-bold rounded-xl border-2 border-gray-200 px-3 sm:px-4 h-10 flex items-center gap-1.5 text-xs sm:text-sm" title="Volver al registro">
                 <LogOut className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Cerrar</span>
               </Button>
             </div>
@@ -243,7 +244,11 @@ export function WinnerRoulette({
             
             <h4 className="text-xl font-black mb-2 uppercase tracking-widest" style={{ color: getTeamColors(winner.team).text }}>¡Equipo {getTeamColors(winner.team).name}!</h4>
             <p className="text-4xl font-black text-gray-900 mb-8 break-words leading-tight">{winner.username}</p>
-            <Button onClick={() => setWinner(null)} className="w-full py-6 rounded-xl font-bold text-lg bg-gray-900 text-white hover:bg-gray-800">Aceptar</Button>
+            
+            {/* BOTÓN "ACEPTAR" OCULTO PARA ESPECTADORES */}
+            {!isSpectator && (
+              <Button onClick={() => setWinner(null)} className="w-full py-6 rounded-xl font-bold text-lg bg-gray-900 text-white hover:bg-gray-800">Aceptar</Button>
+            )}
           </div>
         </div>
       )}
