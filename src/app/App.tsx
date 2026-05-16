@@ -7,7 +7,7 @@ import { QRCodeDisplay } from '@/app/components/QRCodeDisplay'
 import { FriendBoard } from '@/app/components/FriendBoard'
 import { TournamentBoard } from '@/app/components/TournamentBoard'
 import { PollBoard } from '@/app/components/PollBoard'
-import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, Instagram, Facebook, Twitter, Download, Heart, Image as ImageIcon, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Contact, Swords, BarChart3 } from 'lucide-react'
+import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, Instagram, Facebook, Twitter, Download, Heart, Image as ImageIcon, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Contact, Swords, BarChart3, X } from 'lucide-react'
 import { useParticipants } from '@/hooks/useParticipants'
 import { useTournaments } from '@/hooks/useTournaments'
 import { usePolls } from '@/hooks/usePolls'
@@ -30,6 +30,19 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('register')
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   
+  // ESTADOS DEL GLOBO ANIMADO Y DRAGGABLE
+  const [showTooltip, setShowTooltip] = useState(true)
+  const [tooltipDismissedUntilReload, setTooltipDismissedUntilReload] = useState(false)
+  
+  // LÓGICA DE ARRASTRE IMPECABLE
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
+  const [isDraggingTooltip, setIsDraggingTooltip] = useState(false)
+  const [isOverDismissZone, setIsOverDismissZone] = useState(false)
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const dismissZoneRef = useRef<HTMLDivElement>(null)
+  const dragInfo = useRef({ isDragging: false, startX: 0, startY: 0, initialLeft: 0, initialTop: 0 })
+  const hasMoved = useRef(false)
+
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
 
   const [showSponsorModal, setShowSponsorModal] = useState(false)
@@ -48,12 +61,20 @@ export default function App() {
   const [addingBanner, setAddingBanner] = useState(false)
   const [editingBannerId, setEditingBannerId] = useState<string | null>(null)
 
+  const [penaltyMonths, setPenaltyMonths] = useState(() => Number(localStorage.getItem('penaltyMonths')) || 2)
+  const [penaltyPercent, setPenaltyPercent] = useState(() => Number(localStorage.getItem('penaltyPercent')) || 70)
+
+  useEffect(() => {
+    localStorage.setItem('penaltyMonths', penaltyMonths.toString())
+    localStorage.setItem('penaltyPercent', penaltyPercent.toString())
+  }, [penaltyMonths, penaltyPercent])
+
   const { 
     participants, bannedUsers, recentWinners, sponsors, banners,
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
-    addBanner, updateBanner, deleteBanner,
-    spectatorView, incomingSpin, broadcastView, broadcastSpin 
+    addBanner, updateBanner, deleteBanner, removeRecentWinner, removeMultipleRecentWinners,
+    spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig 
   } = useParticipants()
 
   const { tournaments } = useTournaments()
@@ -72,6 +93,100 @@ export default function App() {
 
   const passwordRef = useRef<HTMLInputElement>(null)
   const registrationUrl = window.location.origin
+
+  useEffect(() => {
+    if (!isAdmin && !tooltipDismissedUntilReload) {
+      const timer = setTimeout(() => setShowTooltip(false), 8000)
+      return () => clearTimeout(timer)
+    }
+  }, [isAdmin, tooltipDismissedUntilReload])
+
+  useEffect(() => {
+    if (spectatorView === 'roulette' && currentView !== 'roulette' && !isAdmin && !tooltipDismissedUntilReload) {
+      setShowTooltip(true)
+      const timer = setTimeout(() => setShowTooltip(false), 8000)
+      return () => clearTimeout(timer)
+    }
+  }, [spectatorView, currentView, isAdmin, tooltipDismissedUntilReload])
+
+  // LÓGICA DE ARRASTRE
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!tooltipRef.current) return;
+    // Prevenir bugs con clicks derechos del mouse
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+    hasMoved.current = false;
+    const rect = tooltipRef.current.getBoundingClientRect();
+    
+    dragInfo.current = {
+      isDragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      initialLeft: rect.left,
+      initialTop: rect.top
+    };
+    
+    setIsDraggingTooltip(true);
+    // Bloquea el dedo para que no se suelte si se mueve muy rápido
+    tooltipRef.current.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragInfo.current.isDragging || !tooltipRef.current) return;
+
+    const deltaX = e.clientX - dragInfo.current.startX;
+    const deltaY = e.clientY - dragInfo.current.startY;
+
+    // Diferenciar entre un tap (click normal) y un arrastre (deslizamiento)
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+      hasMoved.current = true;
+    }
+
+    setTooltipPosition({
+      x: dragInfo.current.initialLeft + deltaX,
+      y: dragInfo.current.initialTop + deltaY
+    });
+
+    if (dismissZoneRef.current) {
+      const dismissRect = dismissZoneRef.current.getBoundingClientRect();
+      const isOver = (
+        e.clientX >= dismissRect.left &&
+        e.clientX <= dismissRect.right &&
+        e.clientY >= dismissRect.top &&
+        e.clientY <= dismissRect.bottom
+      );
+      setIsOverDismissZone(isOver);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragInfo.current.isDragging) return;
+    
+    dragInfo.current.isDragging = false;
+    setIsDraggingTooltip(false);
+
+    if (tooltipRef.current) {
+      tooltipRef.current.releasePointerCapture(e.pointerId);
+    }
+
+    // Si lo soltó en la X, se oculta temporalmente
+    if (isOverDismissZone) {
+      setShowTooltip(false);
+      setTooltipDismissedUntilReload(true);
+      setIsOverDismissZone(false);
+    }
+  };
+
+  const handleWidgetClick = (e: React.MouseEvent) => {
+    // Si fue arrastrado, cancelamos el click
+    if (hasMoved.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    setCurrentView('roulette');
+    setShowTooltip(false);
+  };
 
   useEffect(() => { localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false') }, [isAdmin])
   useEffect(() => { if (!showLogin) { setShowPassword(false); setLoginError('') } }, [showLogin])
@@ -111,7 +226,7 @@ export default function App() {
   const handleUsernameKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); passwordRef.current?.focus() } }
   
   const handleLogout = () => { setIsAdmin(false); setActiveTab('register'); broadcastView('main'); }
-  const handleStartRoulette = () => { setCurrentView('roulette'); broadcastView('roulette'); }
+  const handleStartRoulette = () => { setCurrentView('roulette'); broadcastView('roulette', { penaltyMonths, penaltyPercent }); }
   const handleExitRoulette = () => { setCurrentView('main'); broadcastView('main'); }
 
   const submitSponsor = async () => {
@@ -162,6 +277,8 @@ export default function App() {
           onBack={isAdmin ? handleExitRoulette : () => setCurrentView('main')} 
           participants={participants} recentWinners={recentWinners} updateStatus={updateStatus} onResetGame={resetGame} 
           isSpectator={!isAdmin} incomingSpin={incomingSpin} broadcastSpin={broadcastSpin} 
+          penaltyMonths={isAdmin ? penaltyMonths : rouletteConfig.penaltyMonths}
+          penaltyPercent={isAdmin ? penaltyPercent : rouletteConfig.penaltyPercent}
         />
       </div>
     )
@@ -170,20 +287,80 @@ export default function App() {
   return (
     <div className="min-h-screen px-4 py-6 sm:p-8 relative flex flex-col items-center overflow-x-hidden font-sans" style={{ backgroundColor: '#0661C6', backgroundImage: `url(${fondoImg})`, backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat' }}>
       
-      {/* BOTÓN FLOTANTE DE RULETA */}
-      <button
-        onClick={() => setCurrentView('roulette')}
-        className="fixed bottom-6 right-6 z-50 w-16 h-16 sm:w-20 sm:h-20 p-0 bg-white rounded-full shadow-[0_10px_25px_rgba(0,0,0,0.4)] hover:scale-110 transition-all flex items-center justify-center border-4 border-white group overflow-hidden"
-        title="Abrir Ruleta"
-      >
-        {spectatorView === 'roulette' && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 z-20">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
-          </span>
-        )}
-        <img src={ruletaIcon} alt="Ruleta" className="w-full h-full object-cover relative z-10 group-hover:rotate-12 transition-transform" />
-      </button>
+      {/* ==================================================== */}
+      {/* COMPONENTE DRAGGABLE (BOTÓN + LETRERO) PARA ESPECTADOR */}
+      {/* ==================================================== */}
+      {!isAdmin && !tooltipDismissedUntilReload && (
+        <div 
+          ref={tooltipRef}
+          className={`fixed z-[60] flex items-center gap-2 select-none touch-none ${isDraggingTooltip ? 'opacity-80 transition-none' : 'transition-transform'}`}
+          style={{ 
+            left: tooltipPosition.x !== 0 ? `${tooltipPosition.x}px` : undefined, 
+            top: tooltipPosition.y !== 0 ? `${tooltipPosition.y}px` : undefined,
+            bottom: tooltipPosition.y === 0 ? '1.5rem' : 'auto', // 1.5rem = bottom-6
+            right: tooltipPosition.x === 0 ? '1.5rem' : 'auto',  // 1.5rem = right-6
+            cursor: isDraggingTooltip ? 'grabbing' : 'grab'
+          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          {showTooltip && (
+            <div className={`relative ${!isDraggingTooltip && (spectatorView === 'roulette' ? 'animate-pulse scale-105' : 'hover:scale-105')}`}>
+              <div 
+                className="bg-[#EF4444] text-white font-black px-4 py-2 sm:py-2.5 rounded-l-xl rounded-tr-xl shadow-lg text-sm sm:text-base tracking-wide flex items-center cursor-pointer" 
+                onClick={handleWidgetClick}
+              >
+                mira la ruleta
+              </div>
+              <div className="absolute top-1/2 -right-[6px] -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] border-l-[#EF4444] drop-shadow-sm"></div>
+            </div>
+          )}
+
+          <button
+            onClick={handleWidgetClick}
+            className="w-16 h-16 sm:w-20 sm:h-20 p-0 bg-white rounded-full shadow-[0_10px_25px_rgba(0,0,0,0.4)] hover:scale-110 transition-all flex items-center justify-center border-4 border-white group overflow-hidden pointer-events-auto shrink-0"
+            title="Abrir Ruleta"
+          >
+            {spectatorView === 'roulette' && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 z-20">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
+              </span>
+            )}
+            <img src={ruletaIcon} alt="Ruleta" className="w-full h-full object-cover relative z-10 group-hover:rotate-12 transition-transform" />
+          </button>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* ZONA DE ELIMINACIÓN (BASURA / X) INFERIOR              */}
+      {/* ==================================================== */}
+      {!isAdmin && isDraggingTooltip && !tooltipDismissedUntilReload && (
+        <div 
+          ref={dismissZoneRef}
+          className={`fixed inset-x-0 bottom-0 h-40 bg-gradient-to-t from-red-600/90 to-transparent z-[55] flex flex-col items-center justify-end pb-8 transition-opacity duration-300 animate-in fade-in zoom-in pointer-events-none ${isOverDismissZone ? 'opacity-100' : 'opacity-50'}`}
+        >
+          <div className={`p-4 rounded-full bg-red-700 text-white shadow-2xl transition-transform ${isOverDismissZone ? 'scale-[1.3] bg-red-800' : 'scale-100'}`}>
+            <Trash2 className="w-10 h-10" strokeWidth={3} />
+          </div>
+          <p className="text-white font-bold text-sm mt-3 drop-shadow-md">
+            {isOverDismissZone ? '¡Suelta para ocultar!' : 'Arrastra aquí para ocultar'}
+          </p>
+        </div>
+      )}
+
+      {/* Botón flotante Estático para el Admin */}
+      {isAdmin && (
+        <button
+          onClick={() => setCurrentView('roulette')}
+          className="fixed bottom-6 right-6 z-50 w-16 h-16 sm:w-20 sm:h-20 p-0 bg-white rounded-full shadow-[0_10px_25px_rgba(0,0,0,0.4)] hover:scale-110 transition-all flex items-center justify-center border-4 border-white group overflow-hidden"
+          title="Abrir Ruleta"
+        >
+          <img src={ruletaIcon} alt="Ruleta" className="w-full h-full object-cover relative z-10 group-hover:rotate-12 transition-transform" />
+        </button>
+      )}
 
       <div className="max-w-md w-full relative z-10 flex-1 flex flex-col mt-2 sm:mt-4">
         <div className="absolute -top-2 right-0 z-20">
@@ -199,40 +376,44 @@ export default function App() {
         </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full flex overflow-x-auto snap-x gap-2 bg-transparent h-auto p-0 mb-6 pb-2 justify-start sm:justify-center no-scrollbar">
-            <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
-            
-            <TabsTrigger value="register" className="snap-center shrink-0 min-w-[75px] flex-1 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col items-center justify-center gap-1 font-bold text-[10px] sm:text-xs border-0 shadow-md transition-all">
-              <Users className="w-5 h-5 shrink-0" /> Registro
-            </TabsTrigger>
-            
-            {(isAdmin || hasActiveTournaments) && (
-              <TabsTrigger value="tournaments" className="snap-center shrink-0 min-w-[75px] flex-1 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col items-center justify-center gap-1 font-bold text-[10px] sm:text-xs border-0 shadow-md transition-all">
-                <Swords className="w-5 h-5 shrink-0 text-purple-600" /> Torneos
+          
+          {/* BARRA DE NAVEGACIÓN DESLIZABLE */}
+          <div className="w-full relative -mx-2 px-2 sm:mx-0 sm:px-0 mb-6">
+            <TabsList className="w-full flex overflow-x-auto snap-x gap-3 bg-transparent h-auto py-2 px-1 justify-start sm:justify-center no-scrollbar">
+              <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
+              
+              <TabsTrigger value="register" className="snap-center shrink-0 w-auto min-w-[90px] h-[85px] px-4 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-white text-gray-700 rounded-[20px] flex flex-col items-center justify-center gap-1.5 font-bold text-[11px] sm:text-xs shadow-sm border border-gray-100 transition-all">
+                <Users className="w-6 h-6 shrink-0" /> <span className="whitespace-nowrap">Registro</span>
               </TabsTrigger>
-            )}
+              
+              {(isAdmin || hasActiveTournaments) && (
+                <TabsTrigger value="tournaments" className="snap-center shrink-0 w-auto min-w-[90px] h-[85px] px-4 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-white text-gray-700 rounded-[20px] flex flex-col items-center justify-center gap-1.5 font-bold text-[11px] sm:text-xs shadow-sm border border-gray-100 transition-all">
+                  <Swords className="w-6 h-6 shrink-0 text-purple-600" /> <span className="whitespace-nowrap">Torneos</span>
+                </TabsTrigger>
+              )}
 
-            {(isAdmin || hasActivePolls) && (
-              <TabsTrigger value="polls" className="snap-center shrink-0 min-w-[75px] flex-1 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col items-center justify-center gap-1 font-bold text-[10px] sm:text-xs border-0 shadow-md transition-all">
-                <BarChart3 className="w-5 h-5 shrink-0 text-emerald-500" /> Votar
+              {(isAdmin || hasActivePolls) && (
+                <TabsTrigger value="polls" className="snap-center shrink-0 w-auto min-w-[90px] h-[85px] px-4 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-white text-gray-700 rounded-[20px] flex flex-col items-center justify-center gap-1.5 font-bold text-[11px] sm:text-xs shadow-sm border border-gray-100 transition-all">
+                  <BarChart3 className="w-6 h-6 shrink-0 text-emerald-500" /> <span className="whitespace-nowrap">Votar</span>
+                </TabsTrigger>
+              )}
+
+              <TabsTrigger value="friends" className="snap-center shrink-0 w-auto min-w-[90px] h-[85px] px-4 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-white text-gray-700 rounded-[20px] flex flex-col items-center justify-center gap-1.5 font-bold text-[11px] sm:text-xs shadow-sm border border-gray-100 transition-all">
+                <Contact className="w-6 h-6 shrink-0 text-blue-500" /> <span className="whitespace-nowrap">Amigos</span>
               </TabsTrigger>
-            )}
 
-            <TabsTrigger value="friends" className="snap-center shrink-0 min-w-[75px] flex-1 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col items-center justify-center gap-1 font-bold text-[10px] sm:text-xs border-0 shadow-md transition-all">
-              <Contact className="w-5 h-5 shrink-0 text-blue-500" /> Amigos
-            </TabsTrigger>
-
-            <TabsTrigger value="sponsors" className="snap-center shrink-0 min-w-[75px] flex-1 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col items-center justify-center gap-1 font-bold text-[10px] sm:text-xs border-0 shadow-md transition-all">
-              <Heart className="w-5 h-5 shrink-0 text-pink-500" /> Patrocinadores
-            </TabsTrigger>
-          </TabsList>
+              <TabsTrigger value="sponsors" className="snap-center shrink-0 w-auto min-w-[90px] h-[85px] px-5 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-white text-gray-700 rounded-[20px] flex flex-col items-center justify-center gap-1.5 font-bold text-[11px] sm:text-xs shadow-sm border border-gray-100 transition-all">
+                <Heart className="w-6 h-6 shrink-0 text-pink-500" /> <span className="whitespace-nowrap">Patrocinadores</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {isAdmin && (
-            <TabsList className="w-full grid grid-cols-2 gap-2 bg-transparent h-auto p-0 mb-6">
-              <TabsTrigger value="ruleta" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex items-center justify-center gap-1.5 font-bold text-sm border-0 shadow-md transition-all">
+            <TabsList className="w-full grid grid-cols-2 gap-3 bg-transparent h-auto p-0 mb-6">
+              <TabsTrigger value="ruleta" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black bg-white text-gray-800 rounded-[20px] py-3.5 flex items-center justify-center gap-2 font-black text-sm shadow-md border-0 transition-all">
                 <Trophy className="w-5 h-5" /> Ruleta
               </TabsTrigger>
-              <TabsTrigger value="qr" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex items-center justify-center gap-1.5 font-bold text-sm border-0 shadow-md transition-all">
+              <TabsTrigger value="qr" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black bg-white text-gray-800 rounded-[20px] py-3.5 flex items-center justify-center gap-2 font-black text-sm shadow-md border-0 transition-all">
                 <QrCode className="w-5 h-5" /> QR
               </TabsTrigger>
             </TabsList>
@@ -340,7 +521,14 @@ export default function App() {
           {isAdmin && (
             <>
               <TabsContent value="ruleta" className="mt-0 outline-none">
-                <AdminPanel participants={participants} bannedUsers={bannedUsers} onDelete={deleteParticipant} onDeleteMultiple={deleteMultiple} onClearAll={clearAll} onStartRoulette={handleStartRoulette} onBanUser={banUser} onUnbanUser={unbanUser} />
+                <AdminPanel 
+                  participants={participants} bannedUsers={bannedUsers} recentWinners={recentWinners} 
+                  onDelete={deleteParticipant} onDeleteMultiple={deleteMultiple} onClearAll={clearAll} 
+                  onStartRoulette={handleStartRoulette} onBanUser={banUser} onUnbanUser={unbanUser} 
+                  onRemoveWinner={removeRecentWinner} onRemoveMultipleWinners={removeMultipleRecentWinners}
+                  penaltyMonths={penaltyMonths} setPenaltyMonths={setPenaltyMonths} 
+                  penaltyPercent={penaltyPercent} setPenaltyPercent={setPenaltyPercent}
+                />
               </TabsContent>
               <TabsContent value="qr" className="mt-0 outline-none bg-white p-4 rounded-2xl shadow-2xl"><QRCodeDisplay url={registrationUrl} /></TabsContent>
             </>
