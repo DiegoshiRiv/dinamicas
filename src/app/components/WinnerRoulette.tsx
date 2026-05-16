@@ -15,7 +15,6 @@ interface WinnerRouletteProps {
   updateStatus: (id: string, status: string) => void
   onResetGame: () => void
   isSpectator?: boolean
-  // AQUÍ ESTÁ EL TIPO CORREGIDO PARA QUE NO MARQUE ERROR CON USEPARTICIPANTS
   incomingSpin?: { rotation: number, winnerId: string, localReceivedAt: number } | null
   broadcastSpin?: (rotation: number, winnerId: string) => void
 }
@@ -80,7 +79,6 @@ export function WinnerRoulette({
 
   useEffect(() => {
     if (isSpectator && incomingSpin) {
-      // PREVENCIÓN DE ANIMACIONES FANTASMA
       const isOldSpin = Date.now() - incomingSpin.localReceivedAt > 2000;
       if (isOldSpin) { setRotation(incomingSpin.rotation); setWinner(null); return; }
 
@@ -138,7 +136,6 @@ export function WinnerRoulette({
           ) : (
             <div className="flex gap-2 mr-2">
               <span className="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl font-black text-xs sm:text-sm animate-pulse flex items-center gap-1.5 shadow-inner"><Radio className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">En Vivo</span></span>
-              {/* BOTON CERRAR SIEMPRE DISPONIBLE PARA EL PÚBLICO */}
               <Button onClick={onBack} className="bg-white hover:bg-gray-50 text-gray-500 font-bold rounded-xl border-2 border-gray-200 px-3 sm:px-4 h-10 flex items-center gap-1.5 text-xs sm:text-sm" title="Volver al registro"><LogOut className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Cerrar</span></Button>
             </div>
           )}
@@ -166,7 +163,7 @@ export function WinnerRoulette({
           <div className={`bg-white rounded-[32px] p-8 max-w-sm w-full text-center shadow-2xl relative border-4 transition-all ${isMe ? 'animate-bounce' : ''}`} style={{ borderColor: getTeamColors(winner.team).border }} onClick={e => e.stopPropagation()}>
             <div className="flex justify-center mb-6">
               <div className="p-5 rounded-full shadow-inner border-[3px]" style={{ backgroundColor: getTeamColors(winner.team).bg, borderColor: getTeamColors(winner.team).border }}>
-                <div className="w-16 h-16 drop-shadow-sm" style={{ backgroundColor: getTeamColors(winner.team).border, WebkitMask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat`, mask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat` }} />
+                <div className="w-16 h-16 drop-shadow-sm" style={{ backgroundColor: getTeamColors(winner.team).border, WebkitMask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat`, mask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat` }} title={`Equipo ${getTeamColors(winner.team).name}`} />
               </div>
             </div>
             
@@ -174,7 +171,6 @@ export function WinnerRoulette({
             <h4 className="text-xl font-black mb-2 uppercase tracking-widest" style={{ color: getTeamColors(winner.team).text }}>¡Equipo {getTeamColors(winner.team).name}!</h4>
             <p className="text-4xl font-black text-gray-900 mb-8 break-words leading-tight">{winner.username}</p>
             
-            {/* BOTÓN ACEPTAR SOLO PARA EL ADMIN */}
             {!isSpectator && <Button onClick={() => setWinner(null)} className="w-full py-6 rounded-xl font-bold text-lg bg-gray-900 text-white hover:bg-gray-800">Aceptar</Button>}
           </div>
         </div>

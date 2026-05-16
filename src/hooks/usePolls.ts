@@ -17,10 +17,16 @@ export function usePolls() {
 
   useEffect(() => {
     fetchData()
-    const channel = supabase.channel('polls_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, fetchData)
+    // Aseguramos la conexión en tiempo real
+    const channel = supabase.channel('polls_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, () => {
+        fetchData()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, () => {
+        fetchData()
+      })
       .subscribe()
+      
     return () => { supabase.removeChannel(channel) }
   }, [])
 

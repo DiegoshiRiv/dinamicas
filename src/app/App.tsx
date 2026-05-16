@@ -9,7 +9,7 @@ import { TournamentBoard } from '@/app/components/TournamentBoard'
 import { PollBoard } from '@/app/components/PollBoard'
 import { Users, Trophy, QrCode, LogIn, LogOut, Eye, EyeOff, Instagram, Facebook, Twitter, Download, Heart, Image as ImageIcon, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Contact, Swords, BarChart3 } from 'lucide-react'
 import { useParticipants } from '@/hooks/useParticipants'
-import { useTournaments } from '@/hooks/useTournaments' // <-- IMPORTANTE
+import { useTournaments } from '@/hooks/useTournaments'
 import { usePolls } from '@/hooks/usePolls'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
@@ -18,7 +18,7 @@ import { Checkbox } from '@/app/components/ui/checkbox'
 import fondoImg from '@/assets/fondo.png'
 import logoImg from '@/assets/Logo.png'
 import wpIcon from '@/assets/w.png'
-import ruletaIcon from '@/assets/ruleta.png' // <-- TU ICONO PERSONALIZADO
+import ruletaIcon from '@/assets/ruleta.png'
 
 type View = 'main' | 'roulette'
 
@@ -56,7 +56,7 @@ export default function App() {
     spectatorView, incomingSpin, broadcastView, broadcastSpin 
   } = useParticipants()
 
-  const { tournaments } = useTournaments() // <-- OBTENEMOS LOS TORNEOS
+  const { tournaments } = useTournaments()
   const { polls } = usePolls() 
 
   const [isAdmin, setIsAdmin] = useState(() => {
@@ -152,9 +152,7 @@ export default function App() {
     setBannerImgInput(''); setBannerLinkInput(''); setEditingBannerId(null); setAddingBanner(false); setShowBannerModal(false)
   }
 
-  // LOGICA DE VISIBILIDAD INTELIGENTE
   const hasActivePolls = polls.some(p => p.is_active);
-  // Un torneo está "activo" si está abierto a inscripciones o ya empezó a jugarse
   const hasActiveTournaments = tournaments.some(t => t.status === 'open' || t.status === 'active');
 
   if (currentView === 'roulette') {
@@ -172,28 +170,20 @@ export default function App() {
   return (
     <div className="min-h-screen px-4 py-6 sm:p-8 relative flex flex-col items-center overflow-x-hidden font-sans" style={{ backgroundColor: '#0661C6', backgroundImage: `url(${fondoImg})`, backgroundSize: '100% auto', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat' }}>
       
-      {/* BOTÓN FLOTANTE DE RULETA REDISEÑADO (MÁS ESTÉTICO Y GRANDE) */}
-      {!isAdmin && (
-        <button
-          onClick={() => setCurrentView('roulette')}
-          // PADDING REDUCIDO (p-1) Y TAMAÑO FIJO (size-16) PARA QUE EL ICONO LLENE EL CÍRCULO
-          className="fixed bottom-6 right-6 z-50 fixed size-16 p-1 bg-gradient-to-tr from-[#A855F7] to-[#D946EF] rounded-full shadow-[0_10px_25px_rgba(168,85,247,0.5)] hover:scale-110 transition-all flex items-center justify-center border-4 border-white group"
-          title="Abrir Ruleta"
-        >
-          {spectatorView === 'roulette' && (
-            <span className="absolute -top-1 -right-1 flex h-4 w-4">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
-            </span>
-          )}
-          {/* EL ICONO AHORA TOMA TODO EL TAMAÑO DISPONIBLE (size-full) */}
-          <img 
-            src={ruletaIcon} 
-            alt="Ruleta" 
-            className="size-full object-contain rounded-full relative z-10 group-hover:rotate-12 transition-transform drop-shadow-md" 
-          />
-        </button>
-      )}
+      {/* BOTÓN FLOTANTE DE RULETA */}
+      <button
+        onClick={() => setCurrentView('roulette')}
+        className="fixed bottom-6 right-6 z-50 w-16 h-16 sm:w-20 sm:h-20 p-0 bg-white rounded-full shadow-[0_10px_25px_rgba(0,0,0,0.4)] hover:scale-110 transition-all flex items-center justify-center border-4 border-white group overflow-hidden"
+        title="Abrir Ruleta"
+      >
+        {spectatorView === 'roulette' && (
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 z-20">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
+          </span>
+        )}
+        <img src={ruletaIcon} alt="Ruleta" className="w-full h-full object-cover relative z-10 group-hover:rotate-12 transition-transform" />
+      </button>
 
       <div className="max-w-md w-full relative z-10 flex-1 flex flex-col mt-2 sm:mt-4">
         <div className="absolute -top-2 right-0 z-20">
@@ -210,19 +200,18 @@ export default function App() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full flex overflow-x-auto snap-x gap-2 bg-transparent h-auto p-0 mb-6 pb-2 justify-start sm:justify-center no-scrollbar">
+            <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
             
             <TabsTrigger value="register" className="snap-center shrink-0 min-w-[75px] flex-1 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col items-center justify-center gap-1 font-bold text-[10px] sm:text-xs border-0 shadow-md transition-all">
               <Users className="w-5 h-5 shrink-0" /> Registro
             </TabsTrigger>
             
-            {/* PESTAÑA INTELIGENTE: SOLO SE MUESTRA SI ERES ADMIN O SI HAY TORNEOS ACTIVOS */}
             {(isAdmin || hasActiveTournaments) && (
               <TabsTrigger value="tournaments" className="snap-center shrink-0 min-w-[75px] flex-1 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col items-center justify-center gap-1 font-bold text-[10px] sm:text-xs border-0 shadow-md transition-all">
                 <Swords className="w-5 h-5 shrink-0 text-purple-600" /> Torneos
               </TabsTrigger>
             )}
 
-            {/* PESTAÑA INTELIGENTE: SOLO SE MUESTRA SI ERES ADMIN O SI HAY ENCUESTAS ACTIVAS */}
             {(isAdmin || hasActivePolls) && (
               <TabsTrigger value="polls" className="snap-center shrink-0 min-w-[75px] flex-1 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col items-center justify-center gap-1 font-bold text-[10px] sm:text-xs border-0 shadow-md transition-all">
                 <BarChart3 className="w-5 h-5 shrink-0 text-emerald-500" /> Votar
@@ -234,17 +223,17 @@ export default function App() {
             </TabsTrigger>
 
             <TabsTrigger value="sponsors" className="snap-center shrink-0 min-w-[75px] flex-1 data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex flex-col items-center justify-center gap-1 font-bold text-[10px] sm:text-xs border-0 shadow-md transition-all">
-              <Heart className="w-5 h-5 shrink-0 text-pink-500" /> Patroc.
+              <Heart className="w-5 h-5 shrink-0 text-pink-500" /> Patrocinadores
             </TabsTrigger>
           </TabsList>
 
           {isAdmin && (
             <TabsList className="w-full grid grid-cols-2 gap-2 bg-transparent h-auto p-0 mb-6">
               <TabsTrigger value="ruleta" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex items-center justify-center gap-1.5 font-bold text-sm border-0 shadow-md transition-all">
-                <Trophy className="w-5 h-5" /> Ruleta (Admin)
+                <Trophy className="w-5 h-5" /> Ruleta
               </TabsTrigger>
               <TabsTrigger value="qr" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black data-[state=active]:shadow-lg bg-[#f8f9fc] text-gray-800 rounded-xl py-3 flex items-center justify-center gap-1.5 font-bold text-sm border-0 shadow-md transition-all">
-                <QrCode className="w-5 h-5" /> Mostrar QR
+                <QrCode className="w-5 h-5" /> QR
               </TabsTrigger>
             </TabsList>
           )}
@@ -358,7 +347,7 @@ export default function App() {
           )}
         </Tabs>
         
-        <footer className="mt-10 pb-20 text-center z-10 text-white">
+        <footer className="mt-10 pb-24 text-center z-10 text-white">
           <p className="font-semibold text-[17px] drop-shadow-md mb-6">Sigue las Redes Sociales de la Comunidad.</p>
           <div className="flex justify-center items-center gap-6 mb-8">
             <a href="https://www.whatsapp.com/channel/0029VbA3X858Pgs9nkwUSO1L?utm_source=ig&utm_medium=social&utm_content=link_in_bio" target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform"><img src={wpIcon} alt="WhatsApp" className="w-9 h-9 sm:w-10 sm:h-10 drop-shadow-lg object-contain" /></a>
@@ -394,6 +383,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODALES DE PATROCINADORES Y BANNERS */}
       {showSponsorModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowSponsorModal(false)}>
           <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
