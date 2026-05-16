@@ -108,7 +108,7 @@ export function AdminPanel({
       <div className="bg-white p-5 sm:p-6 rounded-[24px] shadow-xl border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
         <div className="w-full md:w-auto">
           <h2 className="text-2xl font-black text-gray-900">Panel de Control</h2>
-          <p className="text-sm sm:text-base text-gray-500 font-medium">Gestiona tu comunidad y sorteos.</p>
+          <p className="text-sm sm:text-base text-gray-500 font-medium">Gestionar personas y ruleta.</p>
         </div>
         <Button onClick={onStartRoulette} className="w-full md:w-auto bg-[#A855F7] hover:bg-[#9333EA] text-white font-black py-6 px-8 rounded-xl shadow-lg shadow-purple-500/30 text-lg active:scale-95 transition-transform">
           <Trophy className="w-6 h-6 mr-2" /> Iniciar Ruleta

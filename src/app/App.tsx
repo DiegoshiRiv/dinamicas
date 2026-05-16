@@ -34,12 +34,11 @@ export default function App() {
   const [showTooltip, setShowTooltip] = useState(true)
   const [tooltipDismissedUntilReload, setTooltipDismissedUntilReload] = useState(false)
   
-  // LÓGICA DE ARRASTRE IMPECABLE
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const [isDraggingTooltip, setIsDraggingTooltip] = useState(false)
   const [isOverDismissZone, setIsOverDismissZone] = useState(false)
   const tooltipRef = useRef<HTMLDivElement>(null)
-  const dismissZoneRef = useRef<HTMLDivElement>(null)
+  const dismissZoneRef = useRef<HTMLDivElement>(null) // ESTE AHORA SOLO APUNTA AL BOTE DE BASURA
   const dragInfo = useRef({ isDragging: false, startX: 0, startY: 0, initialLeft: 0, initialTop: 0 })
   const hasMoved = useRef(false)
 
@@ -112,7 +111,6 @@ export default function App() {
   // LÓGICA DE ARRASTRE
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!tooltipRef.current) return;
-    // Prevenir bugs con clicks derechos del mouse
     if (e.button !== 0 && e.pointerType === 'mouse') return;
 
     hasMoved.current = false;
@@ -127,7 +125,6 @@ export default function App() {
     };
     
     setIsDraggingTooltip(true);
-    // Bloquea el dedo para que no se suelte si se mueve muy rápido
     tooltipRef.current.setPointerCapture(e.pointerId);
   };
 
@@ -137,7 +134,6 @@ export default function App() {
     const deltaX = e.clientX - dragInfo.current.startX;
     const deltaY = e.clientY - dragInfo.current.startY;
 
-    // Diferenciar entre un tap (click normal) y un arrastre (deslizamiento)
     if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
       hasMoved.current = true;
     }
@@ -149,6 +145,8 @@ export default function App() {
 
     if (dismissZoneRef.current) {
       const dismissRect = dismissZoneRef.current.getBoundingClientRect();
+      
+      // Ahora la zona es MUCHO MÁS PRECISA, apuntando solo al círculo
       const isOver = (
         e.clientX >= dismissRect.left &&
         e.clientX <= dismissRect.right &&
@@ -169,7 +167,6 @@ export default function App() {
       tooltipRef.current.releasePointerCapture(e.pointerId);
     }
 
-    // Si lo soltó en la X, se oculta temporalmente
     if (isOverDismissZone) {
       setShowTooltip(false);
       setTooltipDismissedUntilReload(true);
@@ -178,7 +175,6 @@ export default function App() {
   };
 
   const handleWidgetClick = (e: React.MouseEvent) => {
-    // Si fue arrastrado, cancelamos el click
     if (hasMoved.current) {
       e.preventDefault();
       e.stopPropagation();
@@ -297,8 +293,8 @@ export default function App() {
           style={{ 
             left: tooltipPosition.x !== 0 ? `${tooltipPosition.x}px` : undefined, 
             top: tooltipPosition.y !== 0 ? `${tooltipPosition.y}px` : undefined,
-            bottom: tooltipPosition.y === 0 ? '1.5rem' : 'auto', // 1.5rem = bottom-6
-            right: tooltipPosition.x === 0 ? '1.5rem' : 'auto',  // 1.5rem = right-6
+            bottom: tooltipPosition.y === 0 ? '1.5rem' : 'auto', 
+            right: tooltipPosition.x === 0 ? '1.5rem' : 'auto',  
             cursor: isDraggingTooltip ? 'grabbing' : 'grab'
           }}
           onPointerDown={handlePointerDown}
@@ -312,7 +308,7 @@ export default function App() {
                 className="bg-[#EF4444] text-white font-black px-4 py-2 sm:py-2.5 rounded-l-xl rounded-tr-xl shadow-lg text-sm sm:text-base tracking-wide flex items-center cursor-pointer" 
                 onClick={handleWidgetClick}
               >
-                mira la ruleta
+                ¡Mira la Ruleta!
               </div>
               <div className="absolute top-1/2 -right-[6px] -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] border-l-[#EF4444] drop-shadow-sm"></div>
             </div>
@@ -335,18 +331,21 @@ export default function App() {
       )}
 
       {/* ==================================================== */}
-      {/* ZONA DE ELIMINACIÓN (BASURA / X) INFERIOR              */}
+      {/* ZONA DE ELIMINACIÓN (BASURA) INFERIOR                 */}
       {/* ==================================================== */}
       {!isAdmin && isDraggingTooltip && !tooltipDismissedUntilReload && (
         <div 
-          ref={dismissZoneRef}
-          className={`fixed inset-x-0 bottom-0 h-40 bg-gradient-to-t from-red-600/90 to-transparent z-[55] flex flex-col items-center justify-end pb-8 transition-opacity duration-300 animate-in fade-in zoom-in pointer-events-none ${isOverDismissZone ? 'opacity-100' : 'opacity-50'}`}
+          className={`fixed inset-x-0 bottom-0 h-32 bg-gradient-to-t from-red-600/80 to-transparent z-[55] flex flex-col items-center justify-end pb-6 transition-opacity duration-300 animate-in fade-in zoom-in pointer-events-none ${isOverDismissZone ? 'opacity-100' : 'opacity-60'}`}
         >
-          <div className={`p-4 rounded-full bg-red-700 text-white shadow-2xl transition-transform ${isOverDismissZone ? 'scale-[1.3] bg-red-800' : 'scale-100'}`}>
+          {/* EL REF AHORA ESTÁ SOLO EN EL BOTE CIRCULAR */}
+          <div 
+            ref={dismissZoneRef}
+            className={`p-5 rounded-full bg-red-700 text-white shadow-2xl transition-transform ${isOverDismissZone ? 'scale-125 bg-red-800' : 'scale-100'}`}
+          >
             <Trash2 className="w-10 h-10" strokeWidth={3} />
           </div>
           <p className="text-white font-bold text-sm mt-3 drop-shadow-md">
-            {isOverDismissZone ? '¡Suelta para ocultar!' : 'Arrastra aquí para ocultar'}
+            {isOverDismissZone ? '¡Suelta para ocultar!' : 'Arrastra hacia el bote para ocultar'}
           </p>
         </div>
       )}
@@ -377,7 +376,6 @@ export default function App() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           
-          {/* BARRA DE NAVEGACIÓN DESLIZABLE */}
           <div className="w-full relative -mx-2 px-2 sm:mx-0 sm:px-0 mb-6">
             <TabsList className="w-full flex overflow-x-auto snap-x gap-3 bg-transparent h-auto py-2 px-1 justify-start sm:justify-center no-scrollbar">
               <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
@@ -410,10 +408,10 @@ export default function App() {
 
           {isAdmin && (
             <TabsList className="w-full grid grid-cols-2 gap-3 bg-transparent h-auto p-0 mb-6">
-              <TabsTrigger value="ruleta" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black bg-white text-gray-800 rounded-[20px] py-3.5 flex items-center justify-center gap-2 font-black text-sm shadow-md border-0 transition-all">
+              <TabsTrigger value="ruleta" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black bg-white text-gray-800 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-black text-sm shadow-md border-0 transition-all">
                 <Trophy className="w-5 h-5" /> Ruleta
               </TabsTrigger>
-              <TabsTrigger value="qr" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black bg-white text-gray-800 rounded-[20px] py-3.5 flex items-center justify-center gap-2 font-black text-sm shadow-md border-0 transition-all">
+              <TabsTrigger value="qr" className="data-[state=active]:bg-[#FFF35C] data-[state=active]:text-black bg-white text-gray-800 rounded-2xl py-3.5 flex items-center justify-center gap-2 font-black text-sm shadow-md border-0 transition-all">
                 <QrCode className="w-5 h-5" /> QR
               </TabsTrigger>
             </TabsList>
