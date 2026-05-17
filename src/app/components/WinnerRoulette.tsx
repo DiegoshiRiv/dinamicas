@@ -99,20 +99,30 @@ export function WinnerRoulette({
     ctx.beginPath(); ctx.arc(center, center, radius * 0.15, 0, 2 * Math.PI); ctx.fillStyle = '#ffffff'; ctx.fill()
   }, [playersWithWeight, totalWeight])
 
+  // Lógica del Espectador corregida (Ya no desaparece el cartel)
   useEffect(() => {
     if (isSpectator && incomingSpin) {
       const isOldSpin = Date.now() - incomingSpin.localReceivedAt > 2000;
-      if (isOldSpin) { setRotation(incomingSpin.rotation); setWinner(null); return; }
+      if (isOldSpin) { 
+        setRotation(incomingSpin.rotation); 
+        return; 
+      }
 
-      setIsSpinning(true); setWinner(null); setRotation(incomingSpin.rotation)
+      setIsSpinning(true); 
+      setWinner(null); 
+      setRotation(incomingSpin.rotation)
+      
       setTimeout(() => {
         setIsSpinning(false)
-        const winningPlayer = playersWithWeight.find(p => p.id === incomingSpin.winnerId)
+        // Usamos la lista global "participants" para asegurar que encontramos al ganador, 
+        // incluso si el Admin ya actualizó su estado en la DB a "winner".
+        const winningPlayer = participants.find(p => p.id === incomingSpin.winnerId)
         if (winningPlayer) setWinner(winningPlayer)
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#3B82F6', '#FACC15', '#EF4444'] })
       }, 5000)
     }
-  }, [incomingSpin, isSpectator, playersWithWeight])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingSpin, isSpectator]) // Quitamos playersWithWeight para que la sincronización DB no borre el modal
 
   const spinRoulette = () => {
     if (isSpinning || playersWithWeight.length === 0 || isSpectator) return
@@ -155,14 +165,6 @@ export function WinnerRoulette({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[85vh] w-full max-w-md mx-auto relative">
-      
-      {/* CUADRO ROJO FLOTANTE PARA ESPECTADORES */}
-      {isSpectator && (
-        <div className="absolute top-[-30px] sm:top-[-40px] left-1/2 translate-x-[-50%] z-50 bg-red-600 text-white font-black text-center py-3 px-6 rounded-2xl shadow-xl animate-pulse whitespace-nowrap text-xs sm:text-sm">
-          ¡Mira la ruleta en vivo!
-        </div>
-      )}
-
       <div className="w-full bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative z-10">
         
         <div className="p-4 sm:p-5 flex justify-between items-center bg-white gap-2">
@@ -182,15 +184,12 @@ export function WinnerRoulette({
 
         <hr className="border-gray-200 w-full m-0" />
 
-        {/* CONTENEDOR PRINCIPAL RESPONSIVO */}
         <div className="p-6 flex flex-col items-center justify-center relative flex-1 w-full mt-4 sm:mt-6">
           
-          {/* FLECHA CENTRADA */}
           <div className="relative z-20 -mb-2">
              <div className="w-0 h-0 border-l-[16px] border-r-[16px] border-t-[24px] border-l-transparent border-r-transparent border-t-gray-900 drop-shadow-md"></div>
           </div>
 
-          {/* CANVAS RESPONSIVO */}
           <div className="relative w-full max-w-[280px] sm:max-w-[320px] aspect-square mb-8 mx-auto flex items-center justify-center">
             <canvas 
               ref={canvasRef} 
