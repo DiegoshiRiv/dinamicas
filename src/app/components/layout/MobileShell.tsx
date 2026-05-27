@@ -183,7 +183,7 @@ export function MobileShell({
           style={{
             backgroundImage: `url(${fondoImg})`,
             backgroundSize: '100% auto',
-            backgroundPosition: 'center -79px',
+            backgroundPosition: 'center -100px',
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-[#e8f4fc]/50 pointer-events-none" />
