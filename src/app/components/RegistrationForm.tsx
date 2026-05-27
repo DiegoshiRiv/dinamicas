@@ -1,16 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { Button } from '@/app/components/ui/button'
-import { Input } from '@/app/components/ui/input'
-import { Label } from '@/app/components/ui/label'
-import { Card, CardContent } from '@/app/components/ui/card'
-import { Alert, AlertDescription } from '@/app/components/ui/alert'
-import { AlertCircle, CheckCircle2, ShieldCheck, X } from 'lucide-react'
+import { User, AlertCircle, CheckCircle2, X } from 'lucide-react'
 
 import moltres from '@/assets/moltres.png'
 import zapdos from '@/assets/zapdos.png'
 import articuno from '@/assets/articuno.png'
-
-// IMÁGENES DE EJEMPLO
+import pokebolaImg from '@/assets/Pokebola.png'
 import pogoImg from '@/assets/Pogo.jpg'
 import camfImg from '@/assets/Camf.jpg'
 
@@ -21,11 +15,38 @@ interface RegistrationFormProps {
 
 type Team = 'blue' | 'yellow' | 'red'
 
-// ACTUALIZADO: Añadimos colores de fondo, texto y filtros para los iconos cuando se seleccionan
-const teams: { value: Team; label: string; borderColor: string; activeBg: string; activeText: string; activeIcon: string; icon: string }[] = [
-  { value: 'blue', label: 'Sabiduría', borderColor: 'border-blue-500', activeBg: 'bg-blue-500', activeText: 'text-white', activeIcon: 'brightness-0 invert', icon: articuno },
-  { value: 'yellow', label: 'Instinto', borderColor: 'border-yellow-400', activeBg: 'bg-yellow-400', activeText: 'text-black', activeIcon: 'brightness-0', icon: zapdos },
-  { value: 'red', label: 'Valor', borderColor: 'border-red-500', activeBg: 'bg-red-500', activeText: 'text-white', activeIcon: 'brightness-0 invert', icon: moltres },
+const teams: {
+  value: Team
+  label: string
+  color: string
+  bgColor: string
+  borderColor: string
+  icon: string
+}[] = [
+  {
+    value: 'blue',
+    label: 'Sabiduría',
+    color: '#3b82f6',
+    bgColor: '#3b82f6',
+    borderColor: 'border-[#93bbfd]',
+    icon: articuno,
+  },
+  {
+    value: 'yellow',
+    label: 'Instinto',
+    color: '#eab308',
+    bgColor: '#eab308',
+    borderColor: 'border-[#fde047]',
+    icon: zapdos,
+  },
+  {
+    value: 'red',
+    label: 'Valor',
+    color: '#ef4444',
+    bgColor: '#ef4444',
+    borderColor: 'border-[#fca5a5]',
+    icon: moltres,
+  },
 ]
 
 export function RegistrationForm({ saveRegistration, isAdmin = false }: RegistrationFormProps) {
@@ -34,16 +55,18 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
-  
   const [showExamples, setShowExamples] = useState(false)
-  
+
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { inputRef.current?.focus() }, [])
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(''); setSuccess(false)
+    setError('')
+    setSuccess(false)
 
     if (!username.trim()) return setError('Escribe tu nombre de usuario')
     if (!team) return setError('Selecciona un equipo')
@@ -57,13 +80,14 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
         const ipData = await ipResponse.json()
         await saveRegistration(username.trim(), team, ipData.ip, false)
       }
-      
+
       setSuccess(true)
       setUsername('')
       setTeam('')
       setTimeout(() => inputRef.current?.focus(), 100)
-    } catch (e: any) {
-      setError(e.message || 'Error al registrar')
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Error al registrar'
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -71,132 +95,190 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
 
   return (
     <>
-      <Card className="w-full border-0 shadow-2xl rounded-2xl relative overflow-hidden bg-white">
-        {isAdmin && (
-          <div className="absolute top-4 right-4 z-10 cursor-help" title="Modo Staff Activo">
-            <ShieldCheck className="text-blue-500 w-6 h-6" />
+      <h1 className="text-[1.05rem] font-black text-[#0d3b66] uppercase tracking-tight text-center leading-snug">
+        {isAdmin ? 'Registrar persona' : 'Registrarse en la dinámica'}
+      </h1>
+
+      <p className="text-[13px] text-[#0d3b66]/85 text-center mt-2 mb-5 leading-relaxed px-1">
+        {isAdmin ? (
+          'Estás en modo admin, puedes añadir a cualquier persona.'
+        ) : (
+          <>
+            Al ser mencionado debes tener tu nombre de usuario{' '}
+            <button
+              type="button"
+              onClick={() => setShowExamples(true)}
+              className="font-bold text-[#2dd4bf] underline-offset-2 hover:underline"
+            >
+              visible en pantalla
+            </button>
+            .
+          </>
+        )}
+      </p>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="space-y-2">
+          <label
+            htmlFor="username"
+            className="flex items-center gap-1.5 text-[11px] font-black text-[#0d3b66] uppercase tracking-wider"
+          >
+            <User className="w-4 h-4 text-[#2dd4bf]" strokeWidth={2.5} />
+            Nombre de usuario
+          </label>
+          <div className="relative">
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 pointer-events-none" />
+            <input
+              ref={inputRef}
+              id="username"
+              type="text"
+              placeholder="Ej: Pawmot923"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={loading}
+              className="w-full pl-12 pr-4 py-3.5 rounded-[15px] border border-gray-200 bg-white text-[#0d3b66] font-medium placeholder:text-gray-300 focus:outline-none focus:border-[#2dd4bf] focus:ring-2 focus:ring-[#2dd4bf]/20 transition-all text-base"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <p className="flex items-center justify-center gap-2 text-sm font-bold text-[#0d3b66]">
+            <span className="text-gray-300 font-normal">—</span>
+            <span
+              className="w-4 h-4 inline-block"
+              style={{
+                backgroundColor: 'currentColor',
+                WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
+                mask: `url(${pokebolaImg}) center / contain no-repeat`,
+              }}
+              aria-hidden
+            />
+            <span>{isAdmin ? 'Selecciona su equipo' : 'Selecciona tu equipo'}</span>
+            <span
+              className="w-4 h-4 inline-block"
+              style={{
+                backgroundColor: 'currentColor',
+                WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
+                mask: `url(${pokebolaImg}) center / contain no-repeat`,
+              }}
+              aria-hidden
+            />
+            <span className="text-gray-300 font-normal">—</span>
+          </p>
+
+          <div className="grid grid-cols-3 gap-3">
+            {teams.map((t) => {
+              const selected = team === t.value
+              return (
+                <button
+                  type="button"
+                  key={t.value}
+                  onClick={() => setTeam(t.value)}
+                  disabled={loading}
+                  aria-pressed={selected}
+                  className={`
+                    rounded-[15px] border-2 flex flex-col items-center justify-center gap-1.5 py-3 px-1
+                    transition-all duration-200
+                    ${selected
+                      ? 'scale-[1.04] shadow-lg'
+                      : `${t.borderColor} bg-white hover:bg-gray-50/80`}
+                  `}
+                  style={selected ? { backgroundColor: t.bgColor, borderColor: t.bgColor } : undefined}
+                >
+                  <div
+                    className={`w-12 h-12 sm:w-[3.25rem] sm:h-[3.25rem] transition-transform duration-200 ${
+                      selected ? 'scale-110' : ''
+                    }`}
+                    style={{
+                      backgroundColor: selected ? '#ffffff' : t.color,
+                      WebkitMask: `url(${t.icon}) center / contain no-repeat`,
+                      mask: `url(${t.icon}) center / contain no-repeat`,
+                    }}
+                    aria-hidden
+                  />
+                  <span
+                    className={`text-[11px] font-black uppercase tracking-wide transition-colors duration-200 ${
+                      selected ? 'text-white' : ''
+                    }`}
+                    style={!selected ? { color: t.color } : undefined}
+                  >
+                    {t.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-700 text-sm font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {error}
           </div>
         )}
 
-        <CardContent className="p-6 sm:p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-3">
-              <Label htmlFor="username" className="text-lg font-bold text-gray-900 block">Nombre de usuario</Label>
-              <Input 
-                ref={inputRef} 
-                id="username" 
-                placeholder="Ej: AshKetchum123" 
-                value={username} 
-                onChange={(e) => setUsername(e.target.value)} 
-                disabled={loading} 
-                className="text-base sm:text-lg py-6 bg-gray-100 border-transparent rounded-xl focus-visible:ring-2 focus-visible:ring-blue-500 placeholder:text-gray-400 font-medium"
-              />
-            </div>
-            
-            <div className="space-y-3">
-              <Label className="text-lg font-bold text-gray-900 block">Selecciona tu equipo</Label>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                {teams.map((t) => {
-                  const selected = team === t.value
-                  return (
-                    <button 
-                      type="button" 
-                      key={t.value} 
-                      onClick={() => setTeam(t.value)} 
-                      disabled={loading}
-                      className={`
-                        flex flex-col items-center justify-center gap-2 py-4 px-1 rounded-2xl border-2 transition-all duration-200
-                        ${selected 
-                          ? `${t.borderColor} ${t.activeBg} scale-105 shadow-md` // Relleno de color si está seleccionado
-                          : `${t.borderColor} bg-white hover:bg-gray-50 opacity-80 hover:opacity-100` // Marco de color por defecto
-                        }
-                      `}
-                    >
-                      <img 
-                        src={t.icon} 
-                        alt={t.label} 
-                        // Aplicamos el filtro para cambiar a blanco o negro según el color del fondo
-                        className={`w-10 h-10 sm:w-12 sm:h-12 object-contain transition-all duration-200 ${selected ? t.activeIcon : 'brightness-0 opacity-90'}`} 
-                      />
-                      <span className={`font-bold text-xs sm:text-sm transition-colors duration-200 ${selected ? t.activeText : 'text-gray-900'}`}>
-                        {t.label}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+        {success && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-green-50 text-green-800 text-sm font-bold">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ¡Registro completado, buena suerte!
+          </div>
+        )}
 
-            {!isAdmin && (
-              <Alert className="bg-blue-50 border-blue-100 text-blue-800 rounded-xl flex items-center gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setShowExamples(true)} 
-                  className="flex-shrink-0 p-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded-full cursor-pointer transition-colors shadow-sm animate-pulse"
-                  title="Ver ejemplos"
-                >
-                  <AlertCircle className="h-5 w-5" />
-                </button>
-                <AlertDescription className="text-xs sm:text-sm font-medium">
-                  Debes tener tu nombre de usuario en pantalla para poder reclamar tu premio.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            {error && (
-              <Alert variant="destructive" className="rounded-xl">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            
-            {success && (
-              <Alert className="bg-green-50 border-green-200 text-green-800 rounded-xl">
-                <CheckCircle2 className="h-4 w-4" />
-                <AlertDescription className="font-bold">Registro completado, ¡buena suerte!</AlertDescription>
-              </Alert>
-            )}
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-4 rounded-xl font-black text-white text-[15px] btn-register-gradient transition-all disabled:opacity-60 disabled:shadow-none"
+        >
+          {loading ? 'Registrando...' : isAdmin ? 'Ayudar a registrarse' : 'Registrarse en Dinamica'}
+        </button>
+      </form>
 
-            <Button type="submit" size="lg" className="w-full text-lg font-bold py-6 bg-[#0B0F19] text-white hover:bg-gray-800 rounded-xl shadow-lg shadow-black/20" disabled={loading}>
-              {loading ? 'Registrando...' : 'Registrarse en la Dinámica'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* MODAL DE IMÁGENES DE EJEMPLO */}
       {showExamples && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowExamples(false)}>
-          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-2xl w-full relative shadow-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            
-            <button 
-              onClick={() => setShowExamples(false)} 
-              className="absolute top-4 right-4 p-2 bg-gray-100 text-gray-600 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors z-10"
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          onClick={() => setShowExamples(false)}
+        >
+          <div
+            className="bg-white rounded-3xl p-5 max-w-2xl w-full relative shadow-2xl max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShowExamples(false)}
+              className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full hover:bg-red-100 hover:text-red-600 z-10"
             >
               <X className="w-5 h-5" />
             </button>
-            
-            <div className="shrink-0 pr-8">
-              <h3 className="text-xl sm:text-2xl font-black text-center mb-2 text-gray-800">Ejemplos de Pantalla</h3>
-              <p className="text-center text-gray-600 mb-4 text-xs sm:text-sm">Asegúrate de mostrar tu perfil así cuando ganes.</p>
-            </div>
-            
-            <div className="overflow-y-auto overflow-x-hidden p-1 flex-1">
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div className="rounded-xl overflow-hidden shadow-sm border border-gray-100 flex flex-col items-center bg-gray-50">
-                  <img src={pogoImg} alt="Ejemplo Pokémon GO" className="w-full h-auto max-h-[40vh] object-contain p-1" />
-                  <span className="py-2 text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wide">Pokémon GO</span>
-                </div>
-                <div className="rounded-xl overflow-hidden shadow-sm border border-gray-100 flex flex-col items-center bg-gray-50">
-                  <img src={camfImg} alt="Ejemplo Campfire" className="w-full h-auto max-h-[40vh] object-contain p-1" />
-                  <span className="py-2 text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wide">Campfire</span>
-                </div>
+
+            <h3 className="text-xl font-black text-center text-[#0d3b66] mb-2 pr-8">
+              Ejemplos de pantalla
+            </h3>
+            <p className="text-center text-gray-600 mb-4 text-sm">
+              Asegúrate de mostrar tu perfil así cuando ganes.
+            </p>
+
+            <div className="overflow-y-auto grid grid-cols-2 gap-3 flex-1">
+              <div className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+                <img src={pogoImg} alt="Pokémon GO" className="w-full h-auto object-contain" />
+                <span className="block py-2 text-center text-[10px] font-bold text-gray-500 uppercase">
+                  Pokémon GO
+                </span>
+              </div>
+              <div className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+                <img src={camfImg} alt="Campfire" className="w-full h-auto object-contain" />
+                <span className="block py-2 text-center text-[10px] font-bold text-gray-500 uppercase">
+                  Campfire
+                </span>
               </div>
             </div>
 
-            <Button onClick={() => setShowExamples(false)} className="w-full mt-5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-6 font-bold text-lg shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowExamples(false)}
+              className="w-full mt-4 py-4 rounded-full font-bold text-white btn-register-gradient"
+            >
               Entendido
-            </Button>
+            </button>
           </div>
         </div>
       )}

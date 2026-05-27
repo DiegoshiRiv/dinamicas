@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/app/components/ui/button'
-import { RotateCcw, LogOut, Radio } from 'lucide-react'
+import { RotateCcw, LogOut } from 'lucide-react'
 import type { Participant, RecentWinner } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 
@@ -15,15 +15,37 @@ interface WinnerRouletteProps {
   updateStatus: (id: string, status: string) => void
   onResetGame: () => void
   isSpectator?: boolean
+  embedded?: boolean
   incomingSpin?: { rotation: number, winnerId: string, localReceivedAt: number } | null
   broadcastSpin?: (rotation: number, winnerId: string) => void
   penaltyMonths: number
   penaltyPercent: number
 }
 
+type WheelPlayer = Participant & { weight: number }
+
+/** Ruleta con segmentos iguales (espectador): ángulo para que el puntero caiga en el ganador */
+function rotationForEqualWheel(
+  players: Participant[],
+  winnerId: string,
+  currentRotation: number
+): number {
+  const n = players.length
+  if (n === 0) return currentRotation
+
+  const index = players.findIndex((p) => p.id === winnerId)
+  const idx = index >= 0 ? index : 0
+  const sliceDeg = 360 / n
+  const sliceCenter = idx * sliceDeg + sliceDeg / 2
+  const targetMod = (360 - sliceCenter + 360) % 360
+  const currentMod = ((currentRotation % 360) + 360) % 360
+  const delta = (targetMod - currentMod + 360) % 360
+  return currentRotation + 5 * 360 + delta
+}
+
 export function WinnerRoulette({ 
   onBack, participants, recentWinners, updateStatus, onResetGame, 
-  isSpectator = false, incomingSpin, broadcastSpin,
+  isSpectator = false, embedded = false, incomingSpin, broadcastSpin,
   penaltyMonths, penaltyPercent
 }: WinnerRouletteProps) {
   
@@ -39,7 +61,7 @@ export function WinnerRoulette({
     fetch('https://api.ipify.org?format=json').then(res => res.json()).then(data => setClientIp(data.ip)).catch(() => {});
   }, [])
 
-  const playersWithWeight = useMemo(() => {
+  const playersWithWeight = useMemo((): WheelPlayer[] => {
     const now = new Date();
     return activePlayers.map(p => {
       let weight = 100;
@@ -55,7 +77,13 @@ export function WinnerRoulette({
     });
   }, [activePlayers, recentWinners, penaltyMonths, penaltyPercent]);
 
-  const totalWeight = playersWithWeight.reduce((acc, p) => acc + p.weight, 0);
+  /** Espectador: todos los segmentos del mismo tamaño */
+  const playersForWheel = useMemo((): WheelPlayer[] => {
+    if (!isSpectator) return playersWithWeight
+    return activePlayers.map((p) => ({ ...p, weight: 1 }))
+  }, [isSpectator, playersWithWeight, activePlayers])
+
+  const totalWeight = playersForWheel.reduce((acc, p) => acc + p.weight, 0);
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -66,7 +94,7 @@ export function WinnerRoulette({
     const size = canvas.width; const center = size / 2; const radius = center - 10
     ctx.clearRect(0, 0, size, size)
 
-    if (playersWithWeight.length === 0) {
+    if (playersForWheel.length === 0) {
       ctx.beginPath(); ctx.arc(center, center, radius, 0, 2 * Math.PI); ctx.fillStyle = '#f3f4f6'; ctx.fill()
       ctx.lineWidth = 2; ctx.strokeStyle = '#e5e7eb'; ctx.stroke()
       ctx.fillStyle = '#9ca3af'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'
@@ -76,7 +104,7 @@ export function WinnerRoulette({
 
     let currentAngle = -Math.PI / 2; 
 
-    playersWithWeight.forEach((player) => {
+    playersForWheel.forEach((player) => {
       const sliceAngle = totalWeight > 0 ? (player.weight / totalWeight) * (2 * Math.PI) : 0;
       if (sliceAngle === 0) return;
       const endAngle = currentAngle + sliceAngle;
@@ -88,7 +116,7 @@ export function WinnerRoulette({
       const textAngle = currentAngle + sliceAngle / 2;
       ctx.save(); ctx.translate(center, center); ctx.rotate(textAngle)
       ctx.textAlign = 'right'; ctx.fillStyle = player.team === 'yellow' ? '#000000' : '#ffffff'
-      const fontSize = playersWithWeight.length > 50 ? 10 : playersWithWeight.length > 20 ? 12 : 16
+      const fontSize = playersForWheel.length > 50 ? 10 : playersForWheel.length > 20 ? 12 : 16
       ctx.font = `bold ${fontSize}px sans-serif`
       ctx.fillText(player.username.length > 15 ? player.username.substring(0, 15) + '...' : player.username, radius - 15, 4)
       ctx.restore()
@@ -97,32 +125,40 @@ export function WinnerRoulette({
     })
 
     ctx.beginPath(); ctx.arc(center, center, radius * 0.15, 0, 2 * Math.PI); ctx.fillStyle = '#ffffff'; ctx.fill()
-  }, [playersWithWeight, totalWeight])
+  }, [playersForWheel, totalWeight])
 
-  // Lógica del Espectador corregida (Ya no desaparece el cartel)
   useEffect(() => {
-    if (isSpectator && incomingSpin) {
-      const isOldSpin = Date.now() - incomingSpin.localReceivedAt > 2000;
-      if (isOldSpin) { 
-        setRotation(incomingSpin.rotation); 
-        return; 
-      }
+    if (!isSpectator || !incomingSpin) return
 
-      setIsSpinning(true); 
-      setWinner(null); 
-      setRotation(incomingSpin.rotation)
-      
-      setTimeout(() => {
-        setIsSpinning(false)
-        // Usamos la lista global "participants" para asegurar que encontramos al ganador, 
-        // incluso si el Admin ya actualizó su estado en la DB a "winner".
-        const winningPlayer = participants.find(p => p.id === incomingSpin.winnerId)
-        if (winningPlayer) setWinner(winningPlayer)
-        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#3B82F6', '#FACC15', '#EF4444'] })
-      }, 5000)
+    const isOldSpin = Date.now() - incomingSpin.localReceivedAt > 2000;
+
+    if (isOldSpin) {
+      const finalRotation = rotationForEqualWheel(
+        activePlayers,
+        incomingSpin.winnerId,
+        0
+      )
+      setRotation(finalRotation)
+      const winningPlayer = participants.find(p => p.id === incomingSpin.winnerId)
+      if (winningPlayer) setWinner(winningPlayer)
+      return
     }
+
+    setIsSpinning(true)
+    setWinner(null)
+
+    setRotation((prev) =>
+      rotationForEqualWheel(activePlayers, incomingSpin.winnerId, prev)
+    )
+
+    setTimeout(() => {
+      setIsSpinning(false)
+      const winningPlayer = participants.find(p => p.id === incomingSpin.winnerId)
+      if (winningPlayer) setWinner(winningPlayer)
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#3B82F6', '#FACC15', '#EF4444'] })
+    }, 5000)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incomingSpin, isSpectator]) // Quitamos playersWithWeight para que la sincronización DB no borre el modal
+  }, [incomingSpin, isSpectator])
 
   const spinRoulette = () => {
     if (isSpinning || playersWithWeight.length === 0 || isSpectator) return
@@ -135,7 +171,7 @@ export function WinnerRoulette({
     let currentDeg = 0;
     let winningPlayer = playersWithWeight[0];
 
-    for (let p of playersWithWeight) {
+    for (const p of playersWithWeight) {
        const sliceDeg = (p.weight / totalWeight) * 360;
        if (pointerAngleDeg >= currentDeg && pointerAngleDeg < currentDeg + sliceDeg) {
           winningPlayer = p;
@@ -164,27 +200,22 @@ export function WinnerRoulette({
   const isMe = winner && clientIp && winner.ip_address === clientIp;
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[85vh] w-full max-w-md mx-auto relative">
-      <div className="w-full bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative z-10">
+    <div className={`flex flex-col items-center justify-start w-full max-w-md mx-auto relative ${embedded ? 'min-h-full px-2 py-2' : 'min-h-[100dvh] px-4 py-6'}`}>
+      <div className={`w-full bg-white overflow-hidden flex flex-col relative z-10 ${embedded ? 'rounded-[28px] shadow-xl' : 'rounded-[32px] shadow-2xl'}`}>
         
-        <div className="p-4 sm:p-5 flex justify-between items-center bg-white gap-2">
-          <h2 className="text-xl sm:text-2xl font-black text-gray-900 ml-2">Ruleta</h2>
-          {!isSpectator ? (
+        {!isSpectator && (
+          <div className="p-4 sm:p-5 flex justify-between items-center bg-white gap-2">
+            <h2 className="text-xl sm:text-2xl font-black text-gray-900 ml-2">Ruleta</h2>
             <div className="flex gap-2">
               <Button onClick={onResetGame} disabled={isSpinning} className="bg-[#FBBF24] hover:bg-[#F59E0B] text-black font-bold rounded-xl border-2 border-[#F59E0B] px-3 h-10 flex items-center gap-1.5 text-xs sm:text-sm"><RotateCcw className="w-4 h-4 shrink-0" /><span className="hidden sm:inline">Reintegrar</span></Button>
               <Button onClick={onBack} disabled={isSpinning} className="bg-[#FB7185] hover:bg-[#F43F5E] text-black font-bold rounded-xl border-2 border-[#F43F5E] px-3 h-10 flex items-center gap-1.5 text-xs sm:text-sm"><LogOut className="w-4 h-4 shrink-0" /><span className="hidden sm:inline">Salir</span></Button>
             </div>
-          ) : (
-            <div className="flex gap-2 mr-2">
-              <span className="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl font-black text-xs sm:text-sm animate-pulse flex items-center gap-1.5 shadow-inner"><Radio className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">En Vivo</span></span>
-              <Button onClick={onBack} className="bg-white hover:bg-gray-50 text-gray-500 font-bold rounded-xl border-2 border-gray-200 px-3 h-10 flex items-center gap-1.5 text-xs sm:text-sm" title="Volver al registro"><LogOut className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Cerrar</span></Button>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        <hr className="border-gray-200 w-full m-0" />
+        {!isSpectator && <hr className="border-gray-200 w-full m-0" />}
 
-        <div className="p-6 flex flex-col items-center justify-center relative flex-1 w-full mt-4 sm:mt-6">
+        <div className={`p-6 flex flex-col items-center justify-center relative flex-1 w-full ${isSpectator ? 'pt-2' : 'mt-4 sm:mt-6'}`}>
           
           <div className="relative z-20 -mb-2">
              <div className="w-0 h-0 border-l-[16px] border-r-[16px] border-t-[24px] border-l-transparent border-r-transparent border-t-gray-900 drop-shadow-md"></div>

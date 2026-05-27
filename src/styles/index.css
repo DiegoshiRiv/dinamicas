@@ -3,8 +3,90 @@
 @import './theme.css';
 @import "tailwindcss";
 
-/* Si tenías estilos globales extra, ponlos aquí abajo */
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #e8f4fc;
+}
+
+.safe-area-pb {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* Panel domo */
+.registration-dome {
+  margin-top: -1.55rem;
+  position: relative;
+  z-index: 10;
+  background: #fff;
+  border-top-left-radius: 50% 2.55rem;
+  border-top-right-radius: 50% 2.55rem;
+  box-shadow: 0 -8px 22px rgba(13, 59, 102, 0.07);
+  overflow: hidden;
+}
+
+/* Barra inferior */
+.bottom-nav-shell {
+  background: #ffffff;
+  border-top: 1px solid #e8eef4;
+}
+
+.bottom-nav-notch {
+  position: absolute;
+  top: -1.35rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5.5rem;
+  height: 1.35rem;
+  background: #ffffff;
+  border-radius: 50% 50% 0 0;
+  border-top: 1px solid #e8eef4;
+  border-left: 1px solid #e8eef4;
+  border-right: 1px solid #e8eef4;
+  box-shadow: 0 -4px 12px rgba(13, 59, 102, 0.04);
+}
+
+.nav-center-icon-pop {
+  animation: nav-icon-pop 0.35s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+@keyframes nav-icon-pop {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.75) rotate(-18deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.btn-register-gradient {
+  background: #1fb988;
+  box-shadow: 0 6px 16px rgba(31, 185, 136, 0.35);
+}
+
+.btn-register-gradient:hover:not(:disabled) {
+  background: #18a97b;
+}
+
+.btn-register-gradient:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.register-active-spin {
+  animation: register-spin 1.8s linear infinite;
+}
+
+.nav-active-center-spin {
+  animation: register-spin 1.8s linear infinite;
+}
+
+@keyframes register-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

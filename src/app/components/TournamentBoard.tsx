@@ -3,7 +3,7 @@ import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Swords, Eye, Trophy, Plus, User, Trash2, AlertCircle, Check, AlertTriangle } from 'lucide-react'
 import { useTournaments, Pokemon, TournamentPlayer } from '@/hooks/useTournaments'
-import pokebola from '@/assets/pokeball.png'
+import pokebola from '@/assets/Pokebola.png'
 
 import typeNormal from '@/assets/normal.png'
 import typeLucha from '@/assets/lucha.png'

@@ -4,7 +4,7 @@ import { Input } from '@/app/components/ui/input'
 import { Instagram, Twitter, MessageSquare, Copy, Check, Plus, Trash2, Hash } from 'lucide-react'
 import { useFriends } from '@/hooks/useFriends'
 
-import pokebola from '@/assets/pokeball.png'
+import pokebola from '@/assets/Pokebola.png'
 import goLogo from '@/assets/go.png'
 import uniteLogo from '@/assets/unite.png'
 import tcgLogo from '@/assets/tcg.png'
@@ -59,8 +59,8 @@ export function FriendBoard({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
       {!showForm ? (
-        <Button onClick={() => setShowForm(true)} className="w-full bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl py-6 font-black shadow-lg text-lg">
-          <Plus className="w-6 h-6 mr-2" /> Publicar mi código de amigo
+        <Button onClick={() => setShowForm(true)} className="w-full max-w-[260px] mx-auto bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl py-3 font-black shadow-md text-sm">
+          <Plus className="w-5 h-5 mr-1.5" /> Publicar mi código de amigo
         </Button>
       ) : (
         <div className="bg-white rounded-[32px] shadow-2xl p-6 relative overflow-hidden">
