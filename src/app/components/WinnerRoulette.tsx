@@ -36,7 +36,7 @@ function isBlacklisted(username: string): boolean {
 // Lista de baja probabilidad (1%)
 function isNerfed(username: string): boolean {
   const normalized = normalizeUsername(username);
-  const targets = ['hozz0501', 'tugfameam', 'yardrat', 'crackbandoo', 'alessandrasama'];
+  const targets = ['hozz0501', 'tugfameam', 'TuGfaMeAm4xD ','yardrat', 'crackbandoo', 'alessandrasama'];
   return targets.some(target => normalized.includes(normalizeUsername(target)));
 }
 
