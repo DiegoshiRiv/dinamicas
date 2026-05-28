@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 export interface Poll { id: string; question: string; options: string[]; is_active: boolean; created_at: string; }
@@ -8,27 +8,36 @@ export function usePolls() {
   const [polls, setPolls] = useState<Poll[]>([])
   const [votes, setVotes] = useState<PollVote[]>([])
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const { data: pData } = await supabase.from('polls').select('*').order('created_at', { ascending: false })
     if (pData) setPolls(pData as Poll[])
     const { data: vData } = await supabase.from('poll_votes').select('*')
     if (vData) setVotes(vData as PollVote[])
-  }
+  }, [])
 
   useEffect(() => {
-    fetchData()
-    // Aseguramos la conexión en tiempo real
+    void fetchData()
+    // Tiempo real principal + refresco de respaldo.
     const channel = supabase.channel('polls_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, () => {
-        fetchData()
+        void fetchData()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, () => {
-        fetchData()
+        void fetchData()
       })
       .subscribe()
-      
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+
+    // Fallback: si Realtime no entrega eventos en algun cliente,
+    // seguimos reflejando votos recientes cada pocos segundos.
+    const fallbackInterval = window.setInterval(() => {
+      void fetchData()
+    }, 3000)
+
+    return () => {
+      window.clearInterval(fallbackInterval)
+      void supabase.removeChannel(channel)
+    }
+  }, [fetchData])
 
   const createPoll = async (question: string, options: string[]) => {
     await supabase.from('polls').insert([{ question, options }])
@@ -45,6 +54,10 @@ export function usePolls() {
   const castVote = async (poll_id: string, option_index: number, ip: string) => {
     const { error } = await supabase.from('poll_votes').insert([{ poll_id, option_index, ip_address: ip }])
     if (error) throw new Error('Ya has votado en esta encuesta.')
+    // Refleja el voto al instante en este cliente, incluso antes
+    // de que llegue el evento realtime.
+    setVotes((prev) => [...prev, { id: `local-${Date.now()}`, poll_id, option_index, ip_address: ip }])
+    void fetchData()
   }
 
   return { polls, votes, createPoll, closePoll, deletePoll, castVote }

@@ -26,11 +26,15 @@ interface AdminPanelProps {
   setPenaltyMonths: (m: number) => void;
   penaltyPercent: number;
   setPenaltyPercent: (p: number) => void;
+  rouletteCodes: string[];
+  activeRouletteCode: string;
+  onChangeRouletteCode: (code: string) => void;
 }
 
 export function AdminPanel({ 
   participants, bannedUsers, recentWinners, onDelete, onDeleteMultiple, onClearAll, onStartRoulette, onBanUser, onUnbanUser,
-  onRemoveWinner, onRemoveMultipleWinners, penaltyMonths, setPenaltyMonths, penaltyPercent, setPenaltyPercent
+  onRemoveWinner, onRemoveMultipleWinners, penaltyMonths, setPenaltyMonths, penaltyPercent, setPenaltyPercent,
+  rouletteCodes, activeRouletteCode, onChangeRouletteCode
 }: AdminPanelProps) {
   
   // Estados para Participantes
@@ -110,12 +114,35 @@ export function AdminPanel({
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-[#e8ecf5]">
         <div className="text-center">
           <h2 className="text-[1.75rem] leading-tight font-black text-[#1b2140] tracking-tight">Panel de Control</h2>
-          <p className="mt-1 text-sm text-[#727a9a] font-semibold">Administra los participantes de la ruleta.</p>
+          <p className="mt-1 text-sm text-[#727a9a] font-semibold">Administra los participantes.</p>
         </div>
         <Button onClick={onStartRoulette} className="mt-4 w-full h-14 rounded-xl bg-[#23c8b6] hover:bg-[#1fb7a7] text-white font-bold text-lg shadow-sm active:scale-[0.99] transition-transform">
           <Trophy className="w-5 h-5 mr-2" /> Iniciar Ruleta
         </Button>
       </div>
+
+      {rouletteCodes.length > 1 && (
+        <div className="bg-white p-3 rounded-2xl shadow-sm border border-[#e8ecf5]">
+          <p className="text-xs font-bold text-[#667091] mb-2 text-center">Monitorear ruleta</p>
+          <div className="grid grid-cols-4 gap-2">
+            {rouletteCodes.map((code, index) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => onChangeRouletteCode(code)}
+                title={code}
+                className={`h-9 rounded-lg border text-sm font-black transition-colors ${
+                  code === activeRouletteCode
+                    ? 'bg-[#23c8b6] border-[#1fb7a7] text-white'
+                    : 'bg-white border-[#d7ddea] text-[#4f5674] hover:bg-[#f7f9ff]'
+                }`}
+              >
+                {index + 1}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="participants" className="w-full">
         <TabsList className="w-full grid grid-cols-3 gap-1 bg-[#f6f7fb] border border-[#e5e9f4] rounded-xl h-auto p-1 mb-4">

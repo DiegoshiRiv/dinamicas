@@ -2,8 +2,12 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { RotateCcw } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
+import { Input } from '@/app/components/ui/input'
 import type { Participant, RecentWinner } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
+import { QRCodeCanvas } from 'qrcode.react'
+import { jsPDF } from 'jspdf'
+import { buildRouletteRegistrationUrl, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 
 import moltres from '@/assets/moltres.png'
 import zapdos from '@/assets/zapdos.png'
@@ -21,6 +25,12 @@ interface WinnerRouletteProps {
   broadcastSpin?: (rotation: number, winnerId: string) => void
   penaltyMonths: number
   penaltyPercent: number
+  rouletteCodes?: string[]
+  activeRouletteCode?: string
+  onChangeRouletteCode?: (code: string) => void
+  onCreateRouletteCode?: (code: string) => void
+  onDeleteRouletteCode?: (code: string) => void
+  registrationBaseUrl?: string
 }
 
 type WheelPlayer = Participant & { weight: number }
@@ -47,7 +57,9 @@ function rotationForEqualWheel(
 export function WinnerRoulette({ 
   onBack: _onBack, participants, recentWinners, updateStatus, onResetGame, 
   isSpectator = false, embedded = false, incomingSpin, broadcastSpin,
-  penaltyMonths, penaltyPercent
+  penaltyMonths, penaltyPercent,
+  rouletteCodes = [], activeRouletteCode = 'general', onChangeRouletteCode,
+  onCreateRouletteCode, onDeleteRouletteCode, registrationBaseUrl = ''
 }: WinnerRouletteProps) {
   
   const [rotation, setRotation] = useState(0)
@@ -55,6 +67,12 @@ export function WinnerRoulette({
   const [winner, setWinner] = useState<Participant | null>(null)
   const [clientIp, setClientIp] = useState<string>('')
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
+  const [confirmDeleteRouletteOpen, setConfirmDeleteRouletteOpen] = useState(false)
+  const [createRouletteFormOpen, setCreateRouletteFormOpen] = useState(false)
+  const [newRouletteName, setNewRouletteName] = useState('')
+  const [createRouletteOpen, setCreateRouletteOpen] = useState(false)
+  const [createdRouletteCode, setCreatedRouletteCode] = useState<string | null>(null)
+  const qrCreateRef = useRef<HTMLDivElement>(null)
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const activePlayers = participants.filter(p => p.status === 'active')
@@ -201,6 +219,43 @@ export function WinnerRoulette({
 
   const isMe = winner && clientIp && winner.ip_address === clientIp;
 
+  const createdRouletteUrl = createdRouletteCode
+    ? buildRouletteRegistrationUrl(
+        registrationBaseUrl || (typeof window !== 'undefined' ? window.location.origin : ''),
+        createdRouletteCode
+      )
+    : ''
+
+  const createRouletteFromInput = () => {
+    if (!onCreateRouletteCode || !newRouletteName.trim()) return
+    const nextCode = sanitizeRouletteCode(newRouletteName)
+    onCreateRouletteCode(nextCode)
+    setCreatedRouletteCode(nextCode)
+    setNewRouletteName('')
+    setCreateRouletteFormOpen(false)
+    setCreateRouletteOpen(true)
+  }
+
+  const handleDownloadCreatedQrPdf = () => {
+    const canvas = qrCreateRef.current?.querySelector('canvas')
+    if (!canvas || !createdRouletteCode) return
+    const imgData = canvas.toDataURL('image/png')
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const qrSize = 260
+    const x = (pageWidth - qrSize) / 2
+    let y = 72
+
+    pdf.setFontSize(14)
+    pdf.text(`QR de ruleta: ${createdRouletteCode}`, pageWidth / 2, y, { align: 'center' })
+    y += 24
+    pdf.addImage(imgData, 'PNG', x, y, qrSize, qrSize)
+    y += qrSize + 24
+    pdf.setFontSize(10)
+    pdf.text(createdRouletteUrl, pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - 48 })
+    pdf.save(`qr-${createdRouletteCode}.pdf`)
+  }
+
   return (
     <div className={`flex flex-col items-center justify-start w-full max-w-md mx-auto relative ${embedded ? 'min-h-full px-2 py-2' : 'min-h-[100dvh] px-4 py-6'}`}>
       <div className={`w-full bg-white overflow-hidden flex flex-col relative z-10 ${embedded ? 'rounded-[28px] shadow-xl' : 'rounded-[32px] shadow-2xl'}`}>
@@ -215,19 +270,66 @@ export function WinnerRoulette({
               </p>
             </div>
             <div className="flex justify-center w-full">
-              <Button
-                onClick={() => setConfirmResetOpen(true)}
-                disabled={isSpinning}
-                className="bg-[#f3f6ff] hover:bg-[#e8eefc] text-[#2e3c62] font-bold rounded-xl border border-[#dce3f6] px-3 h-10 flex items-center gap-1.5 text-[10px] sm:text-xs"
-              >
-                <RotateCcw className="w-4 h-4 shrink-0" />
-                <span>REINTEGRAR A TODOS</span>
-              </Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button
+                  onClick={() => setConfirmResetOpen(true)}
+                  disabled={isSpinning}
+                  className="bg-[#f3f6ff] hover:bg-[#e8eefc] text-[#2e3c62] font-bold rounded-xl border border-[#dce3f6] px-3 h-10 flex items-center gap-1.5 text-[10px] sm:text-xs"
+                >
+                  <RotateCcw className="w-4 h-4 shrink-0" />
+                  <span>REINTEGRAR A TODOS</span>
+                </Button>
+                {onDeleteRouletteCode && activeRouletteCode !== 'general' && (
+                  <Button
+                    onClick={() => setConfirmDeleteRouletteOpen(true)}
+                    disabled={isSpinning}
+                    variant="outline"
+                    className="border-red-200 text-red-600 hover:bg-red-50 font-bold rounded-xl px-3 h-10 text-[10px] sm:text-xs"
+                  >
+                    ELIMINAR RULETA
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         )}
 
         <div className={`p-5 sm:p-6 flex flex-col items-center justify-center relative flex-1 w-full ${isSpectator ? 'pt-2' : 'mt-2 sm:mt-3'}`}>
+          {!isSpectator && rouletteCodes.length > 1 && onChangeRouletteCode && (
+            <div className="w-full mb-4">
+              <p className="text-center text-[11px] font-bold text-[#667091] mb-2">Ruleta activa</p>
+              <div className="grid grid-cols-4 gap-2">
+                {rouletteCodes.map((code, index) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => onChangeRouletteCode(code)}
+                    title={code}
+                    className={`h-9 rounded-lg border text-sm font-black transition-colors ${
+                      code === activeRouletteCode
+                        ? 'bg-[#23c8b6] border-[#1fb7a7] text-white'
+                        : 'bg-white border-[#d7ddea] text-[#4f5674] hover:bg-[#f7f9ff]'
+                    }`}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!isSpectator && onCreateRouletteCode && (
+            <div className="w-full mb-3 flex justify-center">
+              <Button
+                onClick={() => setCreateRouletteFormOpen(true)}
+                disabled={isSpinning}
+                className="bg-[#23c8b6] hover:bg-[#1fb7a7] text-white font-bold rounded-xl border border-[#1fb7a7] px-4 h-10 text-[11px]"
+              >
+                CREAR OTRA RULETA
+              </Button>
+            </div>
+          )}
+
           
           <div className="relative z-20 -mb-2">
              <div className="w-0 h-0 border-l-[16px] border-r-[16px] border-t-[24px] border-l-transparent border-r-transparent border-t-gray-900 drop-shadow-md"></div>
@@ -295,6 +397,99 @@ export function WinnerRoulette({
             >
               Reintegrar
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmDeleteRouletteOpen} onOpenChange={setConfirmDeleteRouletteOpen}>
+        <AlertDialogContent className="rounded-2xl border border-red-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-700 font-black">Eliminar ruleta actual</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-[#5b6483] leading-relaxed text-center">
+              Se eliminará la ruleta <strong>{activeRouletteCode}</strong>, su QR y todos los datos asociados.
+              Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-lg bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (onDeleteRouletteCode && activeRouletteCode !== 'general') {
+                  onDeleteRouletteCode(activeRouletteCode)
+                }
+                setConfirmDeleteRouletteOpen(false)
+              }}
+            >
+              Eliminar ruleta
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={createRouletteFormOpen} onOpenChange={setCreateRouletteFormOpen}>
+        <AlertDialogContent className="rounded-2xl border border-[#dde3f2] max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#1d2442] font-black">Crear nueva ruleta</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-[#5b6483] text-center">
+              Escribe el nombre del QR para crear una ruleta exclusiva.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Nombre de QR"
+              value={newRouletteName}
+              onChange={(e) => setNewRouletteName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && createRouletteFromInput()}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-lg bg-[#23c8b6] hover:bg-[#1fb7a7] text-white"
+              onClick={createRouletteFromInput}
+            >
+              Crear
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={createRouletteOpen}
+        onOpenChange={(open) => {
+          setCreateRouletteOpen(open)
+          if (!open) setCreatedRouletteCode(null)
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl border border-[#dde3f2] max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#1d2442] font-black">
+              {createdRouletteCode ? `Ruleta creada: ${createdRouletteCode}` : 'Ruleta creada'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-[#5b6483] text-center">
+              Ruleta creada con éxito, descarga o comparte el código QR.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-3">
+            {createdRouletteCode && (
+              <div className="space-y-3">
+                <div ref={qrCreateRef} className="p-3 bg-white rounded-lg border border-[#e4e9f6] w-fit mx-auto">
+                  <QRCodeCanvas value={createdRouletteUrl} size={220} level="H" includeMargin />
+                </div>
+                <Button
+                  onClick={handleDownloadCreatedQrPdf}
+                  className="w-full bg-[#23c8b6] hover:bg-[#1fb7a7] text-white font-bold"
+                >
+                  Descargar PDF
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg">Cerrar</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

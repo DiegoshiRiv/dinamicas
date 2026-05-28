@@ -44,7 +44,14 @@ export function useTournaments() {
   const deleteTournament = async (id: string) => { await supabase.from('tournaments').delete().eq('id', id); await fetchData(); }
   
   const registerPlayer = async (tournament_id: string, player_name: string, avatar_dex: string, team: Pokemon[]) => {
-    await supabase.from('tournament_players').insert([{ tournament_id, player_name, avatar_dex, team }]); await fetchData();
+    const { data, error } = await supabase
+      .from('tournament_players')
+      .insert([{ tournament_id, player_name, avatar_dex, team }])
+      .select('*')
+      .single()
+    if (error) throw error
+    await fetchData()
+    return data as TournamentPlayer
   }
 
   const generateRound = async (tournament_id: string, round: number) => {
