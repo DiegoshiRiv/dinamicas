@@ -29,12 +29,15 @@ interface AdminPanelProps {
   rouletteCodes: string[];
   activeRouletteCode: string;
   onChangeRouletteCode: (code: string) => void;
+  isSuperAdmin?: boolean;
+  adminUsername?: string;
 }
 
 export function AdminPanel({ 
   participants, bannedUsers, recentWinners, onDelete, onDeleteMultiple, onClearAll, onStartRoulette, onBanUser, onUnbanUser,
   onRemoveWinner, onRemoveMultipleWinners, penaltyMonths, setPenaltyMonths, penaltyPercent, setPenaltyPercent,
-  rouletteCodes, activeRouletteCode, onChangeRouletteCode
+  rouletteCodes, activeRouletteCode, onChangeRouletteCode,
+  isSuperAdmin = false, adminUsername = '',
 }: AdminPanelProps) {
   
   // Estados para Participantes
@@ -340,17 +343,36 @@ export function AdminPanel({
         {/* PESTAÑA BANEADOS */}
         <TabsContent value="banned" className="mt-0 outline-none">
           <div className="bg-white p-5 sm:p-6 rounded-[24px] shadow-xl border border-gray-100">
-            <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-6 flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-red-500" /> Usuarios Baneados</h3>
+            <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-2 flex items-center gap-2">
+              <ShieldCheck className="w-6 h-6 text-red-500" />
+              {isSuperAdmin ? 'Todos los baneados' : 'Tus baneados'}
+            </h3>
+            <p className="text-xs text-gray-500 font-semibold mb-4">
+              {isSuperAdmin
+                ? 'Vista global: puedes ver y desbanear a todos los usuarios bloqueados.'
+                : `Solo ves los baneos aplicados por ${adminUsername || 'tu cuenta'}.`}
+            </p>
             <div className="bg-gray-50 rounded-xl border border-gray-200 max-h-[400px] overflow-y-auto">
               {bannedUsers.length === 0 ? (
-                <div className="p-8 text-center text-gray-500 font-medium">No hay usuarios bloqueados actualmente.</div>
+                <div className="p-8 text-center text-gray-500 font-medium">
+                  {isSuperAdmin
+                    ? 'No hay usuarios bloqueados actualmente.'
+                    : 'No tienes baneos activos en tu lista.'}
+                </div>
               ) : (
                 <div className="divide-y divide-gray-200">
                   {bannedUsers.map(b => (
                     <div key={b.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white gap-3">
                       <div>
                         <span className="font-black text-gray-800 text-base sm:text-lg block">{b.username}</span>
-                        <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-md mt-1 inline-block">Expira: {new Date(b.expires_at).toLocaleDateString()}</span>
+                        <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-md mt-1 inline-block">
+                          Expira: {new Date(b.expires_at).toLocaleDateString()}
+                        </span>
+                        {isSuperAdmin && b.banned_by && (
+                          <span className="block text-[11px] font-bold text-[#5b6483] mt-1">
+                            Baneado por: {b.banned_by}
+                          </span>
+                        )}
                       </div>
                       <Button variant="outline" size="sm" onClick={() => onUnbanUser(b.id)} className="text-green-600 border-green-200 hover:bg-green-50 font-bold w-full sm:w-auto">Desbanear</Button>
                     </div>

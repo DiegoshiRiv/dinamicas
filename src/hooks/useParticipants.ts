@@ -9,7 +9,14 @@ import {
 } from '@/app/utils/rouletteCode'
 
 export interface Participant { id: string; username: string; team: 'blue' | 'yellow' | 'red'; status: 'active' | 'winner' | 'discarded'; ip_address?: string }
-export interface BannedUser { id: string; ip_address: string; username: string; expires_at: string }
+export interface BannedUser {
+  id: string
+  ip_address: string
+  username: string
+  expires_at: string
+  banned_by?: string | null
+  created_at?: string
+}
 export interface RecentWinner { id: string; username: string; ip_address: string; won_at: string }
 export interface Sponsor { id: string; name: string; url: string; image_url: string; order_index: number }
 export interface Banner { id: string; image_url: string; link_url?: string }
@@ -145,12 +152,24 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
     await fetchData()
   }
 
-  const banUser = async (id: string, durationInDays: number) => {
+  const banUser = async (id: string, durationInDays: number, bannedBy?: string) => {
     const user = participants.find(p => p.id === id)
     if (!user || !user.ip_address) return
-    const expirationDate = new Date(); expirationDate.setDate(expirationDate.getDate() + durationInDays)
-    const { error } = await supabase.from('banned_ips').insert([{ ip_address: user.ip_address, username: user.username, expires_at: expirationDate.toISOString() }])
-    if (!error) await deleteParticipant(id)
+    const expirationDate = new Date()
+    expirationDate.setDate(expirationDate.getDate() + durationInDays)
+    const payload: Record<string, string> = {
+      ip_address: user.ip_address,
+      username: user.username,
+      expires_at: expirationDate.toISOString(),
+    }
+    if (bannedBy?.trim()) payload.banned_by = bannedBy.trim().toLowerCase()
+
+    const { error } = await supabase.from('banned_ips').insert([payload])
+    if (error) {
+      console.error('Error al banear:', error)
+      throw new Error('No se pudo banear al usuario. Verifica la columna banned_by en Supabase.')
+    }
+    await deleteParticipant(id)
   }
 
   const unbanUser = async (id: string) => { await supabase.from('banned_ips').delete().eq('id', id); await fetchData() }

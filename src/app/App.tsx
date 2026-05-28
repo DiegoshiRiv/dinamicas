@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { RegistrationForm } from '@/app/components/RegistrationForm'
 import { AdminPanel } from '@/app/components/AdminPanel'
 import { WinnerRoulette } from '@/app/components/WinnerRoulette'
@@ -17,11 +17,15 @@ import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Checkbox } from '@/app/components/ui/checkbox'
 import { buildRouletteRegistrationUrl, DEFAULT_ROULETTE_CODE, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
+import {
+  authenticateAdmin,
+  isSuperAdmin,
+  loadAdminSession,
+  saveAdminSession,
+  type AdminSession,
+} from '@/app/config/admins'
 
 type View = 'main' | 'roulette'
-
-const validAdmins = ['pawmot', 'bidoof', 'ditto']
-const validPassword = 'sellodex2026'
 
 export default function App() {
   const [activeRouletteCode, setActiveRouletteCode] = useState(() => {
@@ -93,10 +97,8 @@ export default function App() {
   const { tournaments } = useTournaments()
   const { polls } = usePolls() 
 
-  const [isAdmin, setIsAdmin] = useState(() => {
-    if (typeof window !== 'undefined') return localStorage.getItem('isAdmin') === 'true'
-    return false
-  })
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(() => loadAdminSession())
+  const isAdmin = Boolean(adminSession)
   
   const [showLogin, setShowLogin] = useState(false)
   const [usernameInput, setUsernameInput] = useState('')
@@ -107,7 +109,17 @@ export default function App() {
   const passwordRef = useRef<HTMLInputElement>(null)
   const registrationUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
-  useEffect(() => { localStorage.setItem('isAdmin', isAdmin ? 'true' : 'false') }, [isAdmin])
+  useEffect(() => {
+    saveAdminSession(adminSession)
+  }, [adminSession])
+
+  const visibleBannedUsers = useMemo(() => {
+    if (!adminSession) return []
+    if (isSuperAdmin(adminSession)) return bannedUsers
+    return bannedUsers.filter(
+      (ban) => (ban.banned_by || '').toLowerCase() === adminSession.username.toLowerCase()
+    )
+  }, [bannedUsers, adminSession])
   useEffect(() => { if (!showLogin) { setShowPassword(false); setLoginError('') } }, [showLogin])
 
   useEffect(() => {
@@ -161,8 +173,14 @@ export default function App() {
   }
 
   const handleLogin = () => {
-    if (validAdmins.includes(usernameInput.toLowerCase()) && passwordInput === validPassword) {
-      setIsAdmin(true); setShowLogin(false); setActiveTab('ruleta' as NavTab); setLoginError(''); setUsernameInput(''); setPasswordInput('')
+    const session = authenticateAdmin(usernameInput, passwordInput)
+    if (session) {
+      setAdminSession(session)
+      setShowLogin(false)
+      setActiveTab('ruleta' as NavTab)
+      setLoginError('')
+      setUsernameInput('')
+      setPasswordInput('')
     } else {
       setLoginError('Usuario o contraseña incorrectos')
     }
@@ -171,7 +189,21 @@ export default function App() {
   const onLoginSubmit = (e: React.FormEvent) => { e.preventDefault(); handleLogin() }
   const handleUsernameKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); passwordRef.current?.focus() } }
   
-  const handleLogout = () => { setIsAdmin(false); setActiveTab('register' as NavTab); broadcastView('main'); }
+  const handleLogout = () => {
+    setAdminSession(null)
+    setActiveTab('register' as NavTab)
+    broadcastView('main')
+  }
+
+  const handleBanUser = async (id: string, durationInDays: number) => {
+    if (!adminSession) return
+    try {
+      await banUser(id, durationInDays, adminSession.username)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo banear al usuario.'
+      alert(message)
+    }
+  }
   const handleCreateRouletteCode = (rawCode: string) => {
     const nextCode = sanitizeRouletteCode(rawCode)
     setRouletteCodes((prev) => (prev.includes(nextCode) ? prev : [...prev, nextCode]))
@@ -588,14 +620,16 @@ export default function App() {
         return isAdmin ? (
           <AdminPanel
             participants={participants}
-            bannedUsers={bannedUsers}
+            bannedUsers={visibleBannedUsers}
             recentWinners={recentWinners}
             onDelete={deleteParticipant}
             onDeleteMultiple={deleteMultiple}
             onClearAll={clearAll}
             onStartRoulette={handleStartRoulette}
-            onBanUser={banUser}
+            onBanUser={handleBanUser}
             onUnbanUser={unbanUser}
+            isSuperAdmin={isSuperAdmin(adminSession)}
+            adminUsername={adminSession?.username}
             onRemoveWinner={removeRecentWinner}
             onRemoveMultipleWinners={removeMultipleRecentWinners}
             penaltyMonths={penaltyMonths}

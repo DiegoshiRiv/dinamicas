@@ -131,7 +131,7 @@ export function WinnerRoulette({
 
       ctx.beginPath(); ctx.moveTo(center, center); ctx.arc(center, center, radius, currentAngle, endAngle); ctx.closePath()
       ctx.fillStyle = player.team === 'blue' ? '#3B82F6' : player.team === 'yellow' ? '#FACC15' : '#EF4444'
-      ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffffff'; ctx.stroke()
+      ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffffff'; stroke()
 
       const textAngle = currentAngle + sliceAngle / 2;
       ctx.save(); ctx.translate(center, center); ctx.rotate(textAngle)
@@ -295,6 +295,15 @@ export function WinnerRoulette({
         )}
 
         <div className={`p-5 sm:p-6 flex flex-col items-center justify-center relative flex-1 w-full ${isSpectator ? 'pt-2' : 'mt-2 sm:mt-3'}`}>
+          {isSpectator && (
+            <div className="w-full mb-3 text-center">
+              <h2 className="text-xl sm:text-2xl font-black text-[#1d2442]">RULETA</h2>
+              <p className="mt-1 text-[11px] sm:text-xs text-[#7b839f] font-semibold">
+                Estás viendo la ruleta en tiempo real.
+              </p>
+            </div>
+          )}
+
           {!isSpectator && rouletteCodes.length > 1 && onChangeRouletteCode && (
             <div className="w-full mb-4">
               <p className="text-center text-[11px] font-bold text-[#667091] mb-2">Ruleta activa</p>
