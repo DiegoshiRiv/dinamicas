@@ -2,6 +2,8 @@ import { useMemo, useState, useEffect } from 'react'
 import { Instagram, Facebook, Download, ExternalLink } from 'lucide-react'
 import wpIcon from '@/assets/w.png'
 import xIcon from '@/assets/x.png'
+import campfireIcon from '@/assets/campfire.png'
+import { CAMPFIRE_JOIN_LABEL, CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
 
 interface SocialLinksProps {
   installPrompt?: { prompt: () => Promise<void> } | null
@@ -79,6 +81,12 @@ export function SocialLinks({ installPrompt, onInstall, compact = false }: Socia
       label: 'X',
       icon: <img src={xIcon} alt="X" className="w-5 h-5 object-contain brightness-0 invert" />,
       bg: 'bg-[#0f172a]',
+    },
+    {
+      href: CAMPFIRE_JOIN_URL,
+      label: CAMPFIRE_JOIN_LABEL,
+      icon: <img src={campfireIcon} alt="Campfire" className="w-7 h-7 object-contain" />,
+      bg: 'bg-[#f97316]',
     },
   ]
 

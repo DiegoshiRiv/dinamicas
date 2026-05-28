@@ -1,7 +1,20 @@
 import { useState } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
-import { Instagram, Twitter, MessageSquare, Copy, Check, Plus, Trash2, Hash } from 'lucide-react'
+import {
+  Instagram,
+  Twitter,
+  MessageSquare,
+  Copy,
+  Check,
+  Plus,
+  Trash2,
+  Hash,
+  ChevronRight,
+  ChevronDown,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react'
 import { useFriends } from '@/hooks/useFriends'
 
 import pokebola from '@/assets/Pokebola.png'
@@ -19,22 +32,38 @@ const GAMES = [
   { id: 'champions', name: 'Champions', logo: championsLogo },
   { id: 'masters', name: 'Masters EX', logo: mastersLogo },
   { id: 'friends', name: 'Friends', logo: friendsLogo },
+] as const
+
+type GameId = (typeof GAMES)[number]['id']
+
+type ContactMethod = 'ig' | 'x' | 'discord' | 'campfire' | 'other'
+
+const CONTACT_METHODS: { id: ContactMethod; label: string; placeholder: string }[] = [
+  { id: 'ig', label: 'Instagram', placeholder: 'Usuario de Instagram' },
+  { id: 'x', label: 'X', placeholder: 'Usuario de X' },
+  { id: 'discord', label: 'Discord', placeholder: 'Usuario o servidor' },
+  { id: 'campfire', label: 'Campfire', placeholder: 'Tu usuario' },
+  { id: 'other', label: 'Otro', placeholder: 'Cómo contactarte' },
 ]
+
+const getAvatarUrl = (avatarDex?: string) =>
+  avatarDex
+    ? `https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/portrait/${avatarDex}/Normal.png`
+    : pokebola
 
 export function FriendBoard({ isAdmin }: { isAdmin: boolean }) {
   const { friends, addFriendProfile, deleteFriendProfile } = useFriends()
   const [showForm, setShowForm] = useState(false)
   const [username, setUsername] = useState('')
-  const [avatarDex, setAvatarDex] = useState('') // ESTADO PARA EL RETRATO
+  const [avatarDex, setAvatarDex] = useState('')
   const [codes, setCodes] = useState<Record<string, string>>({})
-  const [socialIg, setSocialIg] = useState('')
-  const [socialX, setSocialX] = useState('')
-  
-  const [otherType, setOtherType] = useState('Ninguno')
-  const [otherValue, setOtherValue] = useState('')
-  
+  const [contactMethod, setContactMethod] = useState<ContactMethod | null>(null)
+  const [contactValue, setContactValue] = useState('')
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
-  const [activeView, setActiveView] = useState<{ userId: string, gameId: string, code: string } | null>(null)
+  const [activeView, setActiveView] = useState<{ userId: string; gameId: string; code: string } | null>(null)
+  const [gameFilter, setGameFilter] = useState<'all' | GameId>('all')
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
+  const [contactFriendId, setContactFriendId] = useState<string | null>(null)
 
   const handleCopy = (code: string) => {
     navigator.clipboard.writeText(code)
@@ -44,213 +73,403 @@ export function FriendBoard({ isAdmin }: { isAdmin: boolean }) {
 
   const handleSubmit = async () => {
     if (!username.trim() || Object.keys(codes).length === 0) return
+    const cleanContact = contactValue.trim()
     await addFriendProfile({
       username: username.trim(),
       avatar_dex: avatarDex ? avatarDex.padStart(4, '0') : undefined,
       game_codes: codes,
-      social_ig: socialIg.replace('@', '').trim(),
-      social_x: socialX.replace('@', '').trim(),
-      social_other_type: otherType !== 'Ninguno' ? otherType : undefined,
-      social_other_value: otherValue.trim()
+      social_ig: contactMethod === 'ig' ? cleanContact.replace('@', '') : '',
+      social_x: contactMethod === 'x' ? cleanContact.replace('@', '') : '',
+      social_other_type:
+        contactMethod === 'discord'
+          ? 'Discord'
+          : contactMethod === 'campfire'
+            ? 'Campfire'
+            : contactMethod === 'other'
+              ? 'Personalizado'
+              : undefined,
+      social_other_value:
+        contactMethod === 'discord' || contactMethod === 'campfire' || contactMethod === 'other'
+          ? cleanContact
+          : '',
     })
-    setShowForm(false); setUsername(''); setAvatarDex(''); setCodes({}); setSocialIg(''); setSocialX(''); setOtherType('Ninguno'); setOtherValue('');
+    setShowForm(false)
+    setUsername('')
+    setAvatarDex('')
+    setCodes({})
+    setContactMethod(null)
+    setContactValue('')
   }
 
+  const filteredFriends =
+    gameFilter === 'all'
+      ? friends
+      : friends.filter((f) => Boolean(f.game_codes[gameFilter]))
+
+  const filterLabel =
+    gameFilter === 'all' ? 'Todos los juegos' : GAMES.find((g) => g.id === gameFilter)?.name ?? 'Todos los juegos'
+
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-6">
+    <div className="w-full max-w-2xl mx-auto space-y-4">
       {!showForm ? (
-        <Button onClick={() => setShowForm(true)} className="w-full max-w-[260px] mx-auto bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-xl py-3 font-black shadow-md text-sm">
-          <Plus className="w-5 h-5 mr-1.5" /> Publicar mi código de amigo
-        </Button>
+        <button
+          type="button"
+          onClick={() => setShowForm(true)}
+          className="w-full flex items-center gap-3 rounded-[22px] bg-[#3B82F6] hover:bg-[#2563EB] text-white px-4 py-4 shadow-md transition-colors text-left"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20">
+            <Plus className="w-6 h-6" strokeWidth={2.5} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[15px] font-black leading-tight">Publicar en el tablón</span>
+            <span className="block text-[12px] font-medium text-white/90 mt-0.5 leading-snug">
+              Códigos de juego y contacto
+            </span>
+          </span>
+          <ChevronRight className="w-6 h-6 shrink-0 text-white/90" strokeWidth={2.5} />
+        </button>
       ) : (
-        <div className="bg-white rounded-[32px] shadow-2xl p-6 relative overflow-hidden">
-          <h2 className="text-2xl font-black mb-4 text-gray-900">Añadirme al Tablón</h2>
-          
-          <div className="space-y-4">
-            
-            <div>
-              <label className="text-sm font-bold text-gray-700">Nombre de Usuario o Entrenador *</label>
-              <Input placeholder="Ej: AshKetchum99" value={username} onChange={e => setUsername(e.target.value)} className="bg-gray-50 border-gray-200 mt-1 font-bold text-lg py-6" />
+        <div className="bg-white rounded-[24px] shadow-xl p-5 relative border border-gray-100">
+          <button
+            type="button"
+            onClick={() => setShowForm(false)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600"
+            aria-label="Cerrar formulario"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <h2 className="text-lg font-black text-gray-900 pr-10">Nueva publicación</h2>
+          <p className="text-sm text-gray-500 mt-1 mb-4">Solo llena lo que uses.</p>
+
+          <div className="space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-[#eef4ff] border border-[#dbeafe] flex items-center justify-center overflow-hidden shrink-0">
+                <img
+                  src={getAvatarUrl(avatarDex ? avatarDex.padStart(4, '0') : undefined)}
+                  alt="Preview"
+                  className="w-10 h-10 object-contain"
+                  style={avatarDex ? { imageRendering: 'pixelated' } : {}}
+                  onError={(e) => {
+                    ;(e.target as HTMLImageElement).src = pokebola
+                  }}
+                />
+              </div>
+              <div className="flex-1 space-y-2">
+                <Input
+                  placeholder="Tu nombre de entrenador *"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="bg-gray-50 border-gray-200 font-bold"
+                />
+                <Input
+                  type="number"
+                  min="1"
+                  max="1025"
+                  placeholder="Nº Pokédex (opcional)"
+                  value={avatarDex}
+                  onChange={(e) => setAvatarDex(e.target.value)}
+                  className="bg-gray-50 border-gray-200 text-sm"
+                />
+              </div>
             </div>
 
-            {/* SECCIÓN DEL AVATAR CON VISTA PREVIA */}
-            <div className="flex items-center gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100 shadow-inner">
-               <div className="w-16 h-16 rounded-full bg-white border-4 border-white shadow-md flex items-center justify-center shrink-0">
-                  <img 
-                    src={avatarDex ? `https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/portrait/${avatarDex.padStart(4, '0')}/Normal.png` : pokebola} 
-                    alt="Preview" 
-                    className="w-14 h-14 object-contain" 
-                    style={avatarDex ? { imageRendering: 'pixelated' } : {}}
-                    onError={(e) => { (e.target as HTMLImageElement).src = pokebola }} // Si falla (Pokémon no existe), regresa a la Pokebola
-                  />
-               </div>
-               <div className="flex-1">
-                  <label className="text-xs font-black text-blue-800 uppercase tracking-widest block mb-1">Avatar de Pokémon</label>
-                  <Input 
-                    type="number" 
-                    min="1" max="1025" 
-                    placeholder="Nº de Pokédex (Ej: 94 = Gengar)" 
-                    value={avatarDex} 
-                    onChange={e => setAvatarDex(e.target.value)} 
-                    className="bg-white border-blue-200 text-sm font-bold placeholder:font-normal" 
-                  />
-               </div>
-            </div>
-
             <div>
-              <label className="text-sm font-bold text-gray-700 block mb-2 mt-2">Mis Códigos (Llena los que juegues)</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {GAMES.map(game => (
-                  <div key={game.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
-                    <img src={game.logo} alt={game.name} className="w-8 h-8 object-contain" />
-                    <Input placeholder="Tu código" value={codes[game.id] || ''} onChange={e => { const newCodes = { ...codes }; if (e.target.value) newCodes[game.id] = e.target.value; else delete newCodes[game.id]; setCodes(newCodes); }} className="border-0 bg-transparent h-8 focus-visible:ring-0 px-1 text-sm font-mono" />
+              <p className="text-sm font-bold text-gray-700 mb-2">Códigos de juego *</p>
+              <div className="space-y-2">
+                {GAMES.map((game) => (
+                  <div key={game.id} className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/80 px-2 py-1.5">
+                    <img src={game.logo} alt={game.name} className="w-7 h-7 object-contain shrink-0" />
+                    <Input
+                      placeholder={game.name}
+                      value={codes[game.id] || ''}
+                      onChange={(e) => {
+                        const newCodes = { ...codes }
+                        if (e.target.value) newCodes[game.id] = e.target.value
+                        else delete newCodes[game.id]
+                        setCodes(newCodes)
+                      }}
+                      className="border-0 bg-transparent h-9 focus-visible:ring-0 px-1 text-sm font-mono"
+                    />
                   </div>
                 ))}
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-bold text-gray-700 block mb-2 mt-2">Redes Sociales y Contacto (Opcional)</label>
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2"><Instagram className="w-5 h-5 text-pink-500" /><Input placeholder="Usuario Instagram" value={socialIg} onChange={e => setSocialIg(e.target.value)} className="bg-gray-50" /></div>
-                <div className="flex items-center gap-2"><Twitter className="w-5 h-5 text-blue-400" /><Input placeholder="Usuario X (Twitter)" value={socialX} onChange={e => setSocialX(e.target.value)} className="bg-gray-50" /></div>
-                
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 mt-2">
-                  <span className="text-xs font-bold text-gray-500 mb-2 block">Otro método de contacto:</span>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <select value={otherType} onChange={e => setOtherType(e.target.value)} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-1/3">
-                      <option value="Ninguno">Ninguno</option>
-                      <option value="Campfire">Campfire</option>
-                      <option value="Discord">Discord</option>
-                      <option value="TikTok">TikTok</option>
-                      <option value="Twitch">Twitch</option>
-                      <option value="Personalizado">Mensaje Libre</option>
-                    </select>
-                    {otherType !== 'Ninguno' && (
-                      <Input 
-                        placeholder={otherType === 'Personalizado' ? "Ej: Mándame DM por Campfire a..." : `Usuario en ${otherType}`} 
-                        value={otherValue} 
-                        onChange={e => setOtherValue(e.target.value)} 
-                        className="bg-white flex-1" 
-                      />
-                    )}
-                  </div>
-                </div>
+              <p className="text-sm font-bold text-gray-700 mb-2">Contacto (opcional)</p>
+              <div className="flex flex-wrap gap-2">
+                {CONTACT_METHODS.map((method) => (
+                  <button
+                    key={method.id}
+                    type="button"
+                    onClick={() => {
+                      if (contactMethod === method.id) {
+                        setContactMethod(null)
+                        setContactValue('')
+                      } else {
+                        setContactMethod(method.id)
+                        setContactValue('')
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                      contactMethod === method.id
+                        ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-blue-200'
+                    }`}
+                  >
+                    {method.label}
+                  </button>
+                ))}
               </div>
+              {contactMethod && (
+                <Input
+                  placeholder={CONTACT_METHODS.find((m) => m.id === contactMethod)?.placeholder}
+                  value={contactValue}
+                  onChange={(e) => setContactValue(e.target.value)}
+                  className="mt-2 bg-gray-50 border-gray-200"
+                />
+              )}
             </div>
 
-            <div className="flex gap-3 pt-4">
-              <Button onClick={() => setShowForm(false)} variant="outline" className="flex-1 rounded-xl bg-gray-100 border-0 hover:bg-gray-200 py-6 font-bold text-gray-600 text-base sm:text-lg">Cancelar</Button>
-              <Button onClick={handleSubmit} disabled={!username || Object.keys(codes).length === 0} className="flex-1 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold py-6 text-base sm:text-lg shadow-md shadow-green-500/30">Publicar</Button>
+            <div className="flex gap-2 pt-1">
+              <Button onClick={() => setShowForm(false)} variant="outline" className="flex-1 rounded-xl font-bold h-11">
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={!username || Object.keys(codes).length === 0}
+                className="flex-1 rounded-xl bg-[#3B82F6] hover:bg-[#2563EB] text-white font-bold h-11"
+              >
+                Publicar
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* LISTA DE AMIGOS CON RETRATOS PMD */}
-      <div className="space-y-5">
-        {friends.length === 0 ? (
-          <p className="text-center text-white/80 font-medium py-8 bg-black/10 rounded-2xl">Aún no hay entrenadores. ¡Sé el primero en publicarte!</p>
-        ) : (
-          friends.map(friend => (
-            <div key={friend.id} className="bg-white rounded-[32px] shadow-lg hover:shadow-xl p-6 relative overflow-hidden transition-all border border-gray-100 group flex flex-col">
-              
-              <div className="flex items-center gap-4 mb-5">
-                {/* AVATAR DINÁMICO */}
-                <div className={`w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-full flex items-center justify-center relative ${friend.avatar_dex ? 'bg-gradient-to-t from-gray-100 to-white shadow-sm border border-gray-200' : 'bg-gradient-to-br from-gray-50 to-gray-200 p-2 shadow-inner border border-gray-200'}`}>
-                  <img 
-                    src={friend.avatar_dex ? `https://raw.githubusercontent.com/PMDCollab/SpriteCollab/master/portrait/${friend.avatar_dex}/Normal.png` : pokebola} 
-                    alt="Avatar" 
-                    className={`w-full h-full object-contain drop-shadow-md transition-transform duration-300 ${friend.avatar_dex ? 'scale-[1.3] group-hover:scale-[1.4]' : 'group-hover:rotate-12'}`} 
-                    style={friend.avatar_dex ? { imageRendering: 'pixelated' } : {}}
-                    onError={(e) => { (e.target as HTMLImageElement).src = pokebola; (e.target as HTMLImageElement).style.transform = 'scale(1)'; (e.target as HTMLImageElement).style.imageRendering = 'auto'; }}
-                  />
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight truncate">{friend.username}</h3>
-                </div>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setShowFilterMenu((v) => !v)}
+          className="flex items-center gap-2 text-[#1f2937] font-bold text-[15px] py-1"
+        >
+          <SlidersHorizontal className="w-5 h-5 text-gray-600" strokeWidth={2} />
+          <span>{filterLabel}</span>
+          <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${showFilterMenu ? 'rotate-180' : ''}`} />
+        </button>
 
+        {showFilterMenu && (
+          <div className="absolute left-0 top-full mt-2 z-20 w-full max-w-xs rounded-2xl border border-gray-200 bg-white shadow-xl py-2 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setGameFilter('all')
+                setShowFilterMenu(false)
+              }}
+              className={`w-full text-left px-4 py-2.5 text-sm font-bold hover:bg-gray-50 ${gameFilter === 'all' ? 'text-[#3B82F6]' : 'text-gray-700'}`}
+            >
+              Todos los juegos
+            </button>
+            {GAMES.map((game) => (
+              <button
+                key={game.id}
+                type="button"
+                onClick={() => {
+                  setGameFilter(game.id)
+                  setShowFilterMenu(false)
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm font-semibold hover:bg-gray-50 flex items-center gap-2 ${
+                  gameFilter === game.id ? 'text-[#3B82F6]' : 'text-gray-700'
+                }`}
+              >
+                <img src={game.logo} alt="" className="w-6 h-6 object-contain" />
+                {game.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {filteredFriends.length === 0 ? (
+          <p className="text-center text-gray-500 font-medium py-10 bg-white/80 rounded-2xl border border-gray-100">
+            {friends.length === 0
+              ? 'Aún no hay entrenadores. ¡Sé el primero en publicarte!'
+              : 'No hay publicaciones para este juego.'}
+          </p>
+        ) : (
+          filteredFriends.map((friend) => {
+            const friendGames = Object.keys(friend.game_codes)
+              .map((id) => GAMES.find((g) => g.id === id))
+              .filter(Boolean) as (typeof GAMES)[number][]
+
+            const hasContact = Boolean(
+              friend.social_ig || friend.social_x || (friend.social_other_type && friend.social_other_value)
+            )
+            const showContact = contactFriendId === friend.id
+
+            return (
+              <div
+                key={friend.id}
+                className="bg-white rounded-[20px] shadow-sm border border-gray-100 p-4 relative overflow-visible"
+              >
                 {isAdmin && (
-                  <Button variant="ghost" size="icon" onClick={() => deleteFriendProfile(friend.id)} className="h-10 w-10 text-red-400 hover:text-white hover:bg-red-500 rounded-2xl transition-all shrink-0 ml-2">
-                    <Trash2 className="w-5 h-5" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deleteFriendProfile(friend.id)}
+                    className="absolute top-2 right-2 h-8 w-8 text-red-400 hover:text-white hover:bg-red-500 rounded-lg z-10"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 )}
-              </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-                {Object.entries(friend.game_codes).map(([gameId, code]) => {
-                  const gameInfo = GAMES.find(g => g.id === gameId);
-                  if (!gameInfo) return null;
-                  const isActive = activeView?.userId === friend.id && activeView?.gameId === gameId;
-                  
-                  return (
-                    <button 
-                      key={gameId} 
-                      onClick={() => setActiveView(isActive ? null : { userId: friend.id, gameId, code })}
-                      className={`relative h-16 px-2 rounded-2xl border-2 transition-all duration-200 flex items-center justify-center overflow-hidden ${
-                        isActive 
-                          ? 'bg-blue-50 border-blue-400 shadow-inner' 
-                          : 'bg-gray-50 border-gray-100 hover:border-blue-200 hover:bg-white hover:shadow-md'
+                <div className="flex items-start gap-3">
+                  <div className="w-14 h-14 shrink-0 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={getAvatarUrl(friend.avatar_dex)}
+                      alt=""
+                      className="w-full h-full object-contain scale-[1.15]"
+                      style={friend.avatar_dex ? { imageRendering: 'pixelated' } : {}}
+                      onError={(e) => {
+                        ;(e.target as HTMLImageElement).src = pokebola
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex-1 min-w-0 pr-14">
+                    <h3 className="text-[17px] font-black text-gray-900 leading-tight truncate">{friend.username}</h3>
+                    <p className="text-[13px] text-gray-500 font-medium mt-0.5">Juegos disponibles:</p>
+
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {friendGames.map((game) => {
+                        const code = friend.game_codes[game.id]
+                        const isActive =
+                          activeView?.userId === friend.id && activeView?.gameId === game.id
+                        return (
+                          <button
+                            key={game.id}
+                            type="button"
+                            onClick={() =>
+                              setActiveView(
+                                isActive ? null : { userId: friend.id, gameId: game.id, code }
+                              )
+                            }
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center p-1.5 transition-all border shadow-sm ${
+                              isActive
+                                ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200 ring-offset-1 scale-105'
+                                : 'bg-white border-gray-200 hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-md hover:scale-105'
+                            }`}
+                            title={game.name}
+                          >
+                            <img
+                              src={game.logo}
+                              alt={game.name}
+                              className="w-full h-full object-contain"
+                            />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="relative shrink-0 self-center w-11 h-11">
+                    {showContact && (
+                      <div className="absolute inset-0 z-10 pointer-events-none">
+                        {!hasContact ? (
+                          <span className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-900 text-white text-[10px] font-bold px-2 py-1 shadow-md">
+                            Sin contacto
+                          </span>
+                        ) : (
+                          <>
+                            {friend.social_ig && (
+                              <a
+                                href={`https://instagram.com/${friend.social_ig}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="pointer-events-auto absolute -top-10 left-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-pink-500 text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                                title="Instagram"
+                              >
+                                <Instagram className="w-4 h-4" />
+                              </a>
+                            )}
+                            {friend.social_x && (
+                              <a
+                                href={`https://x.com/${friend.social_x}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="pointer-events-auto absolute top-1/2 -translate-y-1/2 -left-10 w-9 h-9 rounded-full bg-gray-900 text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                                title="X"
+                              >
+                                <Twitter className="w-4 h-4" />
+                              </a>
+                            )}
+                            {friend.social_other_type && friend.social_other_value && (
+                              <span
+                                className="pointer-events-auto absolute top-1/2 -translate-y-1/2 -right-10 w-9 h-9 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-lg"
+                                title={`${friend.social_other_type}: ${friend.social_other_value}`}
+                              >
+                                {friend.social_other_type === 'Campfire' || friend.social_other_type === 'Discord' ? (
+                                  <MessageSquare className="w-4 h-4" />
+                                ) : (
+                                  <Hash className="w-4 h-4" />
+                                )}
+                              </span>
+                            )}
+                            {(friend.social_other_type && friend.social_other_value) && (
+                              <span className="absolute -bottom-10 left-1/2 -translate-x-1/2 max-w-[120px] truncate rounded-lg bg-white border border-gray-200 text-[10px] font-bold text-indigo-700 px-2 py-1 shadow-md pointer-events-none">
+                                {friend.social_other_type !== 'Personalizado'
+                                  ? `${friend.social_other_type}: `
+                                  : ''}
+                                {friend.social_other_value}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setContactFriendId(showContact ? null : friend.id)}
+                      className={`relative z-20 w-11 h-11 rounded-full flex items-center justify-center transition-all ${
+                        showContact
+                          ? 'bg-[#3B82F6] text-white shadow-md scale-105'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                      }`}
+                      aria-label="Ver contacto"
+                      aria-expanded={showContact}
+                    >
+                      <MessageSquare className="w-5 h-5" strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
+
+                {activeView?.userId === friend.id && (
+                  <div className="mt-3 bg-gray-900 text-white rounded-xl px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-blue-300 font-black uppercase tracking-wider">
+                        {GAMES.find((g) => g.id === activeView.gameId)?.name}
+                      </p>
+                      <p className="font-mono text-base font-bold tracking-wide">{activeView.code}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => handleCopy(activeView.code)}
+                      variant="ghost"
+                      className={`h-10 w-10 p-0 rounded-lg ${
+                        copiedCode === activeView.code
+                          ? 'bg-green-500 text-white'
+                          : 'bg-white/10 text-white hover:bg-white/20'
                       }`}
                     >
-                      <img src={gameInfo.logo} alt={gameInfo.name} className={`h-10 w-auto object-contain transition-transform duration-200 ${isActive ? 'scale-110 drop-shadow-md' : 'hover:scale-110'}`} />
-                    </button>
-                  )
-                })}
-              </div>
-
-              {activeView?.userId === friend.id && (
-                <div className="mb-4 bg-gray-900 text-white rounded-2xl p-4 flex items-center justify-between shadow-inner animate-in slide-in-from-top-2 border-2 border-gray-800">
-                  <div className="flex flex-col">
-                    <p className="text-[10px] sm:text-xs text-blue-400 font-black uppercase tracking-widest mb-0.5">
-                      {GAMES.find(g => g.id === activeView.gameId)?.name}
-                    </p>
-                    <p className="font-mono text-lg sm:text-xl font-bold tracking-widest text-white drop-shadow-md">{activeView.code}</p>
+                      {copiedCode === activeView.code ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                    </Button>
                   </div>
-                  <Button 
-                    onClick={() => handleCopy(activeView.code)} 
-                    variant="ghost" 
-                    className={`h-12 w-12 p-0 rounded-xl transition-all ${
-                      copiedCode === activeView.code 
-                        ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/30' 
-                        : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                  >
-                    {copiedCode === activeView.code ? <Check className="w-6 h-6" /> : <Copy className="w-5 h-5" />}
-                  </Button>
-                </div>
-              )}
+                )}
 
-              {(friend.social_ig || friend.social_x || friend.social_other_type) && (
-                <div className="flex flex-wrap items-center gap-3 mt-auto pt-5 border-t-2 border-gray-50">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mr-1">Contacto:</span>
-                  
-                  {friend.social_ig && (
-                    <a href={`https://instagram.com/${friend.social_ig}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-10 h-10 rounded-full bg-pink-50 text-pink-500 hover:bg-pink-500 hover:text-white transition-all shadow-sm" title="Instagram">
-                      <Instagram className="w-5 h-5" />
-                    </a>
-                  )}
-                  
-                  {friend.social_x && (
-                    <a href={`https://x.com/${friend.social_x}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-900 hover:text-white transition-all shadow-sm" title="Twitter / X">
-                      <Twitter className="w-5 h-5" />
-                    </a>
-                  )}
-                  
-                  {friend.social_other_type && friend.social_other_value && (
-                    <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100 shadow-sm ml-auto sm:ml-0">
-                       {friend.social_other_type === 'Campfire' || friend.social_other_type === 'Discord' ? <MessageSquare className="w-4 h-4 text-indigo-500"/> : <Hash className="w-4 h-4 text-indigo-500"/>}
-                       <span className="text-sm font-bold text-indigo-700">
-                         {friend.social_other_type !== 'Personalizado' ? `${friend.social_other_type}: ` : ''}{friend.social_other_value}
-                       </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-            </div>
-          ))
+              </div>
+            )
+          })
         )}
       </div>
     </div>

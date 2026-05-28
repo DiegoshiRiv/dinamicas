@@ -7,6 +7,8 @@ import articuno from '@/assets/articuno.png'
 import pokebolaImg from '@/assets/Pokebola.png'
 import pogoImg from '@/assets/Pogo.jpg'
 import camfImg from '@/assets/Camf.jpg'
+import yaParticipasImg from '@/assets/yaparticipas.png'
+import yaWeImg from '@/assets/yawe.png'
 
 interface RegistrationFormProps {
   saveRegistration: (username: string, team: string, ip: string, isAdminBypass?: boolean) => Promise<void>
@@ -56,6 +58,7 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
+  const [participationModalImage, setParticipationModalImage] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -84,6 +87,10 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
       setSuccess(true)
       setUsername('')
       setTeam('')
+      if (!isAdmin) {
+        const randomImage = Math.random() < 0.5 ? yaParticipasImg : yaWeImg
+        setParticipationModalImage(randomImage)
+      }
       setTimeout(() => inputRef.current?.focus(), 100)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Error al registrar'
@@ -232,6 +239,32 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
           {loading ? 'Registrando...' : isAdmin ? 'Ayudar a registrarse' : 'Registrarse en Dinamica'}
         </button>
       </form>
+
+      {participationModalImage && !isAdmin && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[110] flex items-center justify-center p-4"
+          onClick={() => setParticipationModalImage(null)}
+        >
+          <div
+            className="bg-white rounded-3xl p-4 max-w-sm w-full relative shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setParticipationModalImage(null)}
+              className="absolute top-3 right-3 p-2 bg-gray-100 rounded-full hover:bg-red-100 hover:text-red-600 z-10"
+              aria-label="Cerrar aviso"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={participationModalImage}
+              alt="Ya participas"
+              className="w-full h-auto rounded-2xl object-contain"
+            />
+          </div>
+        </div>
+      )}
 
       {showExamples && (
         <div

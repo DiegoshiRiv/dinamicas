@@ -123,7 +123,7 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
           return sameRoulette && sameBaseIp
         })
       ) {
-        throw new Error('Solo se permite un registro por dispositivo en esta ruleta.')
+        throw new Error('Solo se permite un registro por persona.')
       }
     }
     const rawIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip

@@ -15,7 +15,9 @@ import {
   LogOut,
   QrCode,
   Trophy,
+  HelpCircle,
 } from 'lucide-react'
+import { FaqPanel } from '@/app/components/FaqPanel'
 import fondoImg from '@/assets/FondoCD.png'
 import logoImg from '@/assets/Logo.png'
 import pokebolaImg from '@/assets/Pokebola.png'
@@ -94,6 +96,7 @@ export function MobileShell({
   showPolls = true,
 }: MobileShellProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [faqOpen, setFaqOpen] = useState(false)
 
   const handleMenuSelect = (id: NavTab | 'roulette-action') => {
     setMenuOpen(false)
@@ -262,6 +265,18 @@ export function MobileShell({
                 )
               })}
 
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setFaqOpen(true)
+                }}
+                className="w-full flex items-center gap-4 px-5 py-4 text-left font-bold text-[#0d3b66] hover:bg-gray-50"
+              >
+                <HelpCircle className="w-5 h-5 shrink-0" />
+                Preguntas frecuentes
+              </button>
+
               <div className="my-2 border-t border-gray-100" />
 
               {!isAdmin && onAdminLogin && (
@@ -311,6 +326,8 @@ export function MobileShell({
           </aside>
         </div>
       )}
+
+      <FaqPanel open={faqOpen} onClose={() => setFaqOpen(false)} />
     </div>
   )
 }
