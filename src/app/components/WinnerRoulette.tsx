@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/app/components/ui/button'
-import { RotateCcw, LogOut } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
 import type { Participant, RecentWinner } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 
@@ -44,7 +45,7 @@ function rotationForEqualWheel(
 }
 
 export function WinnerRoulette({ 
-  onBack, participants, recentWinners, updateStatus, onResetGame, 
+  onBack: _onBack, participants, recentWinners, updateStatus, onResetGame, 
   isSpectator = false, embedded = false, incomingSpin, broadcastSpin,
   penaltyMonths, penaltyPercent
 }: WinnerRouletteProps) {
@@ -53,6 +54,7 @@ export function WinnerRoulette({
   const [isSpinning, setIsSpinning] = useState(false)
   const [winner, setWinner] = useState<Participant | null>(null)
   const [clientIp, setClientIp] = useState<string>('')
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false)
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const activePlayers = participants.filter(p => p.status === 'active')
@@ -204,18 +206,28 @@ export function WinnerRoulette({
       <div className={`w-full bg-white overflow-hidden flex flex-col relative z-10 ${embedded ? 'rounded-[28px] shadow-xl' : 'rounded-[32px] shadow-2xl'}`}>
         
         {!isSpectator && (
-          <div className="p-4 sm:p-5 flex justify-between items-center bg-white gap-2">
-            <h2 className="text-xl sm:text-2xl font-black text-gray-900 ml-2">Ruleta</h2>
-            <div className="flex gap-2">
-              <Button onClick={onResetGame} disabled={isSpinning} className="bg-[#FBBF24] hover:bg-[#F59E0B] text-black font-bold rounded-xl border-2 border-[#F59E0B] px-3 h-10 flex items-center gap-1.5 text-xs sm:text-sm"><RotateCcw className="w-4 h-4 shrink-0" /><span className="hidden sm:inline">Reintegrar</span></Button>
-              <Button onClick={onBack} disabled={isSpinning} className="bg-[#FB7185] hover:bg-[#F43F5E] text-black font-bold rounded-xl border-2 border-[#F43F5E] px-3 h-10 flex items-center gap-1.5 text-xs sm:text-sm"><LogOut className="w-4 h-4 shrink-0" /><span className="hidden sm:inline">Salir</span></Button>
+          <div className="px-4 sm:px-5 pt-4 pb-3 flex flex-col items-center bg-white gap-2 border-b border-[#eef1f7]">
+            <div className="text-center">
+              <h2 className="text-xl sm:text-2xl font-black text-[#1d2442]">RULETA</h2>
+              <p className="mt-1 text-[11px] sm:text-xs text-[#7b839f] font-semibold leading-relaxed">
+                <span className="block">Los participantes se agregan a la ruleta</span>
+                <span className="block">de forma automática al registrarse.</span>
+              </p>
+            </div>
+            <div className="flex justify-center w-full">
+              <Button
+                onClick={() => setConfirmResetOpen(true)}
+                disabled={isSpinning}
+                className="bg-[#f3f6ff] hover:bg-[#e8eefc] text-[#2e3c62] font-bold rounded-xl border border-[#dce3f6] px-3 h-10 flex items-center gap-1.5 text-[10px] sm:text-xs"
+              >
+                <RotateCcw className="w-4 h-4 shrink-0" />
+                <span>REINTEGRAR A TODOS</span>
+              </Button>
             </div>
           </div>
         )}
 
-        {!isSpectator && <hr className="border-gray-200 w-full m-0" />}
-
-        <div className={`p-6 flex flex-col items-center justify-center relative flex-1 w-full ${isSpectator ? 'pt-2' : 'mt-4 sm:mt-6'}`}>
+        <div className={`p-5 sm:p-6 flex flex-col items-center justify-center relative flex-1 w-full ${isSpectator ? 'pt-2' : 'mt-2 sm:mt-3'}`}>
           
           <div className="relative z-20 -mb-2">
              <div className="w-0 h-0 border-l-[16px] border-r-[16px] border-t-[24px] border-l-transparent border-r-transparent border-t-gray-900 drop-shadow-md"></div>
@@ -235,7 +247,7 @@ export function WinnerRoulette({
             <Button 
               onClick={spinRoulette} 
               disabled={isSpinning || playersWithWeight.length === 0} 
-              className="w-[90%] sm:w-full h-16 sm:h-20 bg-gradient-to-tr from-[#A855F7] to-[#D946EF] hover:opacity-90 text-white rounded-[20px] text-xl sm:text-2xl font-black shadow-lg shadow-purple-500/40 tracking-widest disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 mx-auto"
+              className="w-[90%] sm:w-full h-14 sm:h-16 bg-[#23c8b6] hover:bg-[#1fb7a7] text-white rounded-2xl text-lg sm:text-xl font-black shadow-md tracking-wide disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 mx-auto"
             >
               {isSpinning ? 'GIRANDO...' : 'GIRAR RULETA'}
             </Button>
@@ -258,6 +270,34 @@ export function WinnerRoulette({
           </div>
         </div>
       )}
+
+      <AlertDialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
+        <AlertDialogContent className="rounded-2xl border border-[#dde3f2]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#1d2442] font-black">Reintegrar a todos</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-[#5b6483] leading-relaxed text-center">
+              <span className="block">
+                Esta acción regresará a todos los usuarios activos a la ruleta.
+              </span>
+              <span className="block mt-1">
+                Los ganadores recientes podrían volver a salir.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                onResetGame()
+                setConfirmResetOpen(false)
+              }}
+              className="rounded-lg bg-[#3d76e5] hover:bg-[#3467c8] text-white"
+            >
+              Reintegrar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

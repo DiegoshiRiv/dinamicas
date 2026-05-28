@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs'
-import { Trash2, AlertTriangle, Search, Ban, CheckSquare, ShieldCheck, Trophy, Settings2, RotateCcw, Check } from 'lucide-react'
+import { Trash2, AlertTriangle, Search, Ban, CheckSquare, ShieldCheck, Trophy, Settings2, RotateCcw, Check, MoreVertical, Users } from 'lucide-react'
 import { Input } from '@/app/components/ui/input'
 import { Checkbox } from '@/app/components/ui/checkbox'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
 import { Label } from '@/app/components/ui/label'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/app/components/ui/dropdown-menu'
 import type { Participant, BannedUser, RecentWinner } from '@/hooks/useParticipants'
+import pokebolaImg from '@/assets/Pokebola.png'
 
 interface AdminPanelProps {
   participants: Participant[]; 
@@ -102,84 +104,208 @@ export function AdminPanel({
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6">
+    <div className="w-full mx-auto space-y-6">
       
       {/* CABECERA RESPONSIVA */}
-      <div className="bg-white p-5 sm:p-6 rounded-[24px] shadow-xl border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
-        <div className="w-full md:w-auto">
-          <h2 className="text-2xl font-black text-gray-900">Panel de Control</h2>
-          <p className="text-sm sm:text-base text-gray-500 font-medium">Gestionar personas y ruleta.</p>
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-[#e8ecf5]">
+        <div className="text-center">
+          <h2 className="text-[1.75rem] leading-tight font-black text-[#1b2140] tracking-tight">Panel de Control</h2>
+          <p className="mt-1 text-sm text-[#727a9a] font-semibold">Administra los participantes de la ruleta.</p>
         </div>
-        <Button onClick={onStartRoulette} className="w-full md:w-auto bg-[#A855F7] hover:bg-[#9333EA] text-white font-black py-6 px-8 rounded-xl shadow-lg shadow-purple-500/30 text-lg active:scale-95 transition-transform">
-          <Trophy className="w-6 h-6 mr-2" /> Iniciar Ruleta
+        <Button onClick={onStartRoulette} className="mt-4 w-full h-14 rounded-xl bg-[#23c8b6] hover:bg-[#1fb7a7] text-white font-bold text-lg shadow-sm active:scale-[0.99] transition-transform">
+          <Trophy className="w-5 h-5 mr-2" /> Iniciar Ruleta
         </Button>
       </div>
 
       <Tabs defaultValue="participants" className="w-full">
-        {/* PESTAÑAS RESPONSIVAS CON CUADRÍCULA ESTRICTA */}
-        <TabsList className="w-full grid grid-cols-3 gap-2 bg-transparent h-auto p-1 mb-6">
-          <TabsTrigger value="participants" className="bg-white text-gray-700 data-[state=active]:bg-blue-600 data-[state=active]:text-white font-bold py-3 text-[11px] sm:text-sm rounded-xl shadow-sm border border-gray-100 transition-all">Participantes</TabsTrigger>
-          <TabsTrigger value="banned" className="bg-white text-gray-700 data-[state=active]:bg-red-600 data-[state=active]:text-white font-bold py-3 text-[11px] sm:text-sm rounded-xl shadow-sm border border-gray-100 transition-all">Baneados</TabsTrigger>
-          <TabsTrigger value="winners" className="bg-white text-gray-700 data-[state=active]:bg-yellow-500 data-[state=active]:text-yellow-950 font-bold py-3 text-[11px] sm:text-sm rounded-xl shadow-sm border border-gray-100 transition-all">Ganadores</TabsTrigger>
+        <TabsList className="w-full grid grid-cols-3 gap-1 bg-[#f6f7fb] border border-[#e5e9f4] rounded-xl h-auto p-1 mb-4">
+          <TabsTrigger value="participants" className="min-w-0 gap-0 rounded-lg py-1.5 px-0 text-[9px] font-bold text-[#69708d] data-[state=active]:bg-white data-[state=active]:text-[#0d3b66] data-[state=active]:shadow-sm">
+            <Users className="w-3 h-3 mr-0.5 shrink-0 hidden sm:inline-block" />
+            <span className="sm:hidden">Partic.</span>
+            <span className="hidden sm:inline">Participantes</span>
+          </TabsTrigger>
+          <TabsTrigger value="banned" className="min-w-0 gap-0 rounded-lg py-1.5 px-0 text-[9px] font-bold text-[#69708d] data-[state=active]:bg-white data-[state=active]:text-[#0d3b66] data-[state=active]:shadow-sm">
+            <Ban className="w-3 h-3 mr-0.5 shrink-0 hidden sm:inline-block" />
+            <span className="sm:hidden">Banead.</span>
+            <span className="hidden sm:inline">Baneados</span>
+          </TabsTrigger>
+          <TabsTrigger value="winners" className="min-w-0 gap-0 rounded-lg py-1.5 px-0 text-[9px] font-bold text-[#69708d] data-[state=active]:bg-white data-[state=active]:text-[#0d3b66] data-[state=active]:shadow-sm">
+            <Trophy className="w-3 h-3 mr-0.5 shrink-0 hidden sm:inline-block" />
+            <span className="sm:hidden">Ganad.</span>
+            <span className="hidden sm:inline">Ganadores</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* PESTAÑA PARTICIPANTES */}
         <TabsContent value="participants" className="mt-0 space-y-4 outline-none">
-          <div className="bg-white p-5 sm:p-6 rounded-[24px] shadow-xl border border-gray-100">
-            <div className="flex flex-col gap-4 mb-6">
-              
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <Input placeholder="Buscar participante..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-gray-50 border-gray-200 w-full" />
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-[#e8ecf5] space-y-4">
+            <div className="rounded-xl bg-[#f8faff] border border-[#e7ebf5] p-4">
+              <h3 className="text-xl font-black text-[#1f2a44]">Filtrar por equipo</h3>
+              <div className="mt-3 grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setFilterTeam('blue')}
+                  className={`h-9 min-w-0 rounded-full border px-0.5 text-[9px] font-bold flex items-center justify-center gap-0.5 tracking-tight transition-colors ${
+                    filterTeam === 'blue'
+                      ? 'bg-[#eff5ff] border-[#bdd1ff] text-[#2c5ec0]'
+                      : 'bg-white border-[#d7ddea] text-[#4f5674]'
+                  }`}
+                >
+                  <span
+                    className="w-2.5 h-2.5 shrink-0"
+                    style={{
+                      backgroundColor: '#3b82f6',
+                      WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
+                      mask: `url(${pokebolaImg}) center / contain no-repeat`,
+                    }}
+                    aria-hidden
+                  />
+                  Azul
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterTeam('yellow')}
+                  className={`h-9 min-w-0 rounded-full border px-0.5 text-[9px] font-bold flex items-center justify-center gap-0.5 tracking-tight transition-colors ${
+                    filterTeam === 'yellow'
+                      ? 'bg-[#fff9ec] border-[#f6deac] text-[#8f6a08]'
+                      : 'bg-white border-[#d7ddea] text-[#4f5674]'
+                  }`}
+                >
+                  <span
+                    className="w-2.5 h-2.5 shrink-0"
+                    style={{
+                      backgroundColor: '#f6c229',
+                      WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
+                      mask: `url(${pokebolaImg}) center / contain no-repeat`,
+                    }}
+                    aria-hidden
+                  />
+                  <span className="min-[360px]:hidden">Amar.</span>
+                  <span className="hidden min-[360px]:inline">Amarillo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterTeam('red')}
+                  className={`h-9 min-w-0 rounded-full border px-0.5 text-[9px] font-bold flex items-center justify-center gap-0.5 tracking-tight transition-colors ${
+                    filterTeam === 'red'
+                      ? 'bg-[#fff0f2] border-[#ffc9cf] text-[#bb2e3a]'
+                      : 'bg-white border-[#d7ddea] text-[#4f5674]'
+                  }`}
+                >
+                  <span
+                    className="w-2.5 h-2.5 shrink-0"
+                    style={{
+                      backgroundColor: '#ff4757',
+                      WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
+                      mask: `url(${pokebolaImg}) center / contain no-repeat`,
+                    }}
+                    aria-hidden
+                  />
+                  Rojo
+                </button>
               </div>
-              
-              {/* FILTROS REORGANIZADOS: 3 Arriba y el "Todos" grande abajo */}
-              <div className="grid grid-cols-3 gap-2 w-full">
-                <Button variant={filterTeam === 'blue' ? 'default' : 'outline'} onClick={() => setFilterTeam('blue')} className={`py-4 text-xs sm:text-sm font-bold rounded-xl shadow-sm ${filterTeam === 'blue' ? 'bg-blue-600 text-white border-transparent' : 'bg-white text-gray-600 border-gray-200'}`}>Azul</Button>
-                <Button variant={filterTeam === 'yellow' ? 'default' : 'outline'} onClick={() => setFilterTeam('yellow')} className={`py-4 text-xs sm:text-sm font-bold rounded-xl shadow-sm ${filterTeam === 'yellow' ? 'bg-yellow-400 text-yellow-900 border-transparent' : 'bg-white text-gray-600 border-gray-200'}`}>Amarillo</Button>
-                <Button variant={filterTeam === 'red' ? 'default' : 'outline'} onClick={() => setFilterTeam('red')} className={`py-4 text-xs sm:text-sm font-bold rounded-xl shadow-sm ${filterTeam === 'red' ? 'bg-red-500 text-white border-transparent' : 'bg-white text-gray-600 border-gray-200'}`}>Rojo</Button>
-                
-                <Button variant={filterTeam === 'all' ? 'default' : 'outline'} onClick={() => setFilterTeam('all')} className={`col-span-3 py-5 text-sm sm:text-base font-black rounded-xl shadow-sm ${filterTeam === 'all' ? 'bg-gray-900 text-white border-transparent' : 'bg-white text-gray-600 border-gray-200'}`}>
-                  Todos los participantes
-                </Button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setFilterTeam('all')}
+                className={`mt-3 w-full h-10 rounded-full border font-bold text-sm transition-colors ${
+                  filterTeam === 'all'
+                    ? 'bg-[#24324e] border-[#24324e] text-white'
+                    : 'bg-white border-[#d7ddea] text-[#4f5674]'
+                }`}
+              >
+                Ver todos
+              </button>
+            </div>
 
+            <div className="flex items-center gap-2 rounded-xl bg-white border border-[#dde3ef] p-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7a819c] w-5 h-5" />
+                <Input
+                  placeholder="Buscar participante..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-11 rounded-lg border border-[#e6eaf4] bg-[#fbfcff] text-[#2a3350] font-semibold placeholder:text-[#8b93ab]"
+                />
+              </div>
+              <button
+                type="button"
+                className="h-11 w-11 rounded-lg border border-[#e0e5f0] bg-white text-[#5d6787] inline-flex items-center justify-center"
+                aria-label="Opciones de filtro"
+              >
+                <Settings2 className="w-5 h-5" />
+              </button>
             </div>
 
             {selectedIds.size > 0 && (
-              <div className="bg-red-50 p-3 sm:p-4 rounded-xl border border-red-100 flex flex-col sm:flex-row items-center justify-between gap-3 mb-6">
-                <span className="text-red-800 font-bold flex items-center gap-2 text-sm sm:text-base"><CheckSquare className="w-5 h-5"/> {selectedIds.size} seleccionados</span>
-                <Button variant="destructive" size="sm" onClick={() => { onDeleteMultiple(Array.from(selectedIds)); setSelectedIds(new Set()) }} className="font-bold w-full sm:w-auto"><Trash2 className="w-4 h-4 mr-2" /> Borrar Múltiples</Button>
+              <div className="bg-red-50 p-3 rounded-2xl border border-red-100 flex items-center justify-between gap-2">
+                <span className="text-red-800 font-bold flex items-center gap-2 text-sm"><CheckSquare className="w-4 h-4" /> {selectedIds.size} seleccionados</span>
+                <Button variant="destructive" size="sm" onClick={() => { onDeleteMultiple(Array.from(selectedIds)); setSelectedIds(new Set()) }} className="font-bold rounded-xl">
+                  <Trash2 className="w-4 h-4 mr-2" /> Borrar
+                </Button>
               </div>
             )}
 
-            <div className="bg-gray-50 rounded-xl border border-gray-200 max-h-[400px] overflow-y-auto">
+            <div className="bg-[#fafbff] rounded-xl border border-[#e5e9f3] p-3 max-h-[430px] overflow-y-auto">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <h4 className="text-lg font-black text-[#1f2a44]">Participantes ({filteredParticipants.length})</h4>
+                <span className="text-sm font-semibold text-[#7f879f]">Más recientes</span>
+              </div>
               {filteredParticipants.length === 0 ? (
-                <div className="p-8 text-center text-gray-500 font-medium">No hay participantes registrados.</div>
+                <div className="p-8 text-center text-[#7f879f] font-semibold">No hay participantes registrados.</div>
               ) : (
-                <div className="divide-y divide-gray-200">
+                <div className="space-y-2">
                   {filteredParticipants.map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-3 sm:p-4 bg-white hover:bg-gray-50 transition-colors gap-2">
-                      <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
-                        <Checkbox checked={selectedIds.has(p.id)} onCheckedChange={() => toggleSelect(p.id)} className="w-5 h-5 rounded-md shrink-0" />
-                        <div className={`w-3 h-3 rounded-full shrink-0 ${p.team === 'blue' ? 'bg-blue-500' : p.team === 'yellow' ? 'bg-yellow-400' : 'bg-red-500'}`} />
-                        <span className="font-black text-gray-800 text-sm sm:text-lg truncate">{p.username}</span>
+                    <div key={p.id} className="rounded-xl bg-white border border-[#e7ebf4] p-3 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Checkbox
+                          checked={selectedIds.has(p.id)}
+                          onCheckedChange={() => toggleSelect(p.id)}
+                          className="w-5 h-5 rounded-md border-[#cfd5ee] data-[state=checked]:bg-[#20b7ab] data-[state=checked]:border-[#20b7ab]"
+                        />
+                        <div
+                          className="w-7 h-7 shrink-0"
+                          style={{
+                            backgroundColor:
+                              p.team === 'blue'
+                                ? '#4f88f8'
+                                : p.team === 'yellow'
+                                  ? '#f2bd2f'
+                                  : '#ef5666',
+                            WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
+                            mask: `url(${pokebolaImg}) center / contain no-repeat`,
+                          }}
+                          aria-hidden
+                        >
+                        </div>
+                        <span className="font-bold text-[#1f2a44] text-sm leading-tight whitespace-nowrap truncate">{p.username}</span>
                       </div>
-                      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                        {/* Botones de acción responsivos */}
-                        <Button variant="outline" size="sm" onClick={() => setShowBanModal(p.id)} className="text-orange-600 border-orange-200 hover:bg-orange-50 font-bold hidden sm:flex"><Ban className="w-4 h-4 mr-1" /> Banear</Button>
-                        <Button variant="outline" size="icon" onClick={() => setShowBanModal(p.id)} className="text-orange-600 border-orange-200 hover:bg-orange-50 font-bold sm:hidden h-8 w-8 rounded-lg"><Ban className="w-4 h-4" /></Button>
-                        
-                        <Button variant="destructive" size="icon" onClick={() => onDelete(p.id)} className="rounded-lg h-8 w-8 sm:h-9 sm:w-9"><Trash2 className="w-4 h-4" /></Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button type="button" className="h-9 w-9 rounded-xl border border-[#e0e4f5] text-[#66709f] inline-flex items-center justify-center hover:bg-[#f7f9ff]">
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem onClick={() => setShowBanModal(p.id)} className="font-medium">
+                            <Ban className="w-4 h-4" />
+                            Banear
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onDelete(p.id)} variant="destructive" className="font-medium">
+                            <Trash2 className="w-4 h-4" />
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="mt-6 pt-6 border-t border-gray-100 flex justify-end">
-              <Button variant="destructive" onClick={() => setConfirmClearAll(true)} className="bg-red-50 text-red-600 hover:bg-red-100 border-0 font-bold w-full sm:w-auto"><AlertTriangle className="w-4 h-4 mr-2" /> Limpiar Toda la Lista</Button>
+            <div className="pt-1 flex justify-end">
+              <Button variant="destructive" onClick={() => setConfirmClearAll(true)} className="bg-red-50 text-red-600 hover:bg-red-100 border-0 font-bold w-full rounded-2xl">
+                <AlertTriangle className="w-4 h-4 mr-2" /> Limpiar toda la lista
+              </Button>
             </div>
           </div>
         </TabsContent>
@@ -187,7 +313,7 @@ export function AdminPanel({
         {/* PESTAÑA BANEADOS */}
         <TabsContent value="banned" className="mt-0 outline-none">
           <div className="bg-white p-5 sm:p-6 rounded-[24px] shadow-xl border border-gray-100">
-            <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-6 flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-red-500" /> Lista de Bloqueos (Por IP)</h3>
+            <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-6 flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-red-500" /> Usuarios Baneados</h3>
             <div className="bg-gray-50 rounded-xl border border-gray-200 max-h-[400px] overflow-y-auto">
               {bannedUsers.length === 0 ? (
                 <div className="p-8 text-center text-gray-500 font-medium">No hay usuarios bloqueados actualmente.</div>
@@ -210,19 +336,18 @@ export function AdminPanel({
 
         {/* PESTAÑA GANADORES */}
         <TabsContent value="winners" className="mt-0 outline-none">
-          <div className="bg-white p-5 sm:p-6 rounded-[24px] shadow-xl border border-gray-100">
-            
-            <div className="bg-blue-50 p-5 sm:p-6 rounded-2xl border-2 border-blue-100 mb-8">
-              <h3 className="font-black text-blue-900 text-base sm:text-lg mb-2 flex items-center gap-2"><Settings2 className="w-5 h-5"/> Ajuste de Probabilidades</h3>
-              <p className="text-xs sm:text-sm text-blue-700 mb-4">Las personas que hayan ganado tendrán menos probabilidades de salir para darle oportunidad a otros.</p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-[#e8ecf5] space-y-4">
+            <div className="rounded-xl bg-[#f8faff] border border-[#e7ebf5] p-4">
+              <h3 className="font-black text-[#1f2a44] text-base mb-1 flex items-center gap-2"><Settings2 className="w-4 h-4" /> Ajuste de Probabilidades</h3>
+              <p className="text-xs text-[#6d7696] mb-3">Los ganadores recientes tendrán menor probabilidad para dar oportunidad a más personas.</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="text-xs sm:text-sm font-bold text-blue-900 block mb-1">Meses con reducción de probabilidad</label>
+                  <label className="text-xs font-bold text-[#2c3a5d] block mb-1">Meses con reducción</label>
                   <select 
                     value={penaltyMonths} 
                     onChange={e => setPenaltyMonths(Number(e.target.value))} 
-                    className="w-full bg-white border border-blue-200 rounded-xl px-4 font-bold text-gray-800 outline-none focus:ring-2 focus:ring-blue-500 h-[52px]"
+                    className="w-full bg-white border border-[#dfe5f2] rounded-lg px-3 font-semibold text-[#2d3552] outline-none focus:ring-2 focus:ring-[#8ab6ff]/40 h-11"
                   >
                     {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
                       <option key={m} value={m}>{m} {m === 1 ? 'mes' : 'meses'}</option>
@@ -230,61 +355,63 @@ export function AdminPanel({
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs sm:text-sm font-bold text-blue-900 block mb-1">Reducción de probabilidad (%)</label>
+                  <label className="text-xs font-bold text-[#2c3a5d] block mb-1">Reducción (%)</label>
                   <Input 
                     type="number" 
                     min="1" max="100" 
                     value={localPercent} 
                     onChange={e => setLocalPercent(e.target.value)} 
                     onBlur={handlePercentBlur}
-                    className="bg-white border-blue-200 font-bold h-[52px] text-lg w-full" 
+                    className="bg-white border-[#dfe5f2] font-semibold h-11 text-base w-full" 
                   />
                 </div>
               </div>
 
               <Button 
                 onClick={handleApplySettings} 
-                className={`w-full font-black py-6 text-sm sm:text-base transition-all ${applySuccess ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'}`}
+                className={`w-full h-11 font-bold text-sm transition-all ${applySuccess ? 'bg-[#25b87c] hover:bg-[#20a96f] text-white' : 'bg-[#3d76e5] hover:bg-[#3467c8] text-white'}`}
               >
                 {applySuccess ? <><Check className="w-5 h-5 mr-2" /> Ajustes Aplicados a Todos</> : "Aplicar Ajustes a Todos"}
               </Button>
             </div>
 
-            <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-1 flex items-center gap-2"><Trophy className="w-6 h-6 text-yellow-500" /> Historial de Ganadores</h3>
-            <p className="text-xs sm:text-sm text-gray-500 mb-6">Aquí puedes checar y reiniciar las probabilidades de los ganadores.</p>
+            <div>
+              <h3 className="text-lg font-black text-[#1f2a44] mb-1 flex items-center gap-2"><Trophy className="w-5 h-5 text-[#f2b62f]" /> Historial de Ganadores</h3>
+              <p className="text-xs text-[#6d7696]">Aquí puedes revisar y restablecer probabilidades cuando sea necesario.</p>
+            </div>
             
-            <div className="flex flex-col gap-4 mb-6">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <Input placeholder="Buscar ganador..." value={searchWinnerTerm} onChange={(e) => setSearchWinnerTerm(e.target.value)} className="pl-10 bg-gray-50 border-gray-200 w-full" />
+            <div className="flex flex-col gap-3">
+              <div className="relative w-full rounded-xl border border-[#dde3ef] p-2">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[#7a819c] w-5 h-5" />
+                <Input placeholder="Buscar ganador..." value={searchWinnerTerm} onChange={(e) => setSearchWinnerTerm(e.target.value)} className="pl-10 h-10 border border-[#e6eaf4] bg-[#fbfcff]" />
               </div>
 
               {filteredWinners.length > 0 && (
-                <div className="flex items-center gap-3 px-2 mt-2">
+                <div className="flex items-center gap-2 px-1">
                   <Checkbox 
                     checked={selectedWinnerIds.size === filteredWinners.length && filteredWinners.length > 0} 
                     onCheckedChange={toggleSelectAllWinners} 
-                    className="w-6 h-6 rounded-md border-gray-300 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white shrink-0"
+                    className="w-5 h-5 rounded-md border-[#cfd5ee] data-[state=checked]:bg-[#3d76e5] data-[state=checked]:text-white shrink-0"
                   />
-                  <span className="font-bold text-gray-700 text-sm sm:text-base cursor-pointer" onClick={toggleSelectAllWinners}>Seleccionar todos ({filteredWinners.length})</span>
+                  <span className="font-semibold text-[#4f5674] text-sm cursor-pointer" onClick={toggleSelectAllWinners}>Seleccionar todos ({filteredWinners.length})</span>
                 </div>
               )}
             </div>
 
             {selectedWinnerIds.size > 0 && (
-              <div className="bg-blue-50 p-3 sm:p-4 rounded-xl border border-blue-100 flex flex-col sm:flex-row items-center justify-between gap-3 mb-6">
-                <span className="text-blue-800 font-bold flex items-center gap-2 text-sm sm:text-base"><CheckSquare className="w-5 h-5"/> {selectedWinnerIds.size} seleccionados</span>
+              <div className="bg-[#edf4ff] p-3 rounded-xl border border-[#d6e4fb] flex flex-col sm:flex-row items-center justify-between gap-2">
+                <span className="text-[#2e5ab6] font-bold flex items-center gap-2 text-sm"><CheckSquare className="w-4 h-4" /> {selectedWinnerIds.size} seleccionados</span>
                 <Button variant="outline" size="sm" onClick={() => { onRemoveMultipleWinners(Array.from(selectedWinnerIds)); setSelectedWinnerIds(new Set()) }} className="font-bold text-blue-700 border-blue-300 hover:bg-blue-100 w-full sm:w-auto">
                   <RotateCcw className="w-4 h-4 mr-2" /> Restablecer Seleccionados
                 </Button>
               </div>
             )}
 
-            <div className="bg-gray-50 rounded-xl border border-gray-200 max-h-[400px] overflow-y-auto">
+            <div className="bg-[#fafbff] rounded-xl border border-[#e5e9f3] max-h-[400px] overflow-y-auto">
               {filteredWinners.length === 0 ? (
-                <div className="p-8 text-center text-gray-500 font-medium">No se encontraron ganadores.</div>
+                <div className="p-8 text-center text-[#7f879f] font-medium">No se encontraron ganadores.</div>
               ) : (
-                <div className="divide-y divide-gray-200">
+                <div className="divide-y divide-[#e7ebf4]">
                   {filteredWinners.map(w => (
                     <div key={w.id} className="p-3 sm:p-4 bg-white flex items-center justify-between hover:bg-gray-50 transition-colors gap-2">
                       <div className="flex items-center gap-3 sm:gap-4 overflow-hidden flex-1">
