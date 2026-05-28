@@ -121,9 +121,9 @@ export function FriendBoard({ isAdmin }: { isAdmin: boolean }) {
             <Plus className="w-6 h-6" strokeWidth={2.5} />
           </span>
           <span className="flex-1 min-w-0">
-            <span className="block text-[15px] font-black leading-tight">Publicar en el tablón</span>
+            <span className="block text-[15px] font-black leading-tight">Publicar código en el tablón</span>
             <span className="block text-[12px] font-medium text-white/90 mt-0.5 leading-snug">
-              Códigos de juego y contacto
+              Códigos de juegos y contactos
             </span>
           </span>
           <ChevronRight className="w-6 h-6 shrink-0 text-white/90" strokeWidth={2.5} />
@@ -339,7 +339,7 @@ export function FriendBoard({ isAdmin }: { isAdmin: boolean }) {
 
                   <div className="flex-1 min-w-0 pr-14">
                     <h3 className="text-[17px] font-black text-gray-900 leading-tight truncate">{friend.username}</h3>
-                    <p className="text-[13px] text-gray-500 font-medium mt-0.5">Juegos disponibles:</p>
+                    <p className="text-[13px] text-gray-500 font-medium mt-0.5">Añademe en:</p>
 
                     <div className="flex flex-wrap gap-2 mt-2">
                       {friendGames.map((game) => {

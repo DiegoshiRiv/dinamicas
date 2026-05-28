@@ -14,7 +14,7 @@ export function MeetingMaps() {
           Puntos de reunión
         </h2>
         <p className="text-xs text-slate-500 mt-1">
-          Guadalajara y zonas asociadas
+          Zonas asociadas a la comunidad
         </p>
       </div>
 

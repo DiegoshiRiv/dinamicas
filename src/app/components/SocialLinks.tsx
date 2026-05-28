@@ -115,7 +115,7 @@ export function SocialLinks({ installPrompt, onInstall, compact = false }: Socia
 
       {compact && (
         <h2 className="text-[1rem] font-black text-[#0d3b66] uppercase tracking-tight text-center">
-          Nuestras redes
+          Nuestras redes sociales
         </h2>
       )}
 
@@ -148,7 +148,7 @@ export function SocialLinks({ installPrompt, onInstall, compact = false }: Socia
       {compact && (
         <section>
           <h3 className="text-[13px] font-black uppercase tracking-wide text-[#0d3b66] mb-3 text-center">
-            Muro social multimedia
+            Últimas publicaciones
           </h3>
 
           <div className="grid grid-cols-1 gap-3">

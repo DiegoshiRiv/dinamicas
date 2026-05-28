@@ -345,19 +345,19 @@ export function AdminPanel({
           <div className="bg-white p-5 sm:p-6 rounded-[24px] shadow-xl border border-gray-100">
             <h3 className="text-lg sm:text-xl font-black text-gray-900 mb-2 flex items-center gap-2">
               <ShieldCheck className="w-6 h-6 text-red-500" />
-              {isSuperAdmin ? 'Todos los baneados' : 'Tus baneados'}
+              {isSuperAdmin ? 'Todos los baneados' : 'Usuarios baneados'}
             </h3>
             <p className="text-xs text-gray-500 font-semibold mb-4">
               {isSuperAdmin
                 ? 'Vista global: puedes ver y desbanear a todos los usuarios bloqueados.'
-                : `Solo ves los baneos aplicados por ${adminUsername || 'tu cuenta'}.`}
+                : `Los baneos serán registrados a nombre de ${adminUsername || 'tu cuenta'}.`}
             </p>
             <div className="bg-gray-50 rounded-xl border border-gray-200 max-h-[400px] overflow-y-auto">
               {bannedUsers.length === 0 ? (
                 <div className="p-8 text-center text-gray-500 font-medium">
                   {isSuperAdmin
                     ? 'No hay usuarios bloqueados actualmente.'
-                    : 'No tienes baneos activos en tu lista.'}
+                    : 'No hay baneos actualmente.'}
                 </div>
               ) : (
                 <div className="divide-y divide-gray-200">
