@@ -1,14 +1,31 @@
 import { useState, useEffect, useRef } from 'react'
 import { User, AlertCircle, CheckCircle2, X } from 'lucide-react'
 
-import moltres from '@/assets/moltres.png'
-import zapdos from '@/assets/zapdos.png'
-import articuno from '@/assets/articuno.png'
-import pokebolaImg from '@/assets/Pokebola.png'
-import pogoImg from '@/assets/Pogo.jpg'
-import camfImg from '@/assets/Camf.jpg'
+import moltres from '@/assets/iconos/moltres.png'
+import zapdos from '@/assets/iconos/zapdos.png'
+import articuno from '@/assets/iconos/articuno.png'
+import pokebolaImg from '@/assets/iconos/Pokebola.png'
+import pogoImg from '@/assets/capturas de pantalla/Pogo.jpg'
+import camfImg from '@/assets/capturas de pantalla/Camf.jpg'
 import yaParticipasImg from '@/assets/yaparticipas.png'
 import yaWeImg from '@/assets/yawe.png'
+import campfireIcon from '@/assets/recursos/campfire.png'
+import wpIcon from '@/assets/iconos/w.png'
+import anteriorImg from '@/assets/pokemon gif/anterior.gif'
+import {
+  CAMPFIRE_JOIN_URL,
+  WHATSAPP_CHANNEL_URL,
+  CAMPFIRE_MEMBER_COUNT,
+  PREVIOUS_MEETUP_TRAINERS,
+} from '@/app/data/communityLinks'
+import { AnimatedCounter } from '@/app/components/AnimatedCounter'
+import { useWhatsAppFollowers } from '@/app/hooks/useWhatsAppFollowers'
+import {
+  modalDialogSmClass,
+  modalOverlayClass,
+  modalOverlayNestedClass,
+  modalSheetClass,
+} from '@/app/layout/mobileShellLayout'
 
 interface RegistrationFormProps {
   saveRegistration: (username: string, team: string, ip: string, isAdminBypass?: boolean) => Promise<void>
@@ -61,6 +78,7 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
   const [participationModalImage, setParticipationModalImage] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const whatsappFollowers = useWhatsAppFollowers()
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -240,13 +258,61 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
         </button>
       </form>
 
+      {!isAdmin && (
+        <section className="mt-8 pt-6 border-t border-[#0d3b66]/10 space-y-4">
+          <a
+            href={CAMPFIRE_JOIN_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-black text-white text-[15px] bg-[#f97316] shadow-md hover:opacity-95 active:scale-[0.98] transition-all"
+          >
+            <img src={campfireIcon} alt="" className="w-7 h-7 object-contain" aria-hidden />
+            Únete a Campfire
+          </a>
+
+          <p className="text-center text-[13px] font-bold text-[#0d3b66]/90">
+            Miembros actuales en Campfire{' '}
+            <AnimatedCounter value={CAMPFIRE_MEMBER_COUNT} />
+          </p>
+
+          <div className="flex items-center gap-3 rounded-[15px] border border-[#0d3b66]/10 bg-white p-3.5 shadow-sm">
+            <p className="flex-1 text-[13px] font-bold text-[#0d3b66] leading-snug">
+              En la quedada anterior se reunieron{' '}
+              <AnimatedCounter value={PREVIOUS_MEETUP_TRAINERS} /> entrenadores
+            </p>
+            <div className="w-20 h-20 shrink-0 flex items-center justify-center overflow-visible">
+              <img
+                src={anteriorImg}
+                alt="Pokémon de la quedada anterior"
+                className="w-28 h-28 object-contain scale-125 origin-center"
+              />
+            </div>
+          </div>
+
+          <a
+            href={WHATSAPP_CHANNEL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-black text-white text-[15px] bg-[#25D366] shadow-md hover:opacity-95 active:scale-[0.98] transition-all"
+          >
+            <img src={wpIcon} alt="" className="w-7 h-7 object-contain" aria-hidden />
+            Únete al canal de WhatsApp
+          </a>
+
+          <p className="text-center text-[13px] font-bold text-[#0d3b66]/90">
+            Seguidores en WhatsApp{' '}
+            <AnimatedCounter value={whatsappFollowers} className="text-[#25D366] font-black" />
+          </p>
+        </section>
+      )}
+
       {participationModalImage && !isAdmin && (
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[110] flex items-center justify-center p-4"
+          className={modalOverlayNestedClass}
           onClick={() => setParticipationModalImage(null)}
         >
           <div
-            className="bg-white rounded-3xl p-4 max-w-sm w-full relative shadow-2xl"
+            className={`${modalDialogSmClass} p-4 relative`}
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -267,12 +333,9 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
       )}
 
       {showExamples && (
-        <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-          onClick={() => setShowExamples(false)}
-        >
+        <div className={modalOverlayClass} onClick={() => setShowExamples(false)}>
           <div
-            className="bg-white rounded-3xl p-5 max-w-2xl w-full relative shadow-2xl max-h-[90vh] flex flex-col"
+            className={`${modalSheetClass} bg-white p-4 sm:p-5 max-w-md w-full relative flex flex-col`}
             onClick={(e) => e.stopPropagation()}
           >
             <button

@@ -7,6 +7,7 @@ import { FriendBoard } from '@/app/components/FriendBoard'
 import { TournamentBoard } from '@/app/components/TournamentBoard'
 import { PollBoard } from '@/app/components/PollBoard'
 import { MeetingMaps } from '@/app/components/MeetingMaps'
+import { EventsBoard } from '@/app/components/EventsBoard'
 import { SocialLinks } from '@/app/components/SocialLinks'
 import { MobileShell, type NavTab } from '@/app/components/layout/MobileShell'
 import { Eye, EyeOff, Instagram, Image as ImageIcon, Plus, Trash2, Pencil, Link as LinkIcon, GripVertical, MoreVertical, X } from 'lucide-react'
@@ -24,6 +25,7 @@ import {
   saveAdminSession,
   type AdminSession,
 } from '@/app/config/admins'
+import { modalDialogSmClass, modalOverlayCenterClass } from '@/app/layout/mobileShellLayout'
 
 type View = 'main' | 'roulette'
 
@@ -429,6 +431,8 @@ export default function App() {
         )
       case 'maps':
         return <MeetingMaps />
+      case 'events':
+        return <EventsBoard isAdmin={isAdmin} />
       case 'social':
         return <SocialLinks installPrompt={installPrompt} onInstall={handleInstallApp} compact />
       case 'sponsors':
@@ -673,8 +677,8 @@ export default function App() {
       </MobileShell>
 
       {showLogin && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowLogin(false)}>
-          <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className={modalOverlayCenterClass} onClick={() => setShowLogin(false)}>
+          <div className={`${modalDialogSmClass} p-6 sm:p-8`} onClick={e => e.stopPropagation()}>
             <h2 className="text-2xl font-black mb-6 text-center text-gray-900">Acceso Admin</h2>
             <form onSubmit={onLoginSubmit}>
               <input type="text" placeholder="Usuario" value={usernameInput} onChange={e => setUsernameInput(e.target.value)} onKeyDown={handleUsernameKeyDown} className="w-full border-0 bg-gray-100 rounded-xl px-4 py-4 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-900" autoFocus />
@@ -694,8 +698,8 @@ export default function App() {
 
       {/* MODALES DE PATROCINADORES Y BANNERS */}
       {showSponsorModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={closeSponsorModal}>
-          <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className={modalOverlayCenterClass} onClick={closeSponsorModal}>
+          <div className={`${modalDialogSmClass} p-6 sm:p-8`} onClick={e => e.stopPropagation()}>
             <div className="flex justify-center mb-5"><div className="bg-pink-50 p-4 rounded-full text-[#D946EF] shadow-inner"><Instagram className="w-8 h-8" /></div></div>
             <h2 className="text-2xl font-black mb-2 text-center text-gray-800">Añadir Patrocinador</h2>
             <p className="text-sm text-gray-500 mb-4 text-center leading-relaxed">Pega el Instagram; si la imagen no es visible, puedes subir una.</p>
@@ -734,8 +738,8 @@ export default function App() {
       )}
 
       {editingSponsor && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setEditingSponsor(null)}>
-          <div className="bg-white rounded-[24px] shadow-2xl p-5 sm:p-6 max-w-sm w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className={modalOverlayCenterClass} onClick={() => setEditingSponsor(null)}>
+          <div className={`${modalDialogSmClass} p-5 sm:p-6 modal-sheet-body`} onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-3">
               <div className="w-9" />
               <h2 className="text-2xl font-black text-center text-gray-800">Editar Patrocinador</h2>
@@ -781,8 +785,8 @@ export default function App() {
       )}
 
       {showBannerModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={closeBannerModal}>
-          <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <div className={modalOverlayCenterClass} onClick={closeBannerModal}>
+          <div className={`${modalDialogSmClass} p-6 sm:p-8`} onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-3">
               <div className="w-9" />
               <h2 className="text-2xl font-black text-center text-gray-800">{editingBannerId ? 'Editar Banner' : 'Añadir Banner'}</h2>

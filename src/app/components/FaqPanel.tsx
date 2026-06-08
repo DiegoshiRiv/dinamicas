@@ -1,6 +1,7 @@
 import { X, ExternalLink } from 'lucide-react'
 import { CAMPFIRE_JOIN_LABEL, CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
-import campfireIcon from '@/assets/campfire.png'
+import campfireIcon from '@/assets/recursos/campfire.png'
+import { modalOverlayClass, modalSheetWhiteClass } from '@/app/layout/mobileShellLayout'
 
 const FAQ_ITEMS = [
   {
@@ -40,17 +41,12 @@ export function FaqPanel({ open, onClose }: FaqPanelProps) {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Cerrar preguntas frecuentes"
-      />
+    <div className={modalOverlayClass} onClick={onClose} role="presentation">
       <div
-        className="relative w-full max-w-md max-h-[min(90dvh,640px)] bg-white rounded-t-[24px] sm:rounded-[24px] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 sm:zoom-in-95"
+        className={`relative ${modalSheetWhiteClass} flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 sm:zoom-in-95 max-h-[min(var(--modal-sheet-max-h),40rem)]`}
         role="dialog"
         aria-labelledby="faq-title"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <h2 id="faq-title" className="text-lg font-black text-[#0d3b66]">
@@ -66,7 +62,7 @@ export function FaqPanel({ open, onClose }: FaqPanelProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 sm:py-4 space-y-3 modal-sheet-body">
           {FAQ_ITEMS.map((item) => (
             <article key={item.q} className="rounded-2xl border border-gray-100 bg-[#f8fafc] p-4">
               <h3 className="text-sm font-black text-[#0d3b66] leading-snug">{item.q}</h3>

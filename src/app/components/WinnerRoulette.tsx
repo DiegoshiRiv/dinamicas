@@ -9,9 +9,9 @@ import { QRCodeCanvas } from 'qrcode.react'
 import { jsPDF } from 'jspdf'
 import { buildRouletteRegistrationUrl, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 
-import moltres from '@/assets/moltres.png'
-import zapdos from '@/assets/zapdos.png'
-import articuno from '@/assets/articuno.png'
+import moltres from '@/assets/iconos/moltres.png'
+import zapdos from '@/assets/iconos/zapdos.png'
+import articuno from '@/assets/iconos/articuno.png'
 
 // Normaliza texto reemplazando números/caracteres visualmente similares por letras base
 function normalizeUsername(username: string): string {

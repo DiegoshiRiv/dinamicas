@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect } from 'react'
 import { Instagram, Facebook, Download, ExternalLink } from 'lucide-react'
-import wpIcon from '@/assets/w.png'
-import xIcon from '@/assets/x.png'
-import campfireIcon from '@/assets/campfire.png'
+import wpIcon from '@/assets/iconos/w.png'
+import xIcon from '@/assets/iconos/x.png'
+import campfireIcon from '@/assets/iconos/campfirevector.png'
 import { CAMPFIRE_JOIN_LABEL, CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
 
 interface SocialLinksProps {
@@ -192,7 +192,7 @@ export function SocialLinks({ installPrompt, onInstall, compact = false }: Socia
             {!xLoading && xPosts.length > 0 && (
               <div className="space-y-2 max-h-[320px] overflow-auto">
                 {xPosts.map((post) => (
-                  <a key={post.id} href={post.link} target="_blank" rel="noopener noreferrer" className="flex gap-2.5 p-2 rounded-xl border border-slate-100 hover:border-[#2dd4bf] transition-colors">
+                  <a key={post.id} href={post.link} target="_blank" rel="noopener noreferrer" className="flex gap-2.5 p-2 rounded-xl border border-slate-100 hover:border-teal-500 transition-colors">
                     <div className="w-14 h-14 rounded-lg bg-slate-100 overflow-hidden shrink-0">
                       {post.image ? (
                         <img src={post.image} alt="" className="w-full h-full object-cover" />

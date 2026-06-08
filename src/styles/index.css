@@ -9,6 +9,35 @@ body {
   background: #e8f4fc;
 }
 
+/* Layout móvil: barra inferior (~4.25rem) + botón central elevado (~1.5rem) + safe area */
+:root {
+  --shell-bottom-inset: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+  --modal-sheet-max-h: min(92dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 0.5rem));
+  --modal-sheet-sm-max-h: min(calc(100dvh - env(safe-area-inset-top, 0px) - 1rem), 36rem);
+  --modal-sheet-nested-max-h: min(88dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 1.25rem));
+  --modal-content-pb: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+.pb-shell {
+  padding-bottom: var(--shell-bottom-inset);
+}
+
+.modal-sheet {
+  max-height: var(--modal-sheet-max-h);
+}
+
+.modal-sheet-sm {
+  max-height: var(--modal-sheet-sm-max-h);
+}
+
+.modal-sheet-nested {
+  max-height: var(--modal-sheet-nested-max-h);
+}
+
+.modal-sheet-body {
+  padding-bottom: calc(1.25rem + var(--modal-content-pb));
+}
+
 .safe-area-pb {
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }

@@ -10,18 +10,21 @@ import {
   ShoppingBag,
   Share2,
   MapPin,
+  CalendarDays,
   BarChart3,
   LogIn,
   LogOut,
   QrCode,
   Trophy,
   HelpCircle,
+  Stamp,
 } from 'lucide-react'
 import { FaqPanel } from '@/app/components/FaqPanel'
+import { StampRecoveryPanel } from '@/app/components/StampRecoveryPanel'
 import fondoImg from '@/assets/FondoCD.png'
-import logoImg from '@/assets/Logo.png'
-import pokebolaImg from '@/assets/Pokebola.png'
-import ruletaIcon from '@/assets/ruleta.png'
+import logoImg from '@/assets/logos/Logo.png'
+import pokebolaImg from '@/assets/iconos/Pokebola.png'
+import ruletaIcon from '@/assets/iconos/ruleta.png'
 
 export type NavTab =
   | 'register'
@@ -30,6 +33,7 @@ export type NavTab =
   | 'tournaments'
   | 'polls'
   | 'maps'
+  | 'events'
   | 'social'
   | 'ruleta'
   | 'qr'
@@ -59,6 +63,7 @@ const menuItems: {
   { id: 'friends', label: 'Amigos', icon: Contact },
   { id: 'polls', label: 'Votación', icon: BarChart3 },
   { id: 'maps', label: 'Maps', icon: MapPin },
+  { id: 'events', label: 'Eventos', icon: CalendarDays },
 ]
 
 const NAV_META: Record<
@@ -72,6 +77,7 @@ const NAV_META: Record<
   sponsors: { label: 'PATROCIN.', Lucide: ShoppingBag },
   polls: { label: 'VOTACIÓN', Lucide: BarChart3 },
   maps: { label: 'MAPS', Lucide: MapPin },
+  events: { label: 'EVENTOS', Lucide: CalendarDays },
   social: { label: 'REDES', Lucide: Share2 },
   ruleta: { label: 'RULETA', iconSrc: ruletaIcon },
   qr: { label: 'QR', Lucide: QrCode },
@@ -97,6 +103,7 @@ export function MobileShell({
 }: MobileShellProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [faqOpen, setFaqOpen] = useState(false)
+  const [stampRecoveryOpen, setStampRecoveryOpen] = useState(false)
 
   const handleMenuSelect = (id: NavTab | 'roulette-action') => {
     setMenuOpen(false)
@@ -182,14 +189,14 @@ export function MobileShell({
     <div className="min-h-[100dvh] bg-[#e8f4fc] flex flex-col max-w-md mx-auto relative shadow-xl overflow-x-hidden">
       <header className="relative shrink-0 z-0">
         <div
-          className="h-[240px] sm:h-[256px] bg-cover bg-top bg-no-repeat"
+          className="h-[200px] sm:h-[256px] bg-cover bg-top bg-no-repeat"
           style={{
             backgroundImage: `url(${fondoImg})`,
             backgroundSize: '100% auto',
             backgroundPosition: 'center -210px',
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-[#e8f4fc]/50 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-cyan-100/50 pointer-events-none" />
 
         <button
           type="button"
@@ -204,13 +211,13 @@ export function MobileShell({
           <img
             src={logoImg}
             alt="Pokémon GO Community"
-            className="max-h-[130px] sm:max-h-[145px] w-auto max-w-[min(300px,90%)] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+            className="max-h-[108px] sm:max-h-[145px] w-auto max-w-[min(280px,88%)] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
           />
         </div>
       </header>
 
-      <main className="flex-1 registration-dome overflow-y-auto pb-[5.75rem]">
-        <div className="relative px-5 pt-5 pb-4">{children}</div>
+      <main className="flex-1 registration-dome overflow-y-auto pb-shell">
+        <div className="relative px-4 sm:px-5 pt-4 sm:pt-5 pb-3 sm:pb-4">{children}</div>
       </main>
 
       {/* Bottom nav — active tab always centered */}
@@ -231,7 +238,7 @@ export function MobileShell({
             onClick={() => setMenuOpen(false)}
             aria-label="Cerrar menú"
           />
-          <aside className="relative w-[min(300px,85vw)] h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-left duration-300">
+          <aside className="relative w-[min(300px,85vw)] h-full max-h-[100dvh] bg-white shadow-2xl flex flex-col animate-in slide-in-from-left duration-300 safe-area-pb">
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
               <span className="font-black text-[#0d3b66] text-lg">Menú</span>
               <button
@@ -255,7 +262,7 @@ export function MobileShell({
                     onClick={() => handleMenuSelect(item.id)}
                     className={`w-full flex items-center gap-4 px-5 py-4 text-left font-bold transition-colors ${
                       activeTab === item.id
-                        ? 'bg-teal-50 text-[#2dd4bf] border-r-4 border-[#2dd4bf]'
+                        ? 'bg-[#e8f4fc] text-[#2dd4bf] border-r-4 border-[#2dd4bf]'
                         : 'text-[#0d3b66] hover:bg-gray-50'
                     }`}
                   >
@@ -264,6 +271,18 @@ export function MobileShell({
                   </button>
                 )
               })}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setStampRecoveryOpen(true)
+                }}
+                className="w-full flex items-center gap-4 px-5 py-4 text-left font-bold text-[#0d3b66] hover:bg-gray-50"
+              >
+                <Stamp className="w-5 h-5 shrink-0" />
+                Recuperar sellos
+              </button>
 
               <button
                 type="button"
@@ -327,6 +346,7 @@ export function MobileShell({
         </div>
       )}
 
+      <StampRecoveryPanel open={stampRecoveryOpen} onClose={() => setStampRecoveryOpen(false)} />
       <FaqPanel open={faqOpen} onClose={() => setFaqOpen(false)} />
     </div>
   )

@@ -17,13 +17,13 @@ import {
 } from 'lucide-react'
 import { useFriends } from '@/hooks/useFriends'
 
-import pokebola from '@/assets/Pokebola.png'
-import goLogo from '@/assets/go.png'
-import uniteLogo from '@/assets/unite.png'
-import tcgLogo from '@/assets/tcg.png'
-import championsLogo from '@/assets/champions.png'
-import mastersLogo from '@/assets/masters.png'
-import friendsLogo from '@/assets/friends.png'
+import pokebola from '@/assets/iconos/Pokebola.png'
+import goLogo from '@/assets/juegos/go.png'
+import uniteLogo from '@/assets/juegos/unite.png'
+import tcgLogo from '@/assets/juegos/tcg.png'
+import championsLogo from '@/assets/juegos/champions.png'
+import mastersLogo from '@/assets/juegos/masters.png'
+import friendsLogo from '@/assets/fotos/misterhomiefoto.png'
 
 const GAMES = [
   { id: 'go', name: 'Pokémon GO', logo: goLogo },

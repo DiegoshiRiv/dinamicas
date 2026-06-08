@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/app/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/app/components/ui/dropdown-menu'
 import type { Participant, BannedUser, RecentWinner } from '@/hooks/useParticipants'
-import pokebolaImg from '@/assets/Pokebola.png'
+import pokebolaImg from '@/assets/iconos/Pokebola.png'
 
 interface AdminPanelProps {
   participants: Participant[]; 
