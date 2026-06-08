@@ -186,7 +186,7 @@ function CampfireResearchPageBlock({ page }: { page: CampfireResearchPage }) {
             </div>
           </div>
         ))}
-        <div className="rounded-xl border border-[#2dd4bf]/30 bg-[#2dd4bf]/10 p-2.5">
+        <div className="rounded-xl border border-[#2563eb]/30 bg-[#2563eb]/10 p-2.5">
           <p className="text-[8px] font-black uppercase text-center text-[#0d3b66]/70 mb-2 tracking-wide">
             Recompensas al completar la página
           </p>
@@ -575,7 +575,7 @@ function FieldResearchSpecialRow({ task, reward }: { task: string; reward: strin
   const spriteSrc = shiny ? FRIGIBAX_CD_IV.imageShiny : FRIGIBAX_CD_IV.image
 
   return (
-    <div className="rounded-xl border border-[#2dd4bf]/35 bg-[#e8f4fc]/60 p-2.5 flex items-center gap-2">
+    <div className="rounded-xl border border-[#2563eb]/35 bg-[#e8f4fc]/60 p-2.5 flex items-center gap-2">
       <PerkNavyIcon src={investigacionIcon} size="sm" />
       <div className="flex-1 min-w-0">
         <p className="text-[11px] font-bold text-[#0d3b66] leading-snug">{task}</p>
@@ -600,7 +600,7 @@ const PERK_TILE_STYLES: Partial<
   Record<BannerPerkDetail, { box: string; label: string; hint: string }>
 > = {
   fieldResearch: {
-    box: 'bg-gradient-to-br from-teal-50 via-cyan-50 to-cyan-100 border-[#2dd4bf]/70 shadow-md hover:border-teal-500 hover:shadow-lg',
+    box: 'bg-gradient-to-br from-teal-50 via-cyan-50 to-cyan-100 border-[#2563eb]/70 shadow-md hover:border-teal-500 hover:shadow-lg',
     label: 'text-[#0d3b66]',
     hint: 'text-teal-700',
   },
@@ -625,12 +625,12 @@ const PERK_TILE_STYLES: Partial<
     hint: 'text-amber-800',
   },
   lureModule: {
-    box: 'bg-gradient-to-br from-teal-50 via-sky-50 to-cyan-100 border-[#2dd4bf]/70 shadow-md hover:border-teal-500 hover:shadow-lg',
+    box: 'bg-gradient-to-br from-teal-50 via-sky-50 to-cyan-100 border-[#2563eb]/70 shadow-md hover:border-teal-500 hover:shadow-lg',
     label: 'text-[#0d3b66]',
     hint: 'text-teal-700',
   },
   sellodex: {
-    box: 'bg-gradient-to-br from-teal-50 via-emerald-50 to-cyan-100 border-[#2dd4bf]/70 shadow-md hover:border-teal-500 hover:shadow-lg',
+    box: 'bg-gradient-to-br from-teal-50 via-emerald-50 to-cyan-100 border-[#2563eb]/70 shadow-md hover:border-teal-500 hover:shadow-lg',
     label: 'text-[#0d3b66]',
     hint: 'text-teal-700',
   },
@@ -754,7 +754,7 @@ function PerkDetailModal({
 
         {detail === 'sellodex' && (
           <div className="space-y-3">
-            <div className="flex gap-3 items-start rounded-xl border border-[#2dd4bf]/35 bg-[#f0f7fc]/70 p-3">
+            <div className="flex gap-3 items-start rounded-xl border border-[#2563eb]/35 bg-[#f0f7fc]/70 p-3">
               <img
                 src={sellodexImg}
                 alt="SelloDex"
@@ -871,7 +871,7 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
     config.badge === 'Día de la Comunidad'
   const hasDualHero = Boolean(config.heroImage && config.heroImageSecondary)
   const photoHero = config.photoHero === true
-  const scheduleColor = config.scheduleColor ?? '#2dd4bf'
+  const scheduleColor = config.scheduleColor ?? '#2563eb'
   const hasSellodexPerk = config.perks?.some((p) => p.detail === 'sellodex') ?? false
 
   const handlePerkDetail = (detail: BannerPerkDetail) => {
@@ -1002,7 +1002,7 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
           {isSelloDex && (
             <span
               className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full text-white shadow"
-              style={{ backgroundColor: config.selloDexBadgeColor ?? '#2dd4bf' }}
+              style={{ backgroundColor: config.selloDexBadgeColor ?? '#2563eb' }}
             >
               <img src={sellodexImg} alt="" className="w-3.5 h-3.5 object-contain" />
               SELLODEX
@@ -1083,7 +1083,7 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
             rel="noopener noreferrer"
             className="flex items-center gap-2 rounded-xl border border-[#0d3b66]/10 p-3 hover:border-teal-500 transition-colors"
           >
-            <MapPin className="w-4 h-4 text-[#2dd4bf] shrink-0" />
+            <MapPin className="w-4 h-4 text-[#2563eb] shrink-0" />
             <span className="text-[12px] font-bold text-[#0d3b66]">{config.locationName}</span>
             <ExternalLink className="w-3.5 h-3.5 text-gray-400 ml-auto shrink-0" />
           </a>
@@ -1143,7 +1143,7 @@ function FestBannerPager({
             onClick={() => setIndex(i)}
             className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide transition-all ${
               i === index
-                ? 'bg-[#2dd4bf] text-white shadow'
+                ? 'bg-[#2563eb] text-white shadow'
                 : 'bg-[#0d3b66]/10 text-[#0d3b66]/70 hover:bg-[#0d3b66]/15'
             }`}
           >
@@ -1188,7 +1188,7 @@ export function EventDayInfographicModal({
       >
         <div className="shrink-0 z-20 flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-[#f0f7fc]/95 backdrop-blur border-b border-[#0d3b66]/10">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase text-[#2dd4bf] tracking-wide">
+            <p className="text-[10px] font-black uppercase text-[#2563eb] tracking-wide">
               {festPager ? 'GO Fest · SelloDex' : banners.length === 1 ? 'Evento' : `${banners.length} eventos`}
             </p>
             <h2 className="text-[14px] font-black text-[#0d3b66] leading-snug uppercase">
@@ -1233,7 +1233,7 @@ export function EventDayInfographicModal({
                     onClick={() => onCommunityDetail(config.id.replace('community-', ''))}
                   >
                     <EventBannerCard config={config} />
-                    <p className="text-[10px] font-bold text-[#2dd4bf] text-center mt-1">
+                    <p className="text-[10px] font-bold text-[#2563eb] text-center mt-1">
                       Toca para más detalles del evento
                     </p>
                   </button>

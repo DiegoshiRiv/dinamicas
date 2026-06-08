@@ -133,7 +133,7 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
             <button
               type="button"
               onClick={() => setShowExamples(true)}
-              className="font-bold text-[#2dd4bf] underline-offset-2 hover:underline"
+              className="font-bold text-[#2563eb] underline-offset-2 hover:underline"
             >
               visible en pantalla
             </button>
@@ -148,7 +148,7 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
             htmlFor="username"
             className="flex items-center gap-1.5 text-[11px] font-black text-[#0d3b66] uppercase tracking-wider"
           >
-            <User className="w-4 h-4 text-[#2dd4bf]" strokeWidth={2.5} />
+            <User className="w-4 h-4 text-[#2563eb]" strokeWidth={2.5} />
             Nombre de usuario
           </label>
           <div className="relative">
@@ -161,7 +161,7 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={loading}
-              className="w-full pl-12 pr-4 py-3.5 rounded-[15px] border border-gray-200 bg-white text-[#0d3b66] font-medium placeholder:text-gray-300 focus:outline-none focus:border-[#2dd4bf] focus:ring-2 focus:ring-[#2dd4bf]/20 transition-all text-base"
+              className="w-full pl-12 pr-4 py-3.5 rounded-[15px] border border-gray-200 bg-white text-[#0d3b66] font-medium placeholder:text-gray-300 focus:outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 transition-all text-base"
             />
           </div>
         </div>

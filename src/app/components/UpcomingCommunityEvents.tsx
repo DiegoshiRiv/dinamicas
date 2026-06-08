@@ -96,7 +96,7 @@ export function UpcomingCommunityEvents({
               aria-label={`Ver ${slide.title}`}
               onClick={() => setIndex(i)}
               className={`h-2 rounded-full transition-all ${
-                i === index ? 'w-5 bg-[#2dd4bf]' : 'w-2 bg-[#0d3b66]/20 hover:bg-[#0d3b66]/35'
+                i === index ? 'w-5 bg-[#2563eb]' : 'w-2 bg-[#0d3b66]/20 hover:bg-[#0d3b66]/35'
               }`}
             />
           ))}
@@ -137,7 +137,7 @@ function CarouselBanner({
         <p className="text-[14px] sm:text-[15px] font-black text-white leading-tight drop-shadow-[0_2px_6px_rgba(13,59,102,0.9)]">
           {slide.title}
         </p>
-        <p className="text-[10px] font-bold text-[#ccfbf1] mt-0.5 drop-shadow-[0_1px_4px_rgba(13,59,102,0.85)]">
+        <p className="text-[10px] font-bold text-[#bfdbfe] mt-0.5 drop-shadow-[0_1px_4px_rgba(13,59,102,0.85)]">
           {slide.dateLabel}
         </p>
         <p className="text-[9px] font-bold text-white/90 mt-1 uppercase tracking-wide drop-shadow-[0_1px_3px_rgba(13,59,102,0.8)]">

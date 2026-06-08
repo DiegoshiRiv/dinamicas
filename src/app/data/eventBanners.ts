@@ -322,7 +322,7 @@ const GO_BANNERS: Record<string, Omit<EventBannerConfig, 'id' | 'schedule'> & { 
     heroImageShiny: frigibaxShinyGif,
     badge: 'Día de la Comunidad',
     accent: '#06b6d4',
-    selloDexBadgeColor: '#14b8a6',
+    selloDexBadgeColor: '#1d4ed8',
     perks: CD_FRIGIBAX_PERKS,
     footerNote:
       `Los bonus del Día de la Comunidad aplican de ${CD_FRIGIBAX_HOURS.event} los módulos señuelo y algunos bonus se extienden hasta las ${formatClockLabel(21, 0)}`,
@@ -595,7 +595,7 @@ export function bannerForViernesAmigos(): EventBannerConfig {
     heroImage: tiempoLibreLogo,
     photoHero: true,
     badge: 'Viernes de Amigos',
-    accent: '#2dd4bf',
+    accent: '#2563eb',
     perks: VIERNES_PERKS,
     locationName: VIERNES_AMIGOS.locationName,
     mapsUrl: VIERNES_AMIGOS.locationMapsUrl,

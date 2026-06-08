@@ -138,7 +138,7 @@ export function SocialLinks({ installPrompt, onInstall, compact = false }: Socia
         <button
           type="button"
           onClick={onInstall}
-          className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-[#4ade80] to-[#14b8a6] text-white font-bold shadow-md mx-auto hover:opacity-95 active:scale-95 transition-all text-sm w-full max-w-xs"
+          className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-[#4ade80] to-[#1d4ed8] text-white font-bold shadow-md mx-auto hover:opacity-95 active:scale-95 transition-all text-sm w-full max-w-xs"
         >
           <Download className="w-5 h-5" />
           Crear acceso directo
@@ -160,7 +160,7 @@ export function SocialLinks({ installPrompt, onInstall, compact = false }: Socia
                     href={panel.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[11px] font-bold text-[#2dd4bf] inline-flex items-center gap-1 hover:underline"
+                    className="text-[11px] font-bold text-[#2563eb] inline-flex items-center gap-1 hover:underline"
                   >
                     Abrir
                     <ExternalLink className="w-3 h-3" />
@@ -183,7 +183,7 @@ export function SocialLinks({ installPrompt, onInstall, compact = false }: Socia
           <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[12px] font-black text-[#0d3b66] uppercase tracking-wide">X recientes</span>
-              <a href="https://x.com/PokemonGo_GDL" target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-[#2dd4bf] inline-flex items-center gap-1 hover:underline">
+              <a href="https://x.com/PokemonGo_GDL" target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-[#2563eb] inline-flex items-center gap-1 hover:underline">
                 Ver perfil
                 <ExternalLink className="w-3 h-3" />
               </a>

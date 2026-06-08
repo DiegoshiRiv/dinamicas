@@ -123,7 +123,7 @@ function EventDetailModal({
 
         <div className={`${modalSheetBodyClass} px-5 pt-4 space-y-3 sm:space-y-4`}>
           {live && (
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-full bg-[#2dd4bf] text-white">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-full bg-[#2563eb] text-white">
               <Sparkles className="w-3.5 h-3.5" />
               En curso ahora
             </span>
@@ -138,7 +138,7 @@ function EventDetailModal({
           <p className="text-[14px] text-[#0d3b66]/90 leading-relaxed">{event.description}</p>
 
           {live && event.has_stamp && (
-            <div className="rounded-2xl border-2 border-[#2dd4bf] bg-[#f0f7fc]/80 p-4 flex gap-3 items-start">
+            <div className="rounded-2xl border-2 border-[#2563eb] bg-[#f0f7fc]/80 p-4 flex gap-3 items-start">
               <img src={sellodexImg} alt="SelloDex" className="w-16 h-16 object-contain shrink-0" />
               <div className="space-y-2 text-[13px] font-bold text-[#0d3b66] leading-snug">
                 <p>Recuerda llevar tu SelloDex y hacer tu registro en Campfire para recibir el sello.</p>
@@ -146,7 +146,7 @@ function EventDetailModal({
                   href={CAMPFIRE_JOIN_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[#2dd4bf] underline underline-offset-2"
+                  className="inline-flex items-center gap-1 text-[#2563eb] underline underline-offset-2"
                 >
                   Unirme en Campfire
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -218,14 +218,14 @@ function EventDetailModal({
             rel="noopener noreferrer"
             className="flex items-center gap-3 rounded-xl border border-[#0d3b66]/10 bg-white p-3.5 hover:border-teal-500 transition-colors group"
           >
-            <div className="p-2 rounded-xl bg-[#2dd4bf] text-white shrink-0">
+            <div className="p-2 rounded-xl bg-[#2563eb] text-white shrink-0">
               <MapPin className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-bold text-[#2dd4bf] uppercase tracking-wide">Ubicación</p>
+              <p className="text-[11px] font-bold text-[#2563eb] uppercase tracking-wide">Ubicación</p>
               <p className="text-[14px] font-black text-[#0d3b66] truncate">{event.location_name}</p>
             </div>
-            <ExternalLink className="w-4 h-4 text-[#0d3b66]/40 group-hover:text-[#2dd4bf] shrink-0" />
+            <ExternalLink className="w-4 h-4 text-[#0d3b66]/40 group-hover:text-[#2563eb] shrink-0" />
           </a>
         </div>
       </div>
@@ -415,7 +415,7 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
     <div className="space-y-5 pb-4">
       <div className="text-center">
         <h2 className="text-[1rem] font-black text-[#0d3b66] uppercase tracking-tight flex items-center justify-center gap-2">
-          <Calendar className="w-5 h-5 text-[#2dd4bf]" />
+          <Calendar className="w-5 h-5 text-[#2563eb]" />
           Eventos
         </h2>
         <p className="text-xs text-slate-500 mt-1">Calendario de actividades de la comunidad</p>
@@ -430,9 +430,9 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
               onClick={() => {
                 setInfographicDay(parseISO(eventDayKey(ev.starts_at) + 'T12:00:00'))
               }}
-              className="w-full text-left rounded-2xl border-2 border-[#2dd4bf] bg-gradient-to-r from-teal-50 to-white p-4 shadow-md shadow-[#2dd4bf]/15"
+              className="w-full text-left rounded-2xl border-2 border-[#2563eb] bg-gradient-to-r from-teal-50 to-white p-4 shadow-md shadow-[#2563eb]/15"
             >
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#2dd4bf]">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#2563eb]">
                 ● En curso
               </span>
               <p className="font-black text-[#0d3b66] mt-1 leading-snug">{ev.title}</p>
@@ -451,7 +451,7 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
           {!showForm ? (
             <Button
               onClick={() => setShowForm(true)}
-              className="w-full bg-[#2dd4bf] hover:bg-[#1fb988] text-white font-black rounded-xl py-6"
+              className="w-full bg-[#2563eb] hover:bg-[#1fb988] text-white font-black rounded-xl py-6"
             >
               <Plus className="w-5 h-5 mr-2" />
               Crear evento
@@ -459,7 +459,7 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
           ) : (
             <div className="space-y-3">
               <h3 className="font-black text-[#0d3b66] flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-[#2dd4bf]" />
+                <Calendar className="w-5 h-5 text-[#2563eb]" />
                 {editingId ? 'Editar evento' : 'Nuevo evento'}
               </h3>
 
@@ -474,7 +474,7 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 rows={3}
-                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-[#0d3b66] focus:outline-none focus:border-[#2dd4bf]"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-[#0d3b66] focus:outline-none focus:border-[#2563eb]"
               />
 
               <label className="flex flex-col gap-2">
@@ -580,7 +580,7 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
                 <Button
                   onClick={handleSave}
                   disabled={saving || !form.title || !form.date}
-                  className="flex-1 bg-[#2dd4bf] hover:bg-[#1fb988] text-white font-black"
+                  className="flex-1 bg-[#2563eb] hover:bg-[#1fb988] text-white font-black"
                 >
                   {saving ? 'Guardando…' : 'Guardar'}
                 </Button>
@@ -660,8 +660,8 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
                   ${hasEvents && inMonth ? 'cursor-pointer hover:scale-[1.03] hover:shadow-md' : ''}
                   ${!hasEvents ? 'opacity-60' : ''}
                   ${hasCommunity && inMonth ? 'ring-2 ring-[#f97316] bg-orange-50/90' : ''}
-                  ${isViernes && inMonth && !hasCommunity ? 'ring-2 ring-[#2dd4bf] bg-[#e8f4fc]/60' : ''}
-                  ${isToday && inMonth ? 'outline outline-2 outline-[#2dd4bf]/70 outline-offset-1' : ''}
+                  ${isViernes && inMonth && !hasCommunity ? 'ring-2 ring-[#2563eb] bg-[#e8f4fc]/60' : ''}
+                  ${isToday && inMonth ? 'outline outline-2 outline-[#2563eb]/70 outline-offset-1' : ''}
                   ${!hasCommunity && !goStyle?.background && hasEvents && inMonth ? 'hover:bg-gray-50' : ''}
                 `}
               >

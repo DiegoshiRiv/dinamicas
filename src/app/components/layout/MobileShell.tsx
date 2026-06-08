@@ -152,7 +152,7 @@ export function MobileShell({
       )
     }
     const Icon = meta.Lucide!
-    return <Icon className={`${isCenter ? 'w-8 h-8 text-[#2dd4bf] stroke-[2.5]' : `w-6 h-6 ${isActive ? 'stroke-[2.5]' : ''}`}`} />
+    return <Icon className={`${isCenter ? 'w-8 h-8 text-[#2563eb] stroke-[2.5]' : `w-6 h-6 ${isActive ? 'stroke-[2.5]' : ''}`}`} />
   }
 
   const renderSlotButton = (id: BottomNavId, isCenter: boolean) => {
@@ -167,12 +167,12 @@ export function MobileShell({
         className={`flex flex-col items-center justify-center min-w-0 transition-colors ${
           isCenter ? '-mt-7 z-50 flex-1' : 'gap-0.5 py-1 flex-1'
         } ${
-          isCenter ? 'text-[#2dd4bf]' : isActive ? 'text-[#2dd4bf]' : 'text-[#94a3b8] hover:text-[#0d3b66]'
+          isCenter ? 'text-[#2563eb]' : isActive ? 'text-[#2563eb]' : 'text-[#94a3b8] hover:text-[#0d3b66]'
         }`}
         aria-current={isActive ? 'page' : undefined}
       >
         {isCenter ? (
-          <div className="w-[3.65rem] h-[3.65rem] rounded-full flex items-center justify-center border-[3px] bg-white border-[#2dd4bf] shadow-[0_6px_20px_rgba(45,212,191,0.45)]">
+          <div className="w-[3.65rem] h-[3.65rem] rounded-full flex items-center justify-center border-[3px] bg-white border-[#2563eb] shadow-[0_6px_20px_rgba(37,99,235,0.45)]">
             {renderIcon(id, true, true)}
           </div>
         ) : (
@@ -262,7 +262,7 @@ export function MobileShell({
                     onClick={() => handleMenuSelect(item.id)}
                     className={`w-full flex items-center gap-4 px-5 py-4 text-left font-bold transition-colors ${
                       activeTab === item.id
-                        ? 'bg-[#e8f4fc] text-[#2dd4bf] border-r-4 border-[#2dd4bf]'
+                        ? 'bg-[#e8f4fc] text-[#2563eb] border-r-4 border-[#2563eb]'
                         : 'text-[#0d3b66] hover:bg-gray-50'
                     }`}
                   >

@@ -29,21 +29,21 @@ function StampRecoveryCard({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex flex-col items-center gap-2 rounded-2xl border border-[#0d3b66]/10 bg-white p-3 shadow-sm hover:shadow-md hover:border-[#2dd4bf]/50 transition-all active:scale-[0.98]"
+      className="group flex flex-col items-center gap-2 rounded-2xl border border-[#0d3b66]/10 bg-white p-3 shadow-sm hover:shadow-md hover:border-[#2563eb]/50 transition-all active:scale-[0.98]"
     >
       <div className="relative">
         {image ? (
           <img
             src={image}
             alt=""
-            className="w-[4.75rem] h-[4.75rem] rounded-full object-cover border-[3px] border-[#e8f4fc] shadow-md group-hover:border-[#2dd4bf] transition-colors"
+            className="w-[4.75rem] h-[4.75rem] rounded-full object-cover border-[3px] border-[#e8f4fc] shadow-md group-hover:border-[#2563eb] transition-colors"
           />
         ) : (
-          <span className="flex w-[4.75rem] h-[4.75rem] items-center justify-center rounded-full border-[3px] border-[#e8f4fc] bg-gradient-to-br from-[#e8f4fc] to-[#ccfbf1] shadow-md group-hover:border-[#2dd4bf] transition-colors">
+          <span className="flex w-[4.75rem] h-[4.75rem] items-center justify-center rounded-full border-[3px] border-[#e8f4fc] bg-gradient-to-br from-[#e8f4fc] to-[#bfdbfe] shadow-md group-hover:border-[#2563eb] transition-colors">
             <img src={sellodexImg} alt="" className="w-9 h-9 object-contain opacity-80" />
           </span>
         )}
-        <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#2dd4bf] text-white shadow group-hover:bg-[#14b8a6] transition-colors">
+        <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#2563eb] text-white shadow group-hover:bg-[#1d4ed8] transition-colors">
           <ExternalLink className="w-3 h-3" strokeWidth={2.5} />
         </span>
       </div>
@@ -89,7 +89,7 @@ export function StampRecoveryPanel({ open, onClose }: StampRecoveryPanelProps) {
             <button
               type="button"
               onClick={() => setShowRegistrado(true)}
-              className="font-bold text-[#0d3b66] underline decoration-[#2dd4bf] underline-offset-2 hover:text-[#2dd4bf] transition-colors"
+              className="font-bold text-[#0d3b66] underline decoration-[#2563eb] underline-offset-2 hover:text-[#2563eb] transition-colors"
             >
               asistencia en Campfire
             </button>
