@@ -6,7 +6,7 @@ import type { CommunityEvent } from '@/hooks/useEvents'
 import fondoSabiduria from '@/assets/fondo especial/Fondo_equipo_Sabiduría.png'
 import fondoInstinto from '@/assets/fondo especial/Fondo_equipo_Instinto.png'
 import fondoValor from '@/assets/fondo especial/Fondo_equipo_Valor.png'
-import fondoCd from '@/assets/FondoCD.png'
+import { getAlternatingFondoCd } from '@/app/utils/alternatingFondoCd'
 import fondoFestMew from '@/assets/wallpaper/proyectomewtwo.jpg'
 import fondoFestMewtwo from '@/assets/fondo especial/270px-Fondo_GO_Fest_2026_Mewtwo.png'
 import fondoRelleno from '@/assets/wallpaper/fondoderellenobasicodepokemongo.jpg'
@@ -335,7 +335,7 @@ const GO_BANNERS: Record<string, Omit<EventBannerConfig, 'id' | 'schedule'> & { 
     title: 'Día de la Comunidad (julio)',
     subtitle: 'SELLODEX',
     description: 'Día de la Comunidad de julio. Reunión de comunidad con SelloDex.',
-    banner: fondoCd,
+    banner: getAlternatingFondoCd(),
     heroImage: cdLogo,
     badge: 'Día de la Comunidad',
     accent: '#06b6d4',
@@ -350,7 +350,7 @@ const GO_BANNERS: Record<string, Omit<EventBannerConfig, 'id' | 'schedule'> & { 
     title: 'Día de la Comunidad (agosto)',
     subtitle: 'SELLODEX',
     description: 'Día de la Comunidad de agosto. Reunión de comunidad con SELLODEX.',
-    banner: fondoCd,
+    banner: getAlternatingFondoCd(),
     heroImage: cdLogo,
     badge: 'Día de la Comunidad',
     accent: '#06b6d4',

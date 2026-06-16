@@ -668,6 +668,7 @@ export default function App() {
         onTabChange={handleTabChange}
         onOpenRoulette={openRoulette}
         isAdmin={isAdmin}
+        isSuperAdmin={isSuperAdmin(adminSession)}
         onAdminLogin={() => setShowLogin(true)}
         onAdminLogout={handleLogout}
         showTournaments={isAdmin || hasActiveTournaments}

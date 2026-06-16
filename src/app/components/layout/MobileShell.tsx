@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Menu,
@@ -18,10 +18,23 @@ import {
   Trophy,
   HelpCircle,
   Stamp,
+  ImageIcon,
 } from 'lucide-react'
 import { FaqPanel } from '@/app/components/FaqPanel'
 import { StampRecoveryPanel } from '@/app/components/StampRecoveryPanel'
-import fondoImg from '@/assets/FondoCD.png'
+import {
+  HeaderLayoutEditor,
+  LogoScaleEditor,
+  type HeaderEditMode,
+} from '@/app/components/layout/HeaderLayoutEditor'
+import { loadHeaderLayoutsFromStorage, logoMaxHeight } from '@/app/config/headerLayout'
+import { useHeaderLayout } from '@/hooks/useHeaderLayout'
+import {
+  getActiveFondoCdId,
+  getAlternatingFondoCd,
+  getFondoCdUrl,
+  type FondoCdId,
+} from '@/app/utils/alternatingFondoCd'
 import logoImg from '@/assets/logos/Logo.png'
 import pokebolaImg from '@/assets/iconos/Pokebola.png'
 import ruletaIcon from '@/assets/iconos/ruleta.png'
@@ -46,6 +59,7 @@ interface MobileShellProps {
   onOpenRoulette: () => void
   children: ReactNode
   isAdmin?: boolean
+  isSuperAdmin?: boolean
   onAdminLogin?: () => void
   onAdminLogout?: () => void
   showTournaments?: boolean
@@ -96,6 +110,7 @@ export function MobileShell({
   onOpenRoulette,
   children,
   isAdmin = false,
+  isSuperAdmin = false,
   onAdminLogin,
   onAdminLogout,
   showTournaments = true,
@@ -104,6 +119,39 @@ export function MobileShell({
   const [menuOpen, setMenuOpen] = useState(false)
   const [faqOpen, setFaqOpen] = useState(false)
   const [stampRecoveryOpen, setStampRecoveryOpen] = useState(false)
+  const [headerEditOpen, setHeaderEditOpen] = useState(false)
+  const [headerEditMode, setHeaderEditMode] = useState<HeaderEditMode>('fondo')
+  const [editingFondoId, setEditingFondoId] = useState<FondoCdId>(() => getActiveFondoCdId())
+  const [draftStore, setDraftStore] = useState(() => loadHeaderLayoutsFromStorage())
+  const { store, persistStore } = useHeaderLayout()
+  const [isSmViewport, setIsSmViewport] = useState(false)
+  const activeFondoId = getActiveFondoCdId()
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 640px)')
+    const update = () => setIsSmViewport(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    if (!headerEditOpen) setDraftStore(store)
+  }, [store, headerEditOpen])
+
+  const displayStore = headerEditOpen ? draftStore : store
+  const displayFondoId = headerEditOpen ? editingFondoId : activeFondoId
+  const displayFondoUrl = headerEditOpen ? getFondoCdUrl(editingFondoId) : getAlternatingFondoCd()
+  const activeLayout = displayStore.fondos[displayFondoId]
+
+  const updateDraftLayout = (next: typeof activeLayout) => {
+    setDraftStore((prev) => ({
+      fondos: {
+        ...prev.fondos,
+        [editingFondoId]: next,
+      },
+    }))
+  }
 
   const handleMenuSelect = (id: NavTab | 'roulette-action') => {
     setMenuOpen(false)
@@ -188,15 +236,46 @@ export function MobileShell({
   return (
     <div className="min-h-[100dvh] bg-[#e8f4fc] flex flex-col max-w-md mx-auto relative shadow-xl overflow-x-hidden">
       <header className="relative shrink-0 z-0">
-        <div
-          className="h-[200px] sm:h-[256px] bg-cover bg-top bg-no-repeat"
-          style={{
-            backgroundImage: `url(${fondoImg})`,
-            backgroundSize: '100% auto',
-            backgroundPosition: 'center -210px',
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-cyan-100/50 pointer-events-none" />
+        <div className="relative h-[200px] sm:h-[256px] overflow-hidden bg-[#b8dff5]">
+          {!headerEditOpen && (
+            <img
+              src={displayFondoUrl}
+              alt=""
+              className="absolute left-1/2 top-0 max-w-none pointer-events-none select-none"
+              draggable={false}
+              style={{
+                width: `${activeLayout.bgSizePercent}%`,
+                transform: `translate(calc(-50% + ${activeLayout.bgOffsetX}px), ${activeLayout.bgOffsetY}px)`,
+              }}
+            />
+          )}
+
+          {headerEditOpen && isSuperAdmin && (
+            <HeaderLayoutEditor
+              fondoUrl={getFondoCdUrl(editingFondoId)}
+              fondoId={editingFondoId}
+              editMode={headerEditMode}
+              onEditModeChange={setHeaderEditMode}
+              onFondoChange={setEditingFondoId}
+              layout={draftStore.fondos[editingFondoId]}
+              onChange={updateDraftLayout}
+              onSave={() => {
+                void persistStore(draftStore)
+                setHeaderEditOpen(false)
+                setHeaderEditMode('fondo')
+              }}
+              onClose={() => {
+                setDraftStore(store)
+                setHeaderEditOpen(false)
+                setHeaderEditMode('fondo')
+              }}
+            />
+          )}
+        </div>
+
+        {!headerEditOpen && (
+          <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-cyan-100/50 pointer-events-none" />
+        )}
 
         <button
           type="button"
@@ -207,12 +286,54 @@ export function MobileShell({
           <Menu className="w-7 h-7" strokeWidth={2.5} />
         </button>
 
-        <div className="absolute inset-x-0 top-[56%] sm:top-[44%] -translate-y-1/2 flex flex-col items-center z-10 px-6 pointer-events-none">
-          <img
-            src={logoImg}
-            alt="Pokémon GO Community"
-            className="max-h-[108px] sm:max-h-[145px] w-auto max-w-[min(280px,88%)] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
-          />
+        {isSuperAdmin && !headerEditOpen && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditingFondoId(activeFondoId)
+              setHeaderEditMode('fondo')
+              setDraftStore(store)
+              setHeaderEditOpen(true)
+            }}
+            className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-full bg-black/45 backdrop-blur-sm px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white hover:bg-black/55"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            Editar portada
+          </button>
+        )}
+
+        <div
+          className={`absolute inset-x-0 top-[56%] sm:top-[44%] -translate-y-1/2 flex flex-col items-center z-[25] px-6 ${
+            headerEditOpen ? '' : 'pointer-events-none'
+          }`}
+        >
+          {headerEditOpen && isSuperAdmin ? (
+            <LogoScaleEditor
+              enabled={headerEditMode === 'logo'}
+              layout={draftStore.fondos[editingFondoId]}
+              onChange={updateDraftLayout}
+            >
+              <img
+                src={logoImg}
+                alt="Pokémon GO Community"
+                className={`w-auto max-w-[min(280px,88%)] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)] mx-auto transition-shadow ${
+                  headerEditMode === 'logo'
+                    ? 'ring-2 ring-amber-300 ring-offset-2 ring-offset-transparent rounded-lg'
+                    : 'opacity-90'
+                }`}
+                style={{
+                  maxHeight: `${logoMaxHeight(draftStore.fondos[editingFondoId].logoScale, isSmViewport)}px`,
+                }}
+              />
+            </LogoScaleEditor>
+          ) : (
+            <img
+              src={logoImg}
+              alt="Pokémon GO Community"
+              className="w-auto max-w-[min(280px,88%)] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+              style={{ maxHeight: `${logoMaxHeight(activeLayout.logoScale, isSmViewport)}px` }}
+            />
+          )}
         </div>
       </header>
 
@@ -306,6 +427,23 @@ export function MobileShell({
                 >
                   <LogIn className="w-5 h-5" />
                   Iniciar sesión
+                </button>
+              )}
+
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setEditingFondoId(activeFondoId)
+                    setHeaderEditMode('fondo')
+                    setDraftStore(store)
+                    setHeaderEditOpen(true)
+                  }}
+                  className="w-full flex items-center gap-4 px-5 py-4 text-left font-bold text-[#0d3b66] hover:bg-gray-50"
+                >
+                  <ImageIcon className="w-5 h-5 shrink-0" />
+                  Editar portada
                 </button>
               )}
 
