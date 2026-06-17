@@ -34,6 +34,8 @@ import {
   type BannerPerkDetail,
 } from '@/app/data/eventBanners'
 import { VIERNES_AMIGOS, isViernesAmigosDay } from '@/app/data/communitySchedule'
+import { FONDO_CD_DYNAMIC } from '@/app/utils/alternatingFondoCd'
+import { useFondoCdUrl } from '@/hooks/useFondoCdUrl'
 import sellodexImg from '@/assets/recursos/sellodex.png'
 import shinyIcon from '@/assets/iconos/shiny.png'
 import investigacionIcon from '@/assets/iconos/investigacion.png'
@@ -861,6 +863,9 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
   const [perkDetail, setPerkDetail] = useState<BannerPerkDetail | null>(null)
   const [showLureNote, setShowLureNote] = useState(false)
   const [heroShiny, setHeroShiny] = useState(false)
+  const fondoCdUrl = useFondoCdUrl()
+  const bannerSrc =
+    config.banner === FONDO_CD_DYNAMIC ? (fondoCdUrl ?? config.banner) : config.banner
   const canToggleHeroShiny = Boolean(config.heroImageShiny)
   const heroShinyAriaPrefix = config.id === 'supermega-skarmory' ? 'Mega-Skarmory' : 'Frigibax'
   const heroBlendClass = config.heroBlendScreen ? 'mix-blend-screen' : ''
@@ -900,7 +905,7 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
     )}
     <article className="rounded-2xl overflow-hidden border border-[#0d3b66]/10 shadow-lg bg-white">
       <div className="relative h-36 sm:h-44">
-        <img src={config.banner} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        <img src={bannerSrc} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" />
         {!photoHero && (
           <div
             className="absolute inset-0"

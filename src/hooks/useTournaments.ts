@@ -6,7 +6,7 @@ export interface Tournament { id: string; name: string; status: 'open' | 'active
 export interface TournamentPlayer { id: string; tournament_id: string; player_name: string; avatar_dex?: string; team: Pokemon[]; }
 export interface TournamentMatch { id: string; tournament_id: string; round: number; player1_id: string; player2_id: string | null; winner_id: string | null; }
 
-export function useTournaments() {
+export function useTournaments(enabled = true) {
   const [tournaments, setTournaments] = useState<Tournament[]>([])
   const [players, setPlayers] = useState<TournamentPlayer[]>([])
   const [matches, setMatches] = useState<TournamentMatch[]>([])
@@ -23,6 +23,8 @@ export function useTournaments() {
   }
 
   useEffect(() => {
+    if (!enabled) return
+
     fetchData()
     const channel = supabase.channel('tournaments_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, fetchData)
@@ -30,7 +32,7 @@ export function useTournaments() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_matches' }, fetchData)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [])
+  }, [enabled])
 
   const createTournament = async (name: string, league: 'super' | 'ultra' | 'master') => { 
     await supabase.from('tournaments').insert([{ name, league }]); 

@@ -1,19 +1,13 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react'
 import { RegistrationForm } from '@/app/components/RegistrationForm'
-import { AdminPanel } from '@/app/components/AdminPanel'
-import { WinnerRoulette } from '@/app/components/WinnerRoulette'
-import { QRCodeDisplay } from '@/app/components/QRCodeDisplay'
-import { FriendBoard } from '@/app/components/FriendBoard'
-import { TournamentBoard } from '@/app/components/TournamentBoard'
-import { PollBoard } from '@/app/components/PollBoard'
-import { MeetingMaps } from '@/app/components/MeetingMaps'
-import { EventsBoard } from '@/app/components/EventsBoard'
 import { SocialLinks } from '@/app/components/SocialLinks'
 import { MobileShell, type NavTab } from '@/app/components/layout/MobileShell'
+import { TabFallback } from '@/app/components/TabFallback'
 import { Eye, EyeOff, Instagram, Image as ImageIcon, Plus, Trash2, Pencil, Link as LinkIcon, GripVertical, MoreVertical, X } from 'lucide-react'
 import { useParticipants } from '@/hooks/useParticipants'
 import { useTournaments } from '@/hooks/useTournaments'
 import { usePolls } from '@/hooks/usePolls'
+import { useNavAvailability } from '@/hooks/useNavAvailability'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Checkbox } from '@/app/components/ui/checkbox'
@@ -26,6 +20,31 @@ import {
   type AdminSession,
 } from '@/app/config/admins'
 import { modalDialogSmClass, modalOverlayCenterClass } from '@/app/layout/mobileShellLayout'
+
+const AdminPanel = lazy(() =>
+  import('@/app/components/AdminPanel').then((m) => ({ default: m.AdminPanel })),
+)
+const WinnerRoulette = lazy(() =>
+  import('@/app/components/WinnerRoulette').then((m) => ({ default: m.WinnerRoulette })),
+)
+const QRCodeDisplay = lazy(() =>
+  import('@/app/components/QRCodeDisplay').then((m) => ({ default: m.QRCodeDisplay })),
+)
+const FriendBoard = lazy(() =>
+  import('@/app/components/FriendBoard').then((m) => ({ default: m.FriendBoard })),
+)
+const TournamentBoard = lazy(() =>
+  import('@/app/components/TournamentBoard').then((m) => ({ default: m.TournamentBoard })),
+)
+const PollBoard = lazy(() =>
+  import('@/app/components/PollBoard').then((m) => ({ default: m.PollBoard })),
+)
+const MeetingMaps = lazy(() =>
+  import('@/app/components/MeetingMaps').then((m) => ({ default: m.MeetingMaps })),
+)
+const EventsBoard = lazy(() =>
+  import('@/app/components/EventsBoard').then((m) => ({ default: m.EventsBoard })),
+)
 
 type View = 'main' | 'roulette'
 
@@ -96,11 +115,12 @@ export default function App() {
     deleteRouletteData, spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig 
   } = useParticipants(activeRouletteCode)
 
-  const { tournaments } = useTournaments()
-  const { polls } = usePolls() 
-
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => loadAdminSession())
   const isAdmin = Boolean(adminSession)
+
+  const { tournaments } = useTournaments(isAdmin || activeTab === 'tournaments')
+  const { polls } = usePolls(isAdmin || activeTab === 'polls')
+  const navAvailability = useNavAvailability()
   
   const [showLogin, setShowLogin] = useState(false)
   const [usernameInput, setUsernameInput] = useState('')
@@ -380,8 +400,10 @@ export default function App() {
     setBannerImgInput(''); setBannerLinkInput(''); setBannerImageName(''); setEditingBannerId(null); setAddingBanner(false); setShowBannerModal(false)
   }
 
-  const hasActivePolls = polls.some(p => p.is_active);
-  const hasActiveTournaments = tournaments.some(t => t.status === 'open' || t.status === 'active');
+  const hasActivePolls = navAvailability.polls || polls.some((p) => p.is_active)
+  const hasActiveTournaments =
+    navAvailability.tournaments ||
+    tournaments.some((t) => t.status === 'open' || t.status === 'active')
 
   const openRoulette = () => {
     setActiveTab('ruleta')
@@ -397,42 +419,60 @@ export default function App() {
   const renderMainContent = () => {
     if (currentView === 'roulette') {
       return (
-        <WinnerRoulette 
-          onBack={isAdmin ? handleExitRoulette : () => setCurrentView('main')} 
-          participants={participants} recentWinners={recentWinners} updateStatus={updateStatus} onResetGame={resetGame} 
-          isSpectator={!isAdmin} embedded incomingSpin={incomingSpin} broadcastSpin={broadcastSpin} 
-          penaltyMonths={isAdmin ? penaltyMonths : rouletteConfig.penaltyMonths}
-          penaltyPercent={isAdmin ? penaltyPercent : rouletteConfig.penaltyPercent}
-          rouletteCodes={rouletteCodes}
-          activeRouletteCode={activeRouletteCode}
-          onChangeRouletteCode={isAdmin ? setActiveRouletteCode : undefined}
-          onCreateRouletteCode={isAdmin ? handleCreateRouletteCode : undefined}
-          onDeleteRouletteCode={isAdmin ? handleDeleteRouletteCode : undefined}
-          registrationBaseUrl={registrationUrl}
-        />
+        <Suspense fallback={<TabFallback />}>
+          <WinnerRoulette 
+            onBack={isAdmin ? handleExitRoulette : () => setCurrentView('main')} 
+            participants={participants} recentWinners={recentWinners} updateStatus={updateStatus} onResetGame={resetGame} 
+            isSpectator={!isAdmin} embedded incomingSpin={incomingSpin} broadcastSpin={broadcastSpin} 
+            penaltyMonths={isAdmin ? penaltyMonths : rouletteConfig.penaltyMonths}
+            penaltyPercent={isAdmin ? penaltyPercent : rouletteConfig.penaltyPercent}
+            rouletteCodes={rouletteCodes}
+            activeRouletteCode={activeRouletteCode}
+            onChangeRouletteCode={isAdmin ? setActiveRouletteCode : undefined}
+            onCreateRouletteCode={isAdmin ? handleCreateRouletteCode : undefined}
+            onDeleteRouletteCode={isAdmin ? handleDeleteRouletteCode : undefined}
+            registrationBaseUrl={registrationUrl}
+          />
+        </Suspense>
       )
     }
     switch (activeTab) {
       case 'register':
         return <RegistrationForm saveRegistration={addParticipant} isAdmin={isAdmin} />
       case 'friends':
-        return <FriendBoard isAdmin={isAdmin} />
+        return (
+          <Suspense fallback={<TabFallback />}>
+            <FriendBoard isAdmin={isAdmin} />
+          </Suspense>
+        )
       case 'tournaments':
         return (isAdmin || hasActiveTournaments) ? (
-          <TournamentBoard isAdmin={isAdmin} />
+          <Suspense fallback={<TabFallback />}>
+            <TournamentBoard isAdmin={isAdmin} />
+          </Suspense>
         ) : (
           <p className="text-center text-[#0d3b66]/60 py-8">No hay torneos activos en este momento.</p>
         )
       case 'polls':
         return (isAdmin || hasActivePolls) ? (
-          <PollBoard isAdmin={isAdmin} />
+          <Suspense fallback={<TabFallback />}>
+            <PollBoard isAdmin={isAdmin} />
+          </Suspense>
         ) : (
           <p className="text-center text-[#0d3b66]/60 py-8">No hay votaciones activas.</p>
         )
       case 'maps':
-        return <MeetingMaps />
+        return (
+          <Suspense fallback={<TabFallback />}>
+            <MeetingMaps />
+          </Suspense>
+        )
       case 'events':
-        return <EventsBoard isAdmin={isAdmin} />
+        return (
+          <Suspense fallback={<TabFallback />}>
+            <EventsBoard isAdmin={isAdmin} />
+          </Suspense>
+        )
       case 'social':
         return <SocialLinks installPrompt={installPrompt} onInstall={handleInstallApp} compact />
       case 'sponsors':
@@ -622,39 +662,43 @@ export default function App() {
         )
       case 'ruleta':
         return isAdmin ? (
-          <AdminPanel
-            participants={participants}
-            bannedUsers={visibleBannedUsers}
-            recentWinners={recentWinners}
-            onDelete={deleteParticipant}
-            onDeleteMultiple={deleteMultiple}
-            onClearAll={clearAll}
-            onStartRoulette={handleStartRoulette}
-            onBanUser={handleBanUser}
-            onUnbanUser={unbanUser}
-            isSuperAdmin={isSuperAdmin(adminSession)}
-            adminUsername={adminSession?.username}
-            onRemoveWinner={removeRecentWinner}
-            onRemoveMultipleWinners={removeMultipleRecentWinners}
-            penaltyMonths={penaltyMonths}
-            setPenaltyMonths={setPenaltyMonths}
-            penaltyPercent={penaltyPercent}
-            setPenaltyPercent={setPenaltyPercent}
-            rouletteCodes={rouletteCodes}
-            activeRouletteCode={activeRouletteCode}
-            onChangeRouletteCode={setActiveRouletteCode}
-          />
+          <Suspense fallback={<TabFallback />}>
+            <AdminPanel
+              participants={participants}
+              bannedUsers={visibleBannedUsers}
+              recentWinners={recentWinners}
+              onDelete={deleteParticipant}
+              onDeleteMultiple={deleteMultiple}
+              onClearAll={clearAll}
+              onStartRoulette={handleStartRoulette}
+              onBanUser={handleBanUser}
+              onUnbanUser={unbanUser}
+              isSuperAdmin={isSuperAdmin(adminSession)}
+              adminUsername={adminSession?.username}
+              onRemoveWinner={removeRecentWinner}
+              onRemoveMultipleWinners={removeMultipleRecentWinners}
+              penaltyMonths={penaltyMonths}
+              setPenaltyMonths={setPenaltyMonths}
+              penaltyPercent={penaltyPercent}
+              setPenaltyPercent={setPenaltyPercent}
+              rouletteCodes={rouletteCodes}
+              activeRouletteCode={activeRouletteCode}
+              onChangeRouletteCode={setActiveRouletteCode}
+            />
+          </Suspense>
         ) : null
       case 'qr':
         return isAdmin ? (
-          <QRCodeDisplay
-            baseUrl={registrationUrl}
-            rouletteCodes={rouletteCodes}
-            activeCode={activeRouletteCode}
-            onSelectCode={setActiveRouletteCode}
-            onCreateCode={handleCreateRouletteCode}
-            onDeleteCode={handleDeleteRouletteCode}
-          />
+          <Suspense fallback={<TabFallback />}>
+            <QRCodeDisplay
+              baseUrl={registrationUrl}
+              rouletteCodes={rouletteCodes}
+              activeCode={activeRouletteCode}
+              onSelectCode={setActiveRouletteCode}
+              onCreateCode={handleCreateRouletteCode}
+              onDeleteCode={handleDeleteRouletteCode}
+            />
+          </Suspense>
         ) : null
       default:
         return <RegistrationForm saveRegistration={addParticipant} isAdmin={isAdmin} />

@@ -6,7 +6,6 @@ import { Input } from '@/app/components/ui/input'
 import type { Participant, RecentWinner } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 import { QRCodeCanvas } from 'qrcode.react'
-import { jsPDF } from 'jspdf'
 import { buildRouletteRegistrationUrl, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 
 import moltres from '@/assets/iconos/moltres.png'
@@ -312,9 +311,10 @@ export function WinnerRoulette({
     setCreateRouletteOpen(true)
   }
 
-  const handleDownloadCreatedQrPdf = () => {
+  const handleDownloadCreatedQrPdf = async () => {
     const canvas = qrCreateRef.current?.querySelector('canvas')
     if (!canvas || !createdRouletteCode) return
+    const { jsPDF } = await import('jspdf')
     const imgData = canvas.toDataURL('image/png')
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
     const pageWidth = pdf.internal.pageSize.getWidth()

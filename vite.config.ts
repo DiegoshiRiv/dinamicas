@@ -18,4 +18,21 @@ export default defineConfig({
     host: true,
     port: 5173,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('jspdf')) return 'vendor-pdf'
+          if (id.includes('@mui') || id.includes('@emotion')) return 'vendor-mui'
+          if (id.includes('@radix-ui')) return 'vendor-radix'
+          if (id.includes('@supabase')) return 'vendor-supabase'
+          if (id.includes('recharts')) return 'vendor-charts'
+          if (id.includes('motion')) return 'vendor-motion'
+          if (id.includes('lucide-react')) return 'vendor-icons'
+          return 'vendor'
+        },
+      },
+    },
+  },
 })

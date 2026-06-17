@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, Suspense, lazy, useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Menu,
@@ -20,8 +20,7 @@ import {
   Stamp,
   ImageIcon,
 } from 'lucide-react'
-import { FaqPanel } from '@/app/components/FaqPanel'
-import { StampRecoveryPanel } from '@/app/components/StampRecoveryPanel'
+import { TabFallback } from '@/app/components/TabFallback'
 import {
   HeaderLayoutEditor,
   LogoScaleEditor,
@@ -29,15 +28,22 @@ import {
 } from '@/app/components/layout/HeaderLayoutEditor'
 import { loadHeaderLayoutsFromStorage, logoMaxHeight } from '@/app/config/headerLayout'
 import { useHeaderLayout } from '@/hooks/useHeaderLayout'
+import { useFondoCdUrl } from '@/hooks/useFondoCdUrl'
 import {
   getActiveFondoCdId,
-  getAlternatingFondoCd,
   getFondoCdUrl,
   type FondoCdId,
 } from '@/app/utils/alternatingFondoCd'
 import logoImg from '@/assets/logos/Logo.png'
 import pokebolaImg from '@/assets/iconos/Pokebola.png'
 import ruletaIcon from '@/assets/iconos/ruleta.png'
+
+const FaqPanel = lazy(() =>
+  import('@/app/components/FaqPanel').then((m) => ({ default: m.FaqPanel })),
+)
+const StampRecoveryPanel = lazy(() =>
+  import('@/app/components/StampRecoveryPanel').then((m) => ({ default: m.StampRecoveryPanel })),
+)
 
 export type NavTab =
   | 'register'
@@ -126,6 +132,9 @@ export function MobileShell({
   const { store, persistStore } = useHeaderLayout()
   const [isSmViewport, setIsSmViewport] = useState(false)
   const activeFondoId = getActiveFondoCdId()
+  const fondoCdUrl = useFondoCdUrl(headerEditOpen ? editingFondoId : undefined)
+  const editorFondoUrl = headerEditOpen ? getFondoCdUrl(editingFondoId) || fondoCdUrl : null
+  const resolvedFondoUrl = headerEditOpen ? editorFondoUrl : fondoCdUrl
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 640px)')
@@ -141,7 +150,6 @@ export function MobileShell({
 
   const displayStore = headerEditOpen ? draftStore : store
   const displayFondoId = headerEditOpen ? editingFondoId : activeFondoId
-  const displayFondoUrl = headerEditOpen ? getFondoCdUrl(editingFondoId) : getAlternatingFondoCd()
   const activeLayout = displayStore.fondos[displayFondoId]
 
   const updateDraftLayout = (next: typeof activeLayout) => {
@@ -237,12 +245,14 @@ export function MobileShell({
     <div className="min-h-[100dvh] bg-[#e8f4fc] flex flex-col max-w-md mx-auto relative shadow-xl overflow-x-hidden">
       <header className="relative shrink-0 z-0">
         <div className="relative h-[200px] sm:h-[256px] overflow-hidden bg-[#b8dff5]">
-          {!headerEditOpen && (
+          {!headerEditOpen && resolvedFondoUrl && (
             <img
-              src={displayFondoUrl}
+              src={resolvedFondoUrl}
               alt=""
               className="absolute left-1/2 top-0 max-w-none pointer-events-none select-none"
               draggable={false}
+              decoding="async"
+              fetchPriority="high"
               style={{
                 width: `${activeLayout.bgSizePercent}%`,
                 transform: `translate(calc(-50% + ${activeLayout.bgOffsetX}px), ${activeLayout.bgOffsetY}px)`,
@@ -250,9 +260,9 @@ export function MobileShell({
             />
           )}
 
-          {headerEditOpen && isSuperAdmin && (
+          {headerEditOpen && isSuperAdmin && resolvedFondoUrl && (
             <HeaderLayoutEditor
-              fondoUrl={getFondoCdUrl(editingFondoId)}
+              fondoUrl={resolvedFondoUrl}
               fondoId={editingFondoId}
               editMode={headerEditMode}
               onEditModeChange={setHeaderEditMode}
@@ -332,12 +342,14 @@ export function MobileShell({
               alt="Pokémon GO Community"
               className="w-auto max-w-[min(280px,88%)] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
               style={{ maxHeight: `${logoMaxHeight(activeLayout.logoScale, isSmViewport)}px` }}
+              decoding="async"
+              fetchPriority="high"
             />
           )}
         </div>
       </header>
 
-      <main className="flex-1 registration-dome overflow-y-auto pb-shell">
+      <main className="flex-1 registration-dome overflow-y-auto pb-shell [content-visibility:auto]">
         <div className="relative px-4 sm:px-5 pt-4 sm:pt-5 pb-3 sm:pb-4">{children}</div>
       </main>
 
@@ -484,8 +496,16 @@ export function MobileShell({
         </div>
       )}
 
-      <StampRecoveryPanel open={stampRecoveryOpen} onClose={() => setStampRecoveryOpen(false)} />
-      <FaqPanel open={faqOpen} onClose={() => setFaqOpen(false)} />
+      {stampRecoveryOpen && (
+        <Suspense fallback={<TabFallback />}>
+          <StampRecoveryPanel open onClose={() => setStampRecoveryOpen(false)} />
+        </Suspense>
+      )}
+      {faqOpen && (
+        <Suspense fallback={<TabFallback />}>
+          <FaqPanel open onClose={() => setFaqOpen(false)} />
+        </Suspense>
+      )}
     </div>
   )
 }

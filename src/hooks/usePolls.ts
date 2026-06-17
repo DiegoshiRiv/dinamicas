@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabaseClient'
 export interface Poll { id: string; question: string; options: string[]; is_active: boolean; created_at: string; }
 export interface PollVote { id: string; poll_id: string; option_index: number; ip_address: string; }
 
-export function usePolls() {
+export function usePolls(enabled = true) {
   const [polls, setPolls] = useState<Poll[]>([])
   const [votes, setVotes] = useState<PollVote[]>([])
 
@@ -16,8 +16,9 @@ export function usePolls() {
   }, [])
 
   useEffect(() => {
+    if (!enabled) return
+
     void fetchData()
-    // Tiempo real principal + refresco de respaldo.
     const channel = supabase.channel('polls_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, () => {
         void fetchData()
@@ -27,17 +28,15 @@ export function usePolls() {
       })
       .subscribe()
 
-    // Fallback: si Realtime no entrega eventos en algun cliente,
-    // seguimos reflejando votos recientes cada pocos segundos.
     const fallbackInterval = window.setInterval(() => {
       void fetchData()
-    }, 3000)
+    }, 15000)
 
     return () => {
       window.clearInterval(fallbackInterval)
       void supabase.removeChannel(channel)
     }
-  }, [fetchData])
+  }, [enabled, fetchData])
 
   const createPoll = async (question: string, options: string[]) => {
     await supabase.from('polls').insert([{ question, options }])

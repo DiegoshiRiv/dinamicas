@@ -4,7 +4,6 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog';
 import { QRCodeCanvas } from 'qrcode.react';
-import { jsPDF } from 'jspdf';
 
 interface QRCodeDisplayProps {
   baseUrl: string;
@@ -44,9 +43,10 @@ export function QRCodeDisplay({
     return qrWrapRef.current?.querySelector('canvas') ?? null;
   };
 
-  const downloadQrAsPdf = () => {
+  const downloadQrAsPdf = async () => {
     const canvas = getQrCanvas();
     if (!canvas) return;
+    const { jsPDF } = await import('jspdf');
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
 

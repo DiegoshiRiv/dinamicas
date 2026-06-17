@@ -7,11 +7,8 @@ import articuno from '@/assets/iconos/articuno.png'
 import pokebolaImg from '@/assets/iconos/Pokebola.png'
 import pogoImg from '@/assets/capturas de pantalla/Pogo.jpg'
 import camfImg from '@/assets/capturas de pantalla/Camf.jpg'
-import yaParticipasImg from '@/assets/yaparticipas.png'
-import yaWeImg from '@/assets/yawe.png'
 import campfireIcon from '@/assets/recursos/campfire.png'
 import wpIcon from '@/assets/iconos/w.png'
-import anteriorImg from '@/assets/pokemon gif/anterior.gif'
 import {
   CAMPFIRE_JOIN_URL,
   WHATSAPP_CHANNEL_URL,
@@ -33,6 +30,13 @@ interface RegistrationFormProps {
 }
 
 type Team = 'blue' | 'yellow' | 'red'
+
+async function loadParticipationModalImage(): Promise<string> {
+  if (Math.random() < 0.5) {
+    return (await import('@/assets/yaparticipas.png')).default
+  }
+  return (await import('@/assets/yawe.png')).default
+}
 
 const teams: {
   value: Team
@@ -76,13 +80,33 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
   const [loading, setLoading] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
   const [participationModalImage, setParticipationModalImage] = useState<string | null>(null)
+  const [anteriorGifUrl, setAnteriorGifUrl] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const anteriorSectionRef = useRef<HTMLDivElement>(null)
   const whatsappFollowers = useWhatsAppFollowers()
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    if (isAdmin) return
+    const el = anteriorSectionRef.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void import('@/assets/pokemon gif/anterior.gif').then((mod) => setAnteriorGifUrl(mod.default))
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '120px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isAdmin])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -106,8 +130,7 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
       setUsername('')
       setTeam('')
       if (!isAdmin) {
-        const randomImage = Math.random() < 0.5 ? yaParticipasImg : yaWeImg
-        setParticipationModalImage(randomImage)
+        void loadParticipationModalImage().then(setParticipationModalImage)
       }
       setTimeout(() => inputRef.current?.focus(), 100)
     } catch (e: unknown) {
@@ -275,17 +298,25 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
             <AnimatedCounter value={CAMPFIRE_MEMBER_COUNT} />
           </p>
 
-          <div className="flex items-center gap-3 rounded-[15px] border border-[#0d3b66]/10 bg-white p-3.5 shadow-sm">
+          <div
+            ref={anteriorSectionRef}
+            className="flex items-center gap-3 rounded-[15px] border border-[#0d3b66]/10 bg-white p-3.5 shadow-sm"
+          >
             <p className="flex-1 text-[13px] font-bold text-[#0d3b66] leading-snug">
               En la quedada anterior se reunieron{' '}
               <AnimatedCounter value={PREVIOUS_MEETUP_TRAINERS} /> entrenadores
             </p>
             <div className="w-20 h-20 shrink-0 flex items-center justify-center overflow-visible">
-              <img
-                src={anteriorImg}
-                alt="Pokémon de la quedada anterior"
-                className="w-28 h-28 object-contain scale-125 origin-center"
-              />
+              {anteriorGifUrl ? (
+                <img
+                  src={anteriorGifUrl}
+                  alt="Pokémon de la quedada anterior"
+                  className="w-28 h-28 object-contain scale-125 origin-center"
+                  decoding="async"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-[#0d3b66]/5" aria-hidden />
+              )}
             </div>
           </div>
 
@@ -327,6 +358,7 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
               src={participationModalImage}
               alt="Ya participas"
               className="w-full h-auto rounded-2xl object-contain"
+              decoding="async"
             />
           </div>
         </div>

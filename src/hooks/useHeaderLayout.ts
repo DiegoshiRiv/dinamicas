@@ -34,9 +34,22 @@ export function useHeaderLayout() {
       }
     }
 
-    void syncFromRemote()
+    const schedule =
+      typeof window.requestIdleCallback === 'function'
+        ? window.requestIdleCallback(() => {
+            if (!cancelled) void syncFromRemote()
+          }, { timeout: 3000 })
+        : window.setTimeout(() => {
+            if (!cancelled) void syncFromRemote()
+          }, 1500)
+
     return () => {
       cancelled = true
+      if (typeof schedule === 'number') {
+        window.clearTimeout(schedule)
+      } else if (typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(schedule)
+      }
     }
   }, [])
 

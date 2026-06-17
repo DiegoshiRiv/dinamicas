@@ -1,7 +1,7 @@
-import fondoCd1 from '@/assets/FondoCD.png'
-import fondoCd2 from '@/assets/FondoCD2.png'
-
 export type FondoCdId = 'fondoCD' | 'fondoCD2'
+
+/** Marcador en banners de eventos: se resuelve al renderizar. */
+export const FONDO_CD_DYNAMIC = '__fondo_cd_dynamic__'
 
 export const FONDO_CD_IDS: FondoCdId[] = ['fondoCD', 'fondoCD2']
 
@@ -10,21 +10,18 @@ export const FONDO_CD_LABELS: Record<FondoCdId, string> = {
   fondoCD2: 'Fondo 2',
 }
 
-const FONDOS: Record<FondoCdId, string> = {
-  fondoCD: fondoCd1,
-  fondoCD2: fondoCd2,
+const FONDO_LOADERS: Record<FondoCdId, () => Promise<{ default: string }>> = {
+  fondoCD: () => import('@/assets/FondoCD.png'),
+  fondoCD2: () => import('@/assets/FondoCD2.png'),
 }
 
 const FONDO_ORDER: FondoCdId[] = ['fondoCD', 'fondoCD2']
 const STORAGE_KEY = 'fondo-cd-index'
 
 let cachedId: FondoCdId | null = null
+let cachedUrl: string | null = null
+const urlById = new Map<FondoCdId, string>()
 
-export function getFondoCdUrl(id: FondoCdId): string {
-  return FONDOS[id]
-}
-
-/** Alterna entre FondoCD y FondoCD2 en cada recarga (aleatorio la primera vez). */
 export function getActiveFondoCdId(): FondoCdId {
   if (cachedId !== null) return cachedId
 
@@ -47,6 +44,23 @@ export function getActiveFondoCdId(): FondoCdId {
   return cachedId
 }
 
+/** Carga solo el fondo activo (evita descargar ambos PNG de ~9 MB). */
+export async function resolveFondoCdUrl(id: FondoCdId = getActiveFondoCdId()): Promise<string> {
+  const cached = urlById.get(id)
+  if (cached) return cached
+
+  const mod = await FONDO_LOADERS[id]()
+  urlById.set(id, mod.default)
+  if (id === getActiveFondoCdId()) {
+    cachedUrl = mod.default
+  }
+  return mod.default
+}
+
 export function getAlternatingFondoCd(): string {
-  return FONDOS[getActiveFondoCdId()]
+  return cachedUrl ?? ''
+}
+
+export function getFondoCdUrl(id: FondoCdId): string {
+  return urlById.get(id) ?? cachedUrl ?? ''
 }

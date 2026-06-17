@@ -1,7 +1,7 @@
-import megaSkarmoryHero from '@/assets/pokemon gif/Megas/Mega Skarmory.gif'
-import skarmoryShinyHero from '@/assets/pokemon gif/Shiny Megadex Z-A -root/Mega Skarmory.gif'
-import megaSkarmoryPng from '@/assets/Pokemon/Z-A Pokedex PNG/216M.png'
-import houndoomPng from '@/assets/Pokemon/Z-A Pokedex PNG/092.png'
+import megaSkarmoryHero from '@/assets/pokemon gif/Mega Skarmory.gif'
+import skarmoryShinyHero from '@/assets/pokemon gif/Mega Skarmory shiny.gif'
+import megaSkarmoryPng from '@/assets/cabeza pokemon/Mega-Skarmory_icono_LPZA.png'
+import houndoomPng from '@/assets/cabeza pokemon/092_houndoom.png'
 import pasePremiumImg from '@/assets/objetos del juego/pase_premium.png'
 import { formatClockLabel, formatTimeRangeLabel } from '@/app/utils/formatTime'
 
