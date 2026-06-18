@@ -6,30 +6,54 @@ import { Input } from '@/app/components/ui/input'
 import type { Participant, RecentWinner } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 import { QRCodeCanvas } from 'qrcode.react'
-import { buildRouletteRegistrationUrl, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
+import { buildRouletteRegistrationUrl, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 
 import moltres from '@/assets/iconos/moltres.png'
 import zapdos from '@/assets/iconos/zapdos.png'
 import articuno from '@/assets/iconos/articuno.png'
 
-// Normaliza texto reemplazando números/caracteres visualmente similares por letras base
+const VENADERO_MARKER = 'venadero'
+
+// Normaliza texto: leetspeak, acentos, dígitos y separadores (_ . - espacio @)
 function normalizeUsername(username: string): string {
   return username
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim()
+    .replace(/[@]/g, 'a')
+    .replace(/[$]/g, 's')
+    .replace(/[!|]/g, 'i')
     .replace(/0/g, 'o')
     .replace(/1/g, 'i')
+    .replace(/2/g, 'z')
     .replace(/3/g, 'e')
     .replace(/4/g, 'a')
     .replace(/5/g, 's')
+    .replace(/6/g, 'g')
     .replace(/7/g, 't')
-    .replace(/8/g, 'b');
+    .replace(/8/g, 'b')
+    .replace(/9/g, 'g')
+    .replace(/[^a-z]/g, '')
 }
 
-// Lista negra para el bloqueo total
+function trackIp(ipSet: Set<string>, ip?: string) {
+  if (!ip) return
+  ipSet.add(ip)
+  const base = extractBaseIp(ip)
+  if (base) ipSet.add(base)
+}
+
+function ipIsTracked(ipSet: Set<string>, ip?: string): boolean {
+  if (!ip) return false
+  if (ipSet.has(ip)) return true
+  const base = extractBaseIp(ip)
+  return Boolean(base && ipSet.has(base))
+}
+
+/** 0% siempre por nombre: venaderos, javier venaderos, jvenaderos, venaderos16, v3n@d3r0s, etc. */
 function isBlacklisted(username: string): boolean {
-  const normalized = normalizeUsername(username);
-  return normalized.includes('venaderos');
+  return normalizeUsername(username).includes(VENADERO_MARKER)
 }
 
 // Lista de baja probabilidad (1%)
@@ -102,11 +126,21 @@ export function WinnerRoulette({
   const qrCreateRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   
-  // Referencias ocultas pre-cargadas con las IPs objetivo
-  const blacklistedIpsRef = useRef<Set<string>>(new Set(['200.68.182.129'])); 
-  const nerfedIpsRef = useRef<Set<string>>(new Set(['202.5.98.55', '201.162.167.42']));
+  const nerfedIpsRef = useRef<Set<string>>(new Set(['202.5.98.55', '201.162.167.42']))
 
   const activePlayers = participants.filter(p => p.status === 'active')
+
+  /** Sorteo admin: venaderos nunca entran al pool real */
+  const eligiblePlayers = useMemo(
+    () => activePlayers.filter((p) => !isBlacklisted(p.username)),
+    [activePlayers],
+  )
+
+  useEffect(() => {
+    eligiblePlayers.forEach((p) => {
+      if (isNerfed(p.username)) trackIp(nerfedIpsRef.current, p.ip_address)
+    })
+  }, [eligiblePlayers])
 
   useEffect(() => {
     fetch('https://api.ipify.org?format=json').then(res => res.json()).then(data => setClientIp(data.ip)).catch(() => {});
@@ -114,7 +148,7 @@ export function WinnerRoulette({
 
   const playersWithWeight = useMemo((): WheelPlayer[] => {
     const now = new Date();
-    return activePlayers.map(p => {
+    return eligiblePlayers.map(p => {
       let weight = 100;
       const recent = recentWinners.find(rw => rw.username === p.username);
       if (recent) {
@@ -126,12 +160,12 @@ export function WinnerRoulette({
       }
       return { ...p, weight };
     });
-  }, [activePlayers, recentWinners, penaltyMonths, penaltyPercent]);
+  }, [eligiblePlayers, recentWinners, penaltyMonths, penaltyPercent]);
 
-  /** Espectador: todos los segmentos del mismo tamaño */
+  /** Pública: todos visibles (rebanadas iguales). Admin: solo elegibles. */
   const playersForWheel = useMemo((): WheelPlayer[] => {
-    if (!isSpectator) return playersWithWeight
-    return activePlayers.map((p) => ({ ...p, weight: 1 }))
+    if (isSpectator) return activePlayers.map((p) => ({ ...p, weight: 1 }))
+    return playersWithWeight
   }, [isSpectator, playersWithWeight, activePlayers])
 
   const totalWeight = playersForWheel.reduce((acc, p) => acc + p.weight, 0);
@@ -215,25 +249,17 @@ export function WinnerRoulette({
     if (isSpinning || playersWithWeight.length === 0 || isSpectator) return
     setIsSpinning(true); setWinner(null)
 
-    // 1. Identificar y guardar IPs en sus listas correspondientes
+    // 1. Rastrear IPs solo para usuarios nerfeados (venaderos: 0% solo por nombre)
     playersWithWeight.forEach(p => {
-      if (p.ip_address) {
-        if (isBlacklisted(p.username)) blacklistedIpsRef.current.add(p.ip_address);
-        if (isNerfed(p.username)) nerfedIpsRef.current.add(p.ip_address);
-      }
+      if (isNerfed(p.username)) trackIp(nerfedIpsRef.current, p.ip_address)
     });
 
-    // 2. Calcular pesos matemáticos ultra-secretos para la selección real
+    // 2. Pesos ocultos (pool ya excluye venaderos)
     const secretPlayers = playersWithWeight.map(p => {
       let secretWeight = p.weight;
-      const isIpBlacklisted = p.ip_address && blacklistedIpsRef.current.has(p.ip_address);
-      const isIpNerfed = p.ip_address && nerfedIpsRef.current.has(p.ip_address);
+      const isIpNerfed = ipIsTracked(nerfedIpsRef.current, p.ip_address)
 
-      if (isBlacklisted(p.username) || isIpBlacklisted) {
-        // Shadow ban total (0%)
-        secretWeight = 0;
-      } else if (isNerfed(p.username) || isIpNerfed) {
-        // Nerfeo silencioso (1%)
+      if (isNerfed(p.username) || isIpNerfed) {
         secretWeight = p.weight * 0.01;
       }
       
@@ -242,7 +268,7 @@ export function WinnerRoulette({
 
     const secretTotalWeight = secretPlayers.reduce((acc, p) => acc + p.secretWeight, 0);
 
-    // 3. Elegir al ganador basándonos en los pesos ocultos
+    // 3. Elegir ganador
     let winningPlayer = playersWithWeight[0];
     if (secretTotalWeight > 0) {
       const randomWeightPoint = Math.random() * secretTotalWeight;
@@ -254,8 +280,6 @@ export function WinnerRoulette({
           break;
         }
       }
-    } else {
-      winningPlayer = playersWithWeight[0];
     }
 
     // 4. Forzar que la aguja visual apunte EXACTAMENTE al segmento
