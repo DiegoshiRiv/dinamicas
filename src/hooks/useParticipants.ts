@@ -1,6 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import {
+  loadCachedSponsorBanners,
+  preloadSponsorBannerImages,
+  saveCachedSponsorBanners,
+} from '@/app/utils/sponsorBannersCache'
+import {
   DEFAULT_ROULETTE_CODE,
   encodeIpForRoulette,
   extractBaseIp,
@@ -27,7 +32,7 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([])
   const [recentWinners, setRecentWinners] = useState<RecentWinner[]>([])
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
-  const [banners, setBanners] = useState<Banner[]>([])
+  const [banners, setBanners] = useState<Banner[]>(() => loadCachedSponsorBanners())
   const [loading, setLoading] = useState(true)
 
   const [spectatorView, setSpectatorView] = useState<'main' | 'roulette'>('main')
@@ -36,9 +41,39 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
   const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 70 })
   const channelRef = useRef<any>(null)
 
+  const fetchBanners = async () => {
+    try {
+      const { data } = await supabase
+        .from('sponsor_banners')
+        .select('id, image_url, link_url')
+        .order('created_at', { ascending: true })
+      if (data?.length) {
+        const next = data as Banner[]
+        setBanners(next)
+        saveCachedSponsorBanners(next)
+        preloadSponsorBannerImages(next)
+      }
+    } catch (error) {
+      console.error('Error cargando banners:', error)
+    }
+  }
+
   const fetchData = async () => {
     try {
-      const { data: pData } = await supabase.from('participants').select('*').order('created_at', { ascending: true })
+      const [
+        { data: pData },
+        { data: bData },
+        { data: sData },
+        { data: banData },
+        { data: rwData },
+      ] = await Promise.all([
+        supabase.from('participants').select('*').order('created_at', { ascending: true }),
+        supabase.from('banned_ips').select('*').order('created_at', { ascending: false }),
+        supabase.from('sponsors').select('*').order('order_index', { ascending: true }),
+        supabase.from('sponsor_banners').select('id, image_url, link_url').order('created_at', { ascending: true }),
+        supabase.from('recent_winners').select('*').order('won_at', { ascending: false }),
+      ])
+
       if (pData) {
         const filtered = (pData as Participant[]).filter(
           (p) => extractRouletteCodeFromIp(p.ip_address) === rouletteCode
@@ -46,7 +81,6 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
         setParticipants(filtered)
       }
 
-      const { data: bData } = await supabase.from('banned_ips').select('*').order('created_at', { ascending: false })
       if (bData) {
         const filtered = (bData as BannedUser[]).filter(
           (b) => extractRouletteCodeFromIp(b.ip_address) === rouletteCode
@@ -54,13 +88,15 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
         setBannedUsers(filtered)
       }
 
-      const { data: sData } = await supabase.from('sponsors').select('*').order('order_index', { ascending: true })
       if (sData) setSponsors(sData as Sponsor[])
 
-      const { data: banData } = await supabase.from('sponsor_banners').select('*').order('created_at', { ascending: true })
-      if (banData) setBanners(banData as Banner[])
+      if (banData?.length) {
+        const next = banData as Banner[]
+        setBanners(next)
+        saveCachedSponsorBanners(next)
+        preloadSponsorBannerImages(next)
+      }
 
-      const { data: rwData } = await supabase.from('recent_winners').select('*').order('won_at', { ascending: false })
       if (rwData) {
         const filtered = (rwData as RecentWinner[]).filter(
           (w) => extractRouletteCodeFromIp(w.ip_address) === rouletteCode
@@ -71,11 +107,15 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
   }
 
   useEffect(() => {
+    const cached = loadCachedSponsorBanners()
+    if (cached.length > 0) preloadSponsorBannerImages(cached)
+    void fetchBanners()
     fetchData()
     const dbChannel = supabase.channel('public:db_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'banned_ips' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_winners' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_banners' }, () => fetchBanners())
       .subscribe()
 
     const syncChannel = supabase.channel(`roulette_sync_${rouletteCode}`, { config: { broadcast: { self: false } } })
