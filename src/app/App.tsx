@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react'
 import { RegistrationForm } from '@/app/components/RegistrationForm'
+import { SponsorBannerCarousel } from '@/app/components/SponsorBannerCarousel'
 import { SocialLinks } from '@/app/components/SocialLinks'
 import { MobileShell, type NavTab } from '@/app/components/layout/MobileShell'
 import { TabFallback } from '@/app/components/TabFallback'
@@ -70,8 +71,6 @@ export default function App() {
   const [currentView, setCurrentView] = useState<View>('main')
   const [activeTab, setActiveTab] = useState<NavTab>('register')
   const [installPrompt, setInstallPrompt] = useState<any>(null)
-  const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
-
   const [showSponsorModal, setShowSponsorModal] = useState(false)
   const [newSponsorName, setNewSponsorName] = useState('')
   const [newSponsorUrl, setNewSponsorUrl] = useState('')
@@ -169,12 +168,6 @@ export default function App() {
     const nextUrl = buildRouletteRegistrationUrl(window.location.origin, activeRouletteCode)
     window.history.replaceState({}, '', nextUrl)
   }, [activeRouletteCode])
-
-  useEffect(() => {
-    if (banners.length <= 1) return;
-    const interval = setInterval(() => { setCurrentBannerIndex((prev) => (prev + 1) % banners.length) }, 4000);
-    return () => clearInterval(interval);
-  }, [banners.length]);
 
   useEffect(() => {
     if (!openSponsorActionsId) return
@@ -438,7 +431,13 @@ export default function App() {
     }
     switch (activeTab) {
       case 'register':
-        return <RegistrationForm saveRegistration={addParticipant} isAdmin={isAdmin} />
+        return (
+          <RegistrationForm
+            saveRegistration={addParticipant}
+            isAdmin={isAdmin}
+            sponsorBanners={banners}
+          />
+        )
       case 'friends':
         return (
           <Suspense fallback={<TabFallback />}>
@@ -624,18 +623,7 @@ export default function App() {
             )}
             <h2 className="text-xl font-black text-[#0d3b66] text-center mb-2">Nuestros Patrocinadores</h2>
             <p className="text-sm text-gray-500 text-center mb-6">Toca su foto para visitar su Instagram.</p>
-            {banners.length > 0 && (
-              <div className="relative w-full h-32 rounded-xl overflow-hidden mb-6 bg-gray-100">
-                {banners.map((banner, i) => {
-                  const isActive = i === currentBannerIndex
-                  const cls = `absolute inset-0 w-full h-full transition-opacity duration-1000 ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0'}`
-                  if (banner.link_url) {
-                    return <a key={banner.id} href={banner.link_url} target="_blank" rel="noopener noreferrer" className={cls}><img src={banner.image_url} alt="" className="w-full h-full object-cover" /></a>
-                  }
-                  return <div key={banner.id} className={cls}><img src={banner.image_url} alt="" className="w-full h-full object-cover" /></div>
-                })}
-              </div>
-            )}
+            <SponsorBannerCarousel banners={banners} />
             {sponsors.length === 0 ? (
               <p className="text-center py-8 text-gray-400">Reuniendo patrocinadores...</p>
             ) : (
@@ -701,7 +689,13 @@ export default function App() {
           </Suspense>
         ) : null
       default:
-        return <RegistrationForm saveRegistration={addParticipant} isAdmin={isAdmin} />
+        return (
+          <RegistrationForm
+            saveRegistration={addParticipant}
+            isAdmin={isAdmin}
+            sponsorBanners={banners}
+          />
+        )
     }
   }
 

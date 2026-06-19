@@ -16,27 +16,21 @@ import {
   PREVIOUS_MEETUP_TRAINERS,
 } from '@/app/data/communityLinks'
 import { AnimatedCounter } from '@/app/components/AnimatedCounter'
+import { SponsorBannerCarousel } from '@/app/components/SponsorBannerCarousel'
+import type { Banner } from '@/hooks/useParticipants'
 import { useWhatsAppFollowers } from '@/app/hooks/useWhatsAppFollowers'
 import {
-  modalDialogSmClass,
   modalOverlayClass,
-  modalOverlayNestedClass,
   modalSheetClass,
 } from '@/app/layout/mobileShellLayout'
 
 interface RegistrationFormProps {
   saveRegistration: (username: string, team: string, ip: string, isAdminBypass?: boolean) => Promise<void>
   isAdmin?: boolean
+  sponsorBanners?: Banner[]
 }
 
 type Team = 'blue' | 'yellow' | 'red'
-
-async function loadParticipationModalImage(): Promise<string> {
-  if (Math.random() < 0.5) {
-    return (await import('@/assets/yaparticipas.png')).default
-  }
-  return (await import('@/assets/yawe.png')).default
-}
 
 const teams: {
   value: Team
@@ -72,14 +66,17 @@ const teams: {
   },
 ]
 
-export function RegistrationForm({ saveRegistration, isAdmin = false }: RegistrationFormProps) {
+export function RegistrationForm({
+  saveRegistration,
+  isAdmin = false,
+  sponsorBanners = [],
+}: RegistrationFormProps) {
   const [username, setUsername] = useState('')
   const [team, setTeam] = useState<Team | ''>('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
-  const [participationModalImage, setParticipationModalImage] = useState<string | null>(null)
   const [anteriorGifUrl, setAnteriorGifUrl] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
@@ -129,9 +126,6 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
       setSuccess(true)
       setUsername('')
       setTeam('')
-      if (!isAdmin) {
-        void loadParticipationModalImage().then(setParticipationModalImage)
-      }
       setTimeout(() => inputRef.current?.focus(), 100)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Error al registrar'
@@ -283,6 +277,8 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
 
       {!isAdmin && (
         <section className="mt-8 pt-6 border-t border-[#0d3b66]/10 space-y-4">
+          <SponsorBannerCarousel banners={sponsorBanners} className="mb-4" />
+
           <a
             href={CAMPFIRE_JOIN_URL}
             target="_blank"
@@ -335,33 +331,6 @@ export function RegistrationForm({ saveRegistration, isAdmin = false }: Registra
             <AnimatedCounter value={whatsappFollowers} className="text-[#25D366] font-black" />
           </p>
         </section>
-      )}
-
-      {participationModalImage && !isAdmin && (
-        <div
-          className={modalOverlayNestedClass}
-          onClick={() => setParticipationModalImage(null)}
-        >
-          <div
-            className={`${modalDialogSmClass} p-4 relative`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setParticipationModalImage(null)}
-              className="absolute top-3 right-3 p-2 bg-gray-100 rounded-full hover:bg-red-100 hover:text-red-600 z-10"
-              aria-label="Cerrar aviso"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <img
-              src={participationModalImage}
-              alt="Ya participas"
-              className="w-full h-auto rounded-2xl object-contain"
-              decoding="async"
-            />
-          </div>
-        </div>
       )}
 
       {showExamples && (
