@@ -26,6 +26,7 @@ import {
   LogoScaleEditor,
   type HeaderEditMode,
 } from '@/app/components/layout/HeaderLayoutEditor'
+import { HeaderFondoCover } from '@/app/components/layout/HeaderFondoCover'
 import { loadHeaderLayoutsFromStorage, logoMaxHeight } from '@/app/config/headerLayout'
 import { useHeaderLayout } from '@/hooks/useHeaderLayout'
 import { useFondoCdUrl } from '@/hooks/useFondoCdUrl'
@@ -244,19 +245,12 @@ export function MobileShell({
   return (
     <div className="min-h-[100dvh] bg-[#e8f4fc] flex flex-col max-w-md mx-auto relative shadow-xl overflow-x-hidden">
       <header className="relative shrink-0 z-0">
-        <div className="relative h-[200px] sm:h-[256px] overflow-hidden bg-[#b8dff5]">
+        <div className="relative h-[clamp(210px,36dvh,268px)] overflow-hidden bg-[#b8dff5]">
           {!headerEditOpen && resolvedFondoUrl && (
-            <img
-              src={resolvedFondoUrl}
-              alt=""
-              className="absolute left-1/2 top-0 max-w-none pointer-events-none select-none"
-              draggable={false}
-              decoding="async"
-              fetchPriority="high"
-              style={{
-                width: `${activeLayout.bgSizePercent}%`,
-                transform: `translate(calc(-50% + ${activeLayout.bgOffsetX}px), ${activeLayout.bgOffsetY}px)`,
-              }}
+            <HeaderFondoCover
+              url={resolvedFondoUrl}
+              fondoId={displayFondoId}
+              layout={activeLayout}
             />
           )}
 
@@ -313,7 +307,7 @@ export function MobileShell({
         )}
 
         <div
-          className={`absolute inset-x-0 top-[56%] sm:top-[44%] -translate-y-1/2 flex flex-col items-center z-[25] px-6 ${
+          className={`absolute inset-x-0 top-[52%] sm:top-[48%] -translate-y-1/2 flex flex-col items-center z-[25] px-6 ${
             headerEditOpen ? '' : 'pointer-events-none'
           }`}
         >

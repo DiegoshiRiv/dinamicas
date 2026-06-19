@@ -39,7 +39,7 @@ export function HeaderLayoutEditor({
   onClose,
 }: HeaderLayoutEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const imageMetricsRef = useRef({ w: 1600, h: 900 })
+  const imageMetricsRef = useRef({ w: 1600, h: 800 })
   const dragRef = useRef({
     active: false,
     pointerId: -1,

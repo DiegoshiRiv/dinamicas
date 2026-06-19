@@ -13,9 +13,36 @@ export type HeaderLayoutsStore = {
 
 export const DEFAULT_HEADER_LAYOUT: HeaderLayoutConfig = {
   bgOffsetX: 0,
-  bgOffsetY: -40,
+  bgOffsetY: 0,
   bgSizePercent: 100,
   logoScale: 1,
+}
+
+/** Punto focal vertical (0 = arriba, 1 = abajo) para encuadrar los Pokémon en cada fondo. */
+export const FONDO_FOCAL_Y: Record<FondoCdId, number> = {
+  fondoCD: 0.5,
+  fondoCD2: 0.5,
+}
+
+const HEADER_REFERENCE_HEIGHT = 200
+
+export function resolveFondoObjectPosition(
+  layout: HeaderLayoutConfig,
+  fondoId: FondoCdId,
+  containerWidth: number,
+  containerHeight: number,
+): string {
+  const focalY = FONDO_FOCAL_Y[fondoId] ?? 0.63
+  const height = containerHeight || HEADER_REFERENCE_HEIGHT
+  const width = containerWidth || 1
+
+  const yPercent = Math.min(
+    92,
+    Math.max(8, focalY * 100 - (layout.bgOffsetY / height) * 14),
+  )
+  const xPercent = Math.min(92, Math.max(8, 50 - (layout.bgOffsetX / width) * 22))
+
+  return `${xPercent}% ${yPercent}%`
 }
 
 export const HEADER_LAYOUT_STORAGE_KEY = 'headerLayoutConfig'
@@ -27,7 +54,7 @@ export function createDefaultHeaderLayoutsStore(): HeaderLayoutsStore {
   return {
     fondos: {
       fondoCD: { ...DEFAULT_HEADER_LAYOUT },
-      fondoCD2: { ...DEFAULT_HEADER_LAYOUT, bgOffsetY: -40 },
+      fondoCD2: { ...DEFAULT_HEADER_LAYOUT },
     },
   }
 }

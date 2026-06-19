@@ -271,7 +271,7 @@ export function RegistrationForm({
           disabled={loading}
           className="w-full py-4 rounded-xl font-black text-white text-[15px] btn-register-gradient transition-all disabled:opacity-60 disabled:shadow-none"
         >
-          {loading ? 'Registrando...' : isAdmin ? 'Ayudar a registrarse' : 'Registrarse en Dinamica'}
+          {loading ? 'Registrando...' : isAdmin ? 'Ayudar a registrarse' : 'Registrarse en la Dinámica'}
         </button>
       </form>
 
