@@ -100,7 +100,6 @@ export function RegistrationForm({
   const [team, setTeam] = useState<Team | ''>('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
   const [anteriorGifUrl, setAnteriorGifUrl] = useState<string | null>(null)
 
@@ -141,7 +140,6 @@ export function RegistrationForm({
     if (!trimmedUsername) return setError('Escribe tu nombre de usuario')
     if (!selectedTeam) return setError('Selecciona un equipo')
 
-    setLoading(true)
     try {
       const registration = isAdmin
         ? saveRegistration(trimmedUsername, selectedTeam, 'admin-ip', true)
@@ -150,7 +148,6 @@ export function RegistrationForm({
       setSuccess(true)
       setUsername('')
       setTeam('')
-      setLoading(false)
       setTimeout(() => inputRef.current?.focus(), 100)
 
       void registration.catch((error: unknown) => {
@@ -160,7 +157,6 @@ export function RegistrationForm({
       })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Error al registrar'
-      setLoading(false)
       setError(message)
     }
   }
@@ -207,7 +203,6 @@ export function RegistrationForm({
               placeholder="Ej: Pawmot923"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              disabled={loading}
               className="w-full pl-12 pr-4 py-3.5 rounded-[15px] border border-gray-200 bg-white text-[#0d3b66] font-medium placeholder:text-gray-300 focus:outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 transition-all text-base"
             />
           </div>
@@ -246,7 +241,6 @@ export function RegistrationForm({
                   type="button"
                   key={t.value}
                   onClick={() => setTeam(t.value)}
-                  disabled={loading}
                   aria-pressed={selected}
                   className={`
                     rounded-[15px] border-2 flex flex-col items-center justify-center gap-1.5 py-3 px-1
@@ -298,10 +292,9 @@ export function RegistrationForm({
 
         <button
           type="submit"
-          disabled={loading}
-          className="w-full py-4 rounded-xl font-black text-white text-[15px] btn-register-gradient transition-all disabled:opacity-60 disabled:shadow-none"
+          className="w-full py-4 rounded-xl font-black text-white text-[15px] btn-register-gradient transition-all"
         >
-          {loading ? 'Registrando...' : isAdmin ? 'Ayudar a registrarse' : 'Registrarse en la Dinámica'}
+          {isAdmin ? 'Ayudar a registrarse' : 'Registrarse en la Dinámica'}
         </button>
       </form>
 
