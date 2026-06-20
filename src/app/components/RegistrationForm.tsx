@@ -32,7 +32,6 @@ interface RegistrationFormProps {
 
 type Team = 'blue' | 'yellow' | 'red'
 
-const IP_LOOKUP_TIMEOUT_MS = 3500
 const CLIENT_ID_STORAGE_KEY = 'registrationClientId'
 
 function createFallbackClientId() {
@@ -55,29 +54,6 @@ function getFallbackClientId() {
     return next
   } catch {
     return createFallbackClientId()
-  }
-}
-
-async function fetchRegistrationIdentifier() {
-  const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), IP_LOOKUP_TIMEOUT_MS)
-
-  try {
-    const response = await fetch('https://api.ipify.org?format=json', {
-      cache: 'no-store',
-      signal: controller.signal,
-    })
-    if (!response.ok) throw new Error('No se pudo obtener la IP')
-
-    const data = (await response.json()) as { ip?: unknown }
-    if (typeof data.ip === 'string' && data.ip.trim()) return data.ip.trim()
-
-    throw new Error('Respuesta de IP invalida')
-  } catch (error) {
-    console.warn('No se pudo obtener la IP publica, usando identificador local.', error)
-    return getFallbackClientId()
-  } finally {
-    window.clearTimeout(timeout)
   }
 }
 
@@ -167,7 +143,7 @@ export function RegistrationForm({
       if (isAdmin) {
         await saveRegistration(username.trim(), team, 'admin-ip', true)
       } else {
-        const identifier = await fetchRegistrationIdentifier()
+        const identifier = getFallbackClientId()
         await saveRegistration(username.trim(), team, identifier, false)
       }
 
