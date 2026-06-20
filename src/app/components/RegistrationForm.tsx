@@ -130,32 +130,38 @@ export function RegistrationForm({
     return () => observer.disconnect()
   }, [isAdmin])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess(false)
 
-    if (!username.trim()) return setError('Escribe tu nombre de usuario')
-    if (!team) return setError('Selecciona un equipo')
+    const trimmedUsername = username.trim()
+    const selectedTeam = team
+
+    if (!trimmedUsername) return setError('Escribe tu nombre de usuario')
+    if (!selectedTeam) return setError('Selecciona un equipo')
 
     setLoading(true)
     try {
-      if (isAdmin) {
-        await saveRegistration(username.trim(), team, 'admin-ip', true)
-      } else {
-        const identifier = getFallbackClientId()
-        await saveRegistration(username.trim(), team, identifier, false)
-      }
+      const registration = isAdmin
+        ? saveRegistration(trimmedUsername, selectedTeam, 'admin-ip', true)
+        : saveRegistration(trimmedUsername, selectedTeam, getFallbackClientId(), false)
 
       setSuccess(true)
       setUsername('')
       setTeam('')
-      setTimeout(() => inputRef.current?.focus(), 100)
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Error al registrar'
-      setError(message)
-    } finally {
       setLoading(false)
+      setTimeout(() => inputRef.current?.focus(), 100)
+
+      void registration.catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Error al registrar'
+        setSuccess(false)
+        setError(message)
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error al registrar'
+      setLoading(false)
+      setError(message)
     }
   }
 

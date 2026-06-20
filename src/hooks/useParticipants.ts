@@ -8,7 +8,6 @@ import {
 import {
   DEFAULT_ROULETTE_CODE,
   encodeIpForRoulette,
-  extractBaseIp,
   extractRouletteCodeFromIp,
   hasRouletteCodeMarker,
   ipBelongsToRoulette,
@@ -29,29 +28,10 @@ export interface Sponsor { id: string; name: string; url: string; image_url: str
 export interface Banner { id: string; image_url: string; link_url?: string }
 
 const validParticipantStatuses = new Set(['active', 'winner', 'discarded'])
-type RegistrationBanCheck = Pick<BannedUser, 'expires_at' | 'ip_address'>
-type RegistrationIpCheck = Pick<Participant, 'ip_address'>
 
 function normalizeParticipant(row: Participant): Participant {
   const status = validParticipantStatuses.has(row.status) ? row.status : 'active'
   return { ...row, status }
-}
-
-async function getRegistrationCheckData<T>(
-  query: PromiseLike<{ data: T | null; error: unknown }>,
-  label: string,
-): Promise<T | null> {
-  try {
-    const { data, error } = await query
-    if (error) {
-      console.warn(`No se pudo validar ${label}; se continuara con el registro.`, error)
-      return null
-    }
-    return data
-  } catch (error) {
-    console.warn(`No se pudo validar ${label}; se continuara con el registro.`, error)
-    return null
-  }
 }
 
 export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CODE) {
@@ -175,38 +155,6 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
   }
 
   const addParticipant = async (username: string, team: string, ip: string, isAdminBypass: boolean = false) => {
-    if (!isAdminBypass) {
-      const now = new Date()
-      const bannedIps = await getRegistrationCheckData<RegistrationBanCheck[]>(
-        supabase.from('banned_ips').select('expires_at, ip_address'),
-        'baneos',
-      )
-      if (
-        bannedIps &&
-        bannedIps.some((ban) => {
-          const sameRoulette = ipBelongsToRoulette(ban.ip_address, rouletteCode)
-          const sameBaseIp = extractBaseIp(ban.ip_address) === ip
-          return sameRoulette && sameBaseIp && new Date(ban.expires_at) > now
-        })
-      ) {
-        await new Promise(resolve => setTimeout(resolve, 800))
-        return
-      }
-      const existingIp = await getRegistrationCheckData<RegistrationIpCheck[]>(
-        supabase.from('participants').select('ip_address'),
-        'registros existentes',
-      )
-      if (
-        existingIp &&
-        existingIp.some((row) => {
-          const sameRoulette = ipBelongsToRoulette(row.ip_address, rouletteCode)
-          const sameBaseIp = extractBaseIp(row.ip_address) === ip
-          return sameRoulette && sameBaseIp
-        })
-      ) {
-        throw new Error('Solo se permite un registro por persona.')
-      }
-    }
     const rawIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
     const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
     const { error } = await supabase.from('participants').insert([{ username, team, status: 'active', ip_address: finalIp }])
