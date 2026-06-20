@@ -10,6 +10,8 @@ import {
   encodeIpForRoulette,
   extractBaseIp,
   extractRouletteCodeFromIp,
+  hasRouletteCodeMarker,
+  ipBelongsToRoulette,
   sanitizeRouletteCode,
 } from '@/app/utils/rouletteCode'
 
@@ -25,6 +27,13 @@ export interface BannedUser {
 export interface RecentWinner { id: string; username: string; ip_address: string; won_at: string }
 export interface Sponsor { id: string; name: string; url: string; image_url: string; order_index: number }
 export interface Banner { id: string; image_url: string; link_url?: string }
+
+const validParticipantStatuses = new Set(['active', 'winner', 'discarded'])
+
+function normalizeParticipant(row: Participant): Participant {
+  const status = validParticipantStatuses.has(row.status) ? row.status : 'active'
+  return { ...row, status }
+}
 
 export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CODE) {
   const rouletteCode = sanitizeRouletteCode(activeRouletteCode)
@@ -75,15 +84,15 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
       ])
 
       if (pData) {
-        const filtered = (pData as Participant[]).filter(
-          (p) => extractRouletteCodeFromIp(p.ip_address) === rouletteCode
-        )
+        const filtered = (pData as Participant[])
+          .map(normalizeParticipant)
+          .filter((p) => ipBelongsToRoulette(p.ip_address, rouletteCode))
         setParticipants(filtered)
       }
 
       if (bData) {
         const filtered = (bData as BannedUser[]).filter(
-          (b) => extractRouletteCodeFromIp(b.ip_address) === rouletteCode
+          (b) => ipBelongsToRoulette(b.ip_address, rouletteCode)
         )
         setBannedUsers(filtered)
       }
@@ -99,7 +108,7 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
 
       if (rwData) {
         const filtered = (rwData as RecentWinner[]).filter(
-          (w) => extractRouletteCodeFromIp(w.ip_address) === rouletteCode
+          (w) => ipBelongsToRoulette(w.ip_address, rouletteCode)
         )
         setRecentWinners(filtered)
       }
@@ -153,7 +162,7 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
       if (
         bannedIps &&
         bannedIps.some((ban) => {
-          const sameRoulette = extractRouletteCodeFromIp(ban.ip_address) === rouletteCode
+          const sameRoulette = ipBelongsToRoulette(ban.ip_address, rouletteCode)
           const sameBaseIp = extractBaseIp(ban.ip_address) === ip
           return sameRoulette && sameBaseIp && new Date(ban.expires_at) > now
         })
@@ -165,7 +174,7 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
       if (
         existingIp &&
         existingIp.some((row) => {
-          const sameRoulette = extractRouletteCodeFromIp(row.ip_address) === rouletteCode
+          const sameRoulette = ipBelongsToRoulette(row.ip_address, rouletteCode)
           const sameBaseIp = extractBaseIp(row.ip_address) === ip
           return sameRoulette && sameBaseIp
         })
@@ -262,7 +271,11 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
     const { data: participantRows } = await supabase.from('participants').select('id, ip_address')
     const participantIds =
       participantRows
-        ?.filter((row) => extractRouletteCodeFromIp(row.ip_address) === targetCode)
+        ?.filter(
+          (row) =>
+            hasRouletteCodeMarker(row.ip_address) &&
+            extractRouletteCodeFromIp(row.ip_address) === targetCode
+        )
         .map((row) => row.id) ?? []
     if (participantIds.length > 0) {
       await supabase.from('participants').delete().in('id', participantIds)
@@ -271,7 +284,11 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
     const { data: bannedRows } = await supabase.from('banned_ips').select('id, ip_address')
     const bannedIds =
       bannedRows
-        ?.filter((row) => extractRouletteCodeFromIp(row.ip_address) === targetCode)
+        ?.filter(
+          (row) =>
+            hasRouletteCodeMarker(row.ip_address) &&
+            extractRouletteCodeFromIp(row.ip_address) === targetCode
+        )
         .map((row) => row.id) ?? []
     if (bannedIds.length > 0) {
       await supabase.from('banned_ips').delete().in('id', bannedIds)
@@ -280,7 +297,11 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
     const { data: winnerRows } = await supabase.from('recent_winners').select('id, ip_address')
     const winnerIds =
       winnerRows
-        ?.filter((row) => extractRouletteCodeFromIp(row.ip_address) === targetCode)
+        ?.filter(
+          (row) =>
+            hasRouletteCodeMarker(row.ip_address) &&
+            extractRouletteCodeFromIp(row.ip_address) === targetCode
+        )
         .map((row) => row.id) ?? []
     if (winnerIds.length > 0) {
       await supabase.from('recent_winners').delete().in('id', winnerIds)
