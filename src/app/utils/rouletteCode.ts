@@ -22,6 +22,16 @@ export function extractRouletteCodeFromIp(rawIp?: string): string {
   return sanitizeRouletteCode(rawIp.slice(markerIndex + ROOM_MARKER.length))
 }
 
+export function hasRouletteCodeMarker(rawIp?: string): boolean {
+  return Boolean(rawIp && rawIp.includes(ROOM_MARKER))
+}
+
+export function ipBelongsToRoulette(rawIp: string | undefined, rouletteCode: string): boolean {
+  // Legacy/manual rows do not have a marker, so keep them visible in the active roulette.
+  if (!hasRouletteCodeMarker(rawIp)) return true
+  return extractRouletteCodeFromIp(rawIp) === sanitizeRouletteCode(rouletteCode)
+}
+
 export function extractBaseIp(rawIp?: string): string {
   if (!rawIp) return ''
   const markerIndex = rawIp.lastIndexOf(ROOM_MARKER)
