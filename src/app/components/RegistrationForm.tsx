@@ -32,6 +32,55 @@ interface RegistrationFormProps {
 
 type Team = 'blue' | 'yellow' | 'red'
 
+const IP_LOOKUP_TIMEOUT_MS = 3500
+const CLIENT_ID_STORAGE_KEY = 'registrationClientId'
+
+function createFallbackClientId() {
+  const randomId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `client-${randomId}`
+}
+
+function getFallbackClientId() {
+  if (typeof window === 'undefined') return createFallbackClientId()
+
+  try {
+    const existing = window.localStorage.getItem(CLIENT_ID_STORAGE_KEY)
+    if (existing) return existing
+
+    const next = createFallbackClientId()
+    window.localStorage.setItem(CLIENT_ID_STORAGE_KEY, next)
+    return next
+  } catch {
+    return createFallbackClientId()
+  }
+}
+
+async function fetchRegistrationIdentifier() {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), IP_LOOKUP_TIMEOUT_MS)
+
+  try {
+    const response = await fetch('https://api.ipify.org?format=json', {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    if (!response.ok) throw new Error('No se pudo obtener la IP')
+
+    const data = (await response.json()) as { ip?: unknown }
+    if (typeof data.ip === 'string' && data.ip.trim()) return data.ip.trim()
+
+    throw new Error('Respuesta de IP invalida')
+  } catch (error) {
+    console.warn('No se pudo obtener la IP publica, usando identificador local.', error)
+    return getFallbackClientId()
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
 const teams: {
   value: Team
   label: string
@@ -118,9 +167,8 @@ export function RegistrationForm({
       if (isAdmin) {
         await saveRegistration(username.trim(), team, 'admin-ip', true)
       } else {
-        const ipResponse = await fetch('https://api.ipify.org?format=json')
-        const ipData = await ipResponse.json()
-        await saveRegistration(username.trim(), team, ipData.ip, false)
+        const identifier = await fetchRegistrationIdentifier()
+        await saveRegistration(username.trim(), team, identifier, false)
       }
 
       setSuccess(true)
