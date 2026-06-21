@@ -8,7 +8,6 @@ import {
 import {
   DEFAULT_ROULETTE_CODE,
   encodeIpForRoulette,
-  extractBaseIp,
   extractRouletteCodeFromIp,
   sanitizeRouletteCode,
 } from '@/app/utils/rouletteCode'
@@ -40,6 +39,7 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
   
   const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 70 })
   const channelRef = useRef<any>(null)
+  const refetchTimerRef = useRef<number | null>(null)
 
   const fetchBanners = async () => {
     try {
@@ -58,63 +58,71 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
     }
   }
 
+  const fetchParticipantsData = async () => {
+    const [
+      { data: pData },
+      { data: bData },
+      { data: sData },
+      { data: rwData },
+    ] = await Promise.all([
+      supabase.from('participants').select('*').order('created_at', { ascending: true }),
+      supabase.from('banned_ips').select('*').order('created_at', { ascending: false }),
+      supabase.from('sponsors').select('*').order('order_index', { ascending: true }),
+      supabase.from('recent_winners').select('*').order('won_at', { ascending: false }),
+    ])
+
+    if (pData) {
+      const filtered = (pData as Participant[]).filter(
+        (p) => extractRouletteCodeFromIp(p.ip_address) === rouletteCode,
+      )
+      setParticipants(filtered)
+    }
+
+    if (bData) {
+      const filtered = (bData as BannedUser[]).filter(
+        (b) => extractRouletteCodeFromIp(b.ip_address) === rouletteCode,
+      )
+      setBannedUsers(filtered)
+    }
+
+    if (sData) setSponsors(sData as Sponsor[])
+
+    if (rwData) {
+      const filtered = (rwData as RecentWinner[]).filter(
+        (w) => extractRouletteCodeFromIp(w.ip_address) === rouletteCode,
+      )
+      setRecentWinners(filtered)
+    }
+  }
+
   const fetchData = async () => {
     try {
-      const [
-        { data: pData },
-        { data: bData },
-        { data: sData },
-        { data: banData },
-        { data: rwData },
-      ] = await Promise.all([
-        supabase.from('participants').select('*').order('created_at', { ascending: true }),
-        supabase.from('banned_ips').select('*').order('created_at', { ascending: false }),
-        supabase.from('sponsors').select('*').order('order_index', { ascending: true }),
-        supabase.from('sponsor_banners').select('id, image_url, link_url').order('created_at', { ascending: true }),
-        supabase.from('recent_winners').select('*').order('won_at', { ascending: false }),
-      ])
+      await fetchParticipantsData()
+    } catch (error) {
+      console.error('Error cargando:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-      if (pData) {
-        const filtered = (pData as Participant[]).filter(
-          (p) => extractRouletteCodeFromIp(p.ip_address) === rouletteCode
-        )
-        setParticipants(filtered)
-      }
-
-      if (bData) {
-        const filtered = (bData as BannedUser[]).filter(
-          (b) => extractRouletteCodeFromIp(b.ip_address) === rouletteCode
-        )
-        setBannedUsers(filtered)
-      }
-
-      if (sData) setSponsors(sData as Sponsor[])
-
-      if (banData?.length) {
-        const next = banData as Banner[]
-        setBanners(next)
-        saveCachedSponsorBanners(next)
-        preloadSponsorBannerImages(next)
-      }
-
-      if (rwData) {
-        const filtered = (rwData as RecentWinner[]).filter(
-          (w) => extractRouletteCodeFromIp(w.ip_address) === rouletteCode
-        )
-        setRecentWinners(filtered)
-      }
-    } catch (error) { console.error('Error cargando:', error) } finally { setLoading(false) }
+  const scheduleParticipantsRefetch = () => {
+    if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
+    refetchTimerRef.current = window.setTimeout(() => {
+      void fetchParticipantsData().catch((error) => {
+        console.error('Error refrescando participantes:', error)
+      })
+    }, 400)
   }
 
   useEffect(() => {
     const cached = loadCachedSponsorBanners()
     if (cached.length > 0) preloadSponsorBannerImages(cached)
     void fetchBanners()
-    fetchData()
+    void fetchData()
     const dbChannel = supabase.channel('public:db_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'banned_ips' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_winners' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => scheduleParticipantsRefetch())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'banned_ips' }, () => scheduleParticipantsRefetch())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_winners' }, () => scheduleParticipantsRefetch())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_banners' }, () => fetchBanners())
       .subscribe()
 
@@ -133,6 +141,7 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
     channelRef.current = syncChannel
 
     return () => { 
+      if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
       supabase.removeChannel(dbChannel)
       supabase.removeChannel(syncChannel)
     }
@@ -147,37 +156,49 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
   }
 
   const addParticipant = async (username: string, team: string, ip: string, isAdminBypass: boolean = false) => {
+    const rawIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
+    const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
+
     if (!isAdminBypass) {
       const now = new Date()
-      const { data: bannedIps } = await supabase.from('banned_ips').select('expires_at, ip_address')
-      if (
-        bannedIps &&
-        bannedIps.some((ban) => {
-          const sameRoulette = extractRouletteCodeFromIp(ban.ip_address) === rouletteCode
-          const sameBaseIp = extractBaseIp(ban.ip_address) === ip
-          return sameRoulette && sameBaseIp && new Date(ban.expires_at) > now
-        })
-      ) {
-        await new Promise(resolve => setTimeout(resolve, 800))
+      const { data: banRow } = await supabase
+        .from('banned_ips')
+        .select('expires_at')
+        .eq('ip_address', finalIp)
+        .maybeSingle()
+
+      if (banRow && new Date(banRow.expires_at) > now) {
+        await new Promise((resolve) => setTimeout(resolve, 800))
         return
       }
-      const { data: existingIp } = await supabase.from('participants').select('ip_address')
-      if (
-        existingIp &&
-        existingIp.some((row) => {
-          const sameRoulette = extractRouletteCodeFromIp(row.ip_address) === rouletteCode
-          const sameBaseIp = extractBaseIp(row.ip_address) === ip
-          return sameRoulette && sameBaseIp
-        })
-      ) {
+
+      const { data: existingRow } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('ip_address', finalIp)
+        .maybeSingle()
+
+      if (existingRow) {
         throw new Error('Solo se permite un registro por persona.')
       }
     }
-    const rawIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
-    const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
-    const { error } = await supabase.from('participants').insert([{ username, team, status: 'active', ip_address: finalIp }])
-    if (error) { if (error.code === '23505') throw new Error('Usuario ya registrado.'); throw error }
-    await fetchData()
+
+    const { data: inserted, error } = await supabase
+      .from('participants')
+      .insert([{ username, team, status: 'active', ip_address: finalIp }])
+      .select('*')
+      .single()
+
+    if (error) {
+      if (error.code === '23505') throw new Error('Usuario ya registrado.')
+      throw error
+    }
+
+    if (inserted) {
+      setParticipants((prev) => [...prev, inserted as Participant])
+    }
+
+    void fetchParticipantsData()
   }
 
   const deleteParticipant = async (id: string) => { await supabase.from('participants').delete().eq('id', id); await fetchData() }
@@ -251,9 +272,9 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
   const updateSponsorsOrder = async (reorderedList: Sponsor[]) => { setSponsors(reorderedList); const updates = reorderedList.map((s, idx) => ({ id: s.id, name: s.name, url: s.url, image_url: s.image_url, order_index: idx })); await supabase.from('sponsors').upsert(updates) }
   const updateSponsorDetails = async (id: string, image_url: string, url: string) => { await supabase.from('sponsors').update({ image_url, url }).eq('id', id); await fetchData() }
 
-  const addBanner = async (image_url: string, link_url: string = '') => { await supabase.from('sponsor_banners').insert([{ image_url, link_url }]); await fetchData() }
-  const updateBanner = async (id: string, image_url: string, link_url: string = '') => { await supabase.from('sponsor_banners').update({ image_url, link_url }).eq('id', id); await fetchData(); }
-  const deleteBanner = async (id: string) => { await supabase.from('sponsor_banners').delete().eq('id', id); await fetchData() }
+  const addBanner = async (image_url: string, link_url: string = '') => { await supabase.from('sponsor_banners').insert([{ image_url, link_url }]); await fetchBanners() }
+  const updateBanner = async (id: string, image_url: string, link_url: string = '') => { await supabase.from('sponsor_banners').update({ image_url, link_url }).eq('id', id); await fetchBanners() }
+  const deleteBanner = async (id: string) => { await supabase.from('sponsor_banners').delete().eq('id', id); await fetchBanners() }
 
   const deleteRouletteData = async (targetRouletteCode: string) => {
     const targetCode = sanitizeRouletteCode(targetRouletteCode)
