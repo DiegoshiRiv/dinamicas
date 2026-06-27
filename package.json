@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "check:registration-load": "node scripts/load/registration-concurrency-check.mjs",
     "dev": "vite"
   },
   "dependencies": {
