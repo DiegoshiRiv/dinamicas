@@ -32,6 +32,10 @@ interface RegistrationFormProps {
 
 type Team = 'blue' | 'yellow' | 'red'
 
+const IP_LOOKUP_URL = 'https://api.ipify.org?format=json'
+const IP_LOOKUP_TIMEOUT_MS = 5000
+const FALLBACK_DEVICE_ID_KEY = 'pokemon-gdl-registration-device-id'
+
 const teams: {
   value: Team
   label: string
@@ -65,6 +69,52 @@ const teams: {
     icon: moltres,
   },
 ]
+
+function createFallbackDeviceId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function getFallbackDeviceId() {
+  if (typeof window === 'undefined') return createFallbackDeviceId()
+
+  try {
+    const existing = window.localStorage.getItem(FALLBACK_DEVICE_ID_KEY)
+    if (existing) return existing
+
+    const next = createFallbackDeviceId()
+    window.localStorage.setItem(FALLBACK_DEVICE_ID_KEY, next)
+    return next
+  } catch {
+    return createFallbackDeviceId()
+  }
+}
+
+async function getRegistrationIp() {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), IP_LOOKUP_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(IP_LOOKUP_URL, {
+      signal: controller.signal,
+      cache: 'no-store',
+    })
+    if (!response.ok) throw new Error(`IP lookup failed with ${response.status}`)
+
+    const data = (await response.json()) as { ip?: unknown }
+    if (typeof data.ip === 'string' && data.ip.trim()) return data.ip.trim()
+
+    throw new Error('IP lookup returned an empty response')
+  } catch (error) {
+    console.warn('No se pudo obtener la IP publica, usando identificador local.', error)
+    return `device-${getFallbackDeviceId()}`
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
 
 export function RegistrationForm({
   saveRegistration,
@@ -118,9 +168,8 @@ export function RegistrationForm({
       if (isAdmin) {
         await saveRegistration(username.trim(), team, 'admin-ip', true)
       } else {
-        const ipResponse = await fetch('https://api.ipify.org?format=json')
-        const ipData = await ipResponse.json()
-        await saveRegistration(username.trim(), team, ipData.ip, false)
+        const registrationIp = await getRegistrationIp()
+        await saveRegistration(username.trim(), team, registrationIp, false)
       }
 
       setSuccess(true)
