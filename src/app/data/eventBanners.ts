@@ -30,7 +30,7 @@ import tiempoLibreFoto from '@/assets/fotos/tiempolibrefoto.png'
 import tiempoLibreLogo from '@/assets/logos/tiempolibre.png'
 
 // —— GO Fest ——
-import logoFest from '@/assets/logos/LogoFest.png'
+import logoFest from '@/assets/logos/logofest.png'
 import mewtwoImg from '@/assets/Pokemon/mewtwo.png'
 import mewtwoMegaX from '@/assets/Pokemon/150-mewtwo-mega-x.png'
 import mewtwoMegaY from '@/assets/Pokemon/150-mewtwo-mega-y.png'
