@@ -32,10 +32,6 @@ interface RegistrationFormProps {
 
 type Team = 'blue' | 'yellow' | 'red'
 
-const IP_LOOKUP_URL = 'https://api.ipify.org?format=json'
-const IP_LOOKUP_TIMEOUT_MS = 5000
-const FALLBACK_DEVICE_ID_KEY = 'pokemon-gdl-registration-device-id'
-
 const teams: {
   value: Team
   label: string
@@ -70,50 +66,11 @@ const teams: {
   },
 ]
 
-function createFallbackDeviceId() {
+function createRegistrationIdentifier() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
+    return `registration-${crypto.randomUUID()}`
   }
-
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-function getFallbackDeviceId() {
-  if (typeof window === 'undefined') return createFallbackDeviceId()
-
-  try {
-    const existing = window.localStorage.getItem(FALLBACK_DEVICE_ID_KEY)
-    if (existing) return existing
-
-    const next = createFallbackDeviceId()
-    window.localStorage.setItem(FALLBACK_DEVICE_ID_KEY, next)
-    return next
-  } catch {
-    return createFallbackDeviceId()
-  }
-}
-
-async function getRegistrationIp() {
-  const controller = new AbortController()
-  const timeoutId = window.setTimeout(() => controller.abort(), IP_LOOKUP_TIMEOUT_MS)
-
-  try {
-    const response = await fetch(IP_LOOKUP_URL, {
-      signal: controller.signal,
-      cache: 'no-store',
-    })
-    if (!response.ok) throw new Error(`IP lookup failed with ${response.status}`)
-
-    const data = (await response.json()) as { ip?: unknown }
-    if (typeof data.ip === 'string' && data.ip.trim()) return data.ip.trim()
-
-    throw new Error('IP lookup returned an empty response')
-  } catch (error) {
-    console.warn('No se pudo obtener la IP publica, usando identificador local.', error)
-    return `device-${getFallbackDeviceId()}`
-  } finally {
-    window.clearTimeout(timeoutId)
-  }
+  return `registration-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 export function RegistrationForm({
@@ -160,17 +117,29 @@ export function RegistrationForm({
     setError('')
     setSuccess(false)
 
-    if (!username.trim()) return setError('Escribe tu nombre de usuario')
-    if (!team) return setError('Selecciona un equipo')
+    const trimmedUsername = username.trim()
+    const selectedTeam = team
+
+    if (!trimmedUsername) return setError('Escribe tu nombre de usuario')
+    if (!selectedTeam) return setError('Selecciona un equipo')
 
     setLoading(true)
+
+    if (!isAdmin) {
+      setSuccess(true)
+      setUsername('')
+      setTeam('')
+      setLoading(false)
+      setTimeout(() => inputRef.current?.focus(), 100)
+
+      void saveRegistration(trimmedUsername, selectedTeam, createRegistrationIdentifier(), false).catch((error) => {
+        console.error('Error al registrar en segundo plano:', error)
+      })
+      return
+    }
+
     try {
-      if (isAdmin) {
-        await saveRegistration(username.trim(), team, 'admin-ip', true)
-      } else {
-        const registrationIp = await getRegistrationIp()
-        await saveRegistration(username.trim(), team, registrationIp, false)
-      }
+      await saveRegistration(trimmedUsername, selectedTeam, 'admin-ip', true)
 
       setSuccess(true)
       setUsername('')

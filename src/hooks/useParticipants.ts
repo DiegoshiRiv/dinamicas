@@ -158,35 +158,21 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
   const addParticipant = async (username: string, team: string, ip: string, isAdminBypass: boolean = false) => {
     const rawIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
     const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
+    const payload = { username, team, status: 'active', ip_address: finalIp }
 
     if (!isAdminBypass) {
-      const now = new Date()
-      const [{ data: banRow }, { data: existingRow }] = await Promise.all([
-        supabase
-          .from('banned_ips')
-          .select('expires_at')
-          .eq('ip_address', finalIp)
-          .maybeSingle(),
-        supabase
-          .from('participants')
-          .select('id')
-          .eq('ip_address', finalIp)
-          .maybeSingle(),
-      ])
-
-      if (banRow && new Date(banRow.expires_at) > now) {
-        await new Promise((resolve) => setTimeout(resolve, 800))
-        return
+      const { error } = await supabase.from('participants').insert([payload])
+      if (error) {
+        if (error.code === '23505') throw new Error('Usuario ya registrado.')
+        throw error
       }
-
-      if (existingRow) {
-        throw new Error('Solo se permite un registro por persona.')
-      }
+      void fetchParticipantsData()
+      return
     }
 
     const { data: inserted, error } = await supabase
       .from('participants')
-      .insert([{ username, team, status: 'active', ip_address: finalIp }])
+      .insert([payload])
       .select('*')
       .single()
 
