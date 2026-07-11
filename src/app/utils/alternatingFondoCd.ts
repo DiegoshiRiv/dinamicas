@@ -11,8 +11,8 @@ export const FONDO_CD_LABELS: Record<FondoCdId, string> = {
 }
 
 const FONDO_LOADERS: Record<FondoCdId, () => Promise<{ default: string }>> = {
-  fondoCD: () => import('@/assets/FondoCD.png'),
-  fondoCD2: () => import('@/assets/FondoCD2.png'),
+  fondoCD: () => import('@/assets/Fest1.png'),
+  fondoCD2: () => import('@/assets/Fest2.png'),
 }
 
 const FONDO_ORDER: FondoCdId[] = ['fondoCD', 'fondoCD2']
@@ -44,7 +44,7 @@ export function getActiveFondoCdId(): FondoCdId {
   return cachedId
 }
 
-/** Carga solo el fondo activo (evita descargar ambos PNG de ~9 MB). */
+/** Carga solo el fondo activo para no descargar las dos variantes a la vez. */
 export async function resolveFondoCdUrl(id: FondoCdId = getActiveFondoCdId()): Promise<string> {
   const cached = urlById.get(id)
   if (cached) return cached
