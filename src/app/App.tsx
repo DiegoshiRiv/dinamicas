@@ -106,16 +106,16 @@ export default function App() {
     localStorage.setItem('penaltyPercent', penaltyPercent.toString())
   }, [penaltyMonths, penaltyPercent])
 
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(() => loadAdminSession())
+  const isAdmin = Boolean(adminSession)
+
   const {
     participants, bannedUsers, recentWinners, sponsors, banners,
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner, removeRecentWinner, removeMultipleRecentWinners,
     deleteRouletteData, spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig 
-  } = useParticipants(activeRouletteCode)
-
-  const [adminSession, setAdminSession] = useState<AdminSession | null>(() => loadAdminSession())
-  const isAdmin = Boolean(adminSession)
+  } = useParticipants(activeRouletteCode, isAdmin)
 
   const { tournaments } = useTournaments(isAdmin || activeTab === 'tournaments')
   const { polls } = usePolls(isAdmin || activeTab === 'polls')
