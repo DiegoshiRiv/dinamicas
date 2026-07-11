@@ -117,16 +117,29 @@ export function RegistrationForm({
     setError('')
     setSuccess(false)
 
-    if (!username.trim()) return setError('Escribe tu nombre de usuario')
-    if (!team) return setError('Selecciona un equipo')
+    const trimmedUsername = username.trim()
+    const selectedTeam = team
+
+    if (!trimmedUsername) return setError('Escribe tu nombre de usuario')
+    if (!selectedTeam) return setError('Selecciona un equipo')
 
     setLoading(true)
+
+    if (!isAdmin) {
+      setSuccess(true)
+      setUsername('')
+      setTeam('')
+      setLoading(false)
+      setTimeout(() => inputRef.current?.focus(), 100)
+
+      void saveRegistration(trimmedUsername, selectedTeam, createRegistrationIdentifier(), false).catch((error) => {
+        console.error('Error al registrar en segundo plano:', error)
+      })
+      return
+    }
+
     try {
-      if (isAdmin) {
-        await saveRegistration(username.trim(), team, 'admin-ip', true)
-      } else {
-        await saveRegistration(username.trim(), team, createRegistrationIdentifier(), false)
-      }
+      await saveRegistration(trimmedUsername, selectedTeam, 'admin-ip', true)
 
       setSuccess(true)
       setUsername('')
