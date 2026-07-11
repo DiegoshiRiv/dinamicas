@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { supabase } from '@/lib/supabaseClient'
+import { supabase, supabaseKey, supabaseUrl } from '@/lib/supabaseClient'
 import {
   loadCachedSponsorBanners,
   preloadSponsorBannerImages,
@@ -25,7 +25,7 @@ export interface RecentWinner { id: string; username: string; ip_address: string
 export interface Sponsor { id: string; name: string; url: string; image_url: string; order_index: number }
 export interface Banner { id: string; image_url: string; link_url?: string }
 
-export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CODE) {
+export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CODE, enableFastPolling = false) {
   const rouletteCode = sanitizeRouletteCode(activeRouletteCode)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([])
@@ -40,6 +40,7 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
   const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 70 })
   const channelRef = useRef<any>(null)
   const refetchTimerRef = useRef<number | null>(null)
+  const pollingTimerRef = useRef<number | null>(null)
 
   const fetchBanners = async () => {
     try {
@@ -58,6 +59,15 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
     }
   }
 
+  const fetchParticipantsOnly = async () => {
+    const { data } = await supabase
+      .from('participants')
+      .select('*')
+      .order('created_at', { ascending: true })
+
+    if (data) setParticipants(data as Participant[])
+  }
+
   const fetchParticipantsData = async () => {
     const [
       { data: pData },
@@ -72,10 +82,7 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
     ])
 
     if (pData) {
-      const filtered = (pData as Participant[]).filter(
-        (p) => extractRouletteCodeFromIp(p.ip_address) === rouletteCode,
-      )
-      setParticipants(filtered)
+      setParticipants(pData as Participant[])
     }
 
     if (bData) {
@@ -108,7 +115,7 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
   const scheduleParticipantsRefetch = () => {
     if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
     refetchTimerRef.current = window.setTimeout(() => {
-      void fetchParticipantsData().catch((error) => {
+      void fetchParticipantsOnly().catch((error) => {
         console.error('Error refrescando participantes:', error)
       })
     }, 400)
@@ -139,13 +146,21 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
     
     syncChannel.subscribe()
     channelRef.current = syncChannel
+    if (enableFastPolling) {
+      pollingTimerRef.current = window.setInterval(() => {
+        void fetchParticipantsOnly().catch((error) => {
+          console.error('Error refrescando participantes:', error)
+        })
+      }, 2000)
+    }
 
     return () => { 
       if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
+      if (pollingTimerRef.current) window.clearInterval(pollingTimerRef.current)
       supabase.removeChannel(dbChannel)
       supabase.removeChannel(syncChannel)
     }
-  }, [rouletteCode])
+  }, [rouletteCode, enableFastPolling])
 
   const broadcastView = async (view: 'main' | 'roulette', config?: any) => {
     if (channelRef.current) await channelRef.current.send({ type: 'broadcast', event: 'set_view', payload: { view, config } })
@@ -161,10 +176,24 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
     const payload = { username, team, status: 'active', ip_address: finalIp }
 
     if (!isAdminBypass) {
-      const { error } = await supabase.from('participants').insert([payload])
-      if (error) {
-        if (error.code === '23505') throw new Error('Usuario ya registrado.')
-        throw error
+      const response = await fetch(`${supabaseUrl}/rest/v1/participants`, {
+        method: 'POST',
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '')
+        if (response.status === 409 || errorText.includes('23505')) {
+          throw new Error('Usuario ya registrado.')
+        }
+        throw new Error(errorText || 'No se pudo registrar.')
       }
       void fetchParticipantsData()
       return
