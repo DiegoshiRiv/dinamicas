@@ -161,22 +161,23 @@ export function useParticipants(activeRouletteCode: string = DEFAULT_ROULETTE_CO
 
     if (!isAdminBypass) {
       const now = new Date()
-      const { data: banRow } = await supabase
-        .from('banned_ips')
-        .select('expires_at')
-        .eq('ip_address', finalIp)
-        .maybeSingle()
+      const [{ data: banRow }, { data: existingRow }] = await Promise.all([
+        supabase
+          .from('banned_ips')
+          .select('expires_at')
+          .eq('ip_address', finalIp)
+          .maybeSingle(),
+        supabase
+          .from('participants')
+          .select('id')
+          .eq('ip_address', finalIp)
+          .maybeSingle(),
+      ])
 
       if (banRow && new Date(banRow.expires_at) > now) {
         await new Promise((resolve) => setTimeout(resolve, 800))
         return
       }
-
-      const { data: existingRow } = await supabase
-        .from('participants')
-        .select('id')
-        .eq('ip_address', finalIp)
-        .maybeSingle()
 
       if (existingRow) {
         throw new Error('Solo se permite un registro por persona.')
