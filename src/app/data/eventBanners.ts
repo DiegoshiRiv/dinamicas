@@ -8,7 +8,7 @@ import fondoInstinto from '@/assets/fondo especial/Fondo_equipo_Instinto.png'
 import fondoValor from '@/assets/fondo especial/Fondo_equipo_Valor.png'
 import { FONDO_CD_DYNAMIC } from '@/app/utils/alternatingFondoCd'
 import fondoFestMew from '@/assets/wallpaper/proyectomewtwo.jpg'
-import fondoFestMewtwo from '@/assets/fondo especial/270px-Fondo_GO_Fest_2026_Mewtwo.png'
+import fondoFestMewtwo from '@/assets/wallpaper/bannnerFest.png'
 import fondoRelleno from '@/assets/wallpaper/fondoderellenobasicodepokemongo.jpg'
 import blancheImg from '@/assets/Humanos/blanche.png'
 import laprasBlanche from '@/assets/Pokemon/laprasblanche.png'
@@ -381,7 +381,7 @@ const GO_BANNERS: Record<string, Omit<EventBannerConfig, 'id' | 'schedule'> & { 
       'Segundo día gratis, 10:00–19:00. Mega-Mewtwo Y en supermegaincursiones; Mewtwo capturados conocen Onda Mental. Salvajes por bloques: Tierra, Acero, Normal (10–13 h) · Veneno, Bicho, Planta (13–16 h) · Oscuro, Hada, Lucha (16–19 h). Clímax del evento: debut de Zeraora (Fulgor) en investigación especial.',
     banner: fondoFestMewtwo,
     heroImage: mewtwoMegaY,
-    heroImageSecondary: zeraoraImg,
+    heroImageSecondary: logoFest,
     badge: 'GO Fest · Domingo',
     accent: '#a855f7',
     perks: FEST_DOMINGO_PERKS,
