@@ -2,12 +2,11 @@ import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { POKEMON_GO_EVENTS, type PokemonGoEvent } from '@/app/data/pokemonGoEvents'
 import { dateToDayKey } from '@/app/utils/eventDates'
-import cdBanner from '@/assets/Parque Morelos/dia de la comunidad frigibax parque morelos.png'
 import megaRaichuBanner from '@/assets/wallpaper/MegaRaichu.png'
-import skarmoryBanner from '@/assets/wallpaper/mega-skarmory-banner.png'
 import festBanner from '@/assets/wallpaper/bannnerFest.png'
-/** CD y Supermegaincursiones Skarmory en el carrusel presencial. */
-export const PRESENTIAL_CAROUSEL_GO_IDS = ['cd-frigibax', 'supermega-skarmory', 'supermega-raichu'] as const
+
+/** Reuniones presenciales vigentes en el carrusel (sin CD ni eventos pasados). */
+export const PRESENTIAL_CAROUSEL_GO_IDS = ['supermega-raichu'] as const
 
 export type PresencialCarouselSlide = {
   id: string
@@ -23,15 +22,11 @@ export type PresencialCarouselSlide = {
 }
 
 const BANNER_BY_ID: Record<string, string> = {
-  'cd-frigibax': cdBanner,
-  'supermega-skarmory': skarmoryBanner,
   'supermega-raichu': megaRaichuBanner,
   'fest-global': festBanner,
 }
 
 const BADGE_BY_ID: Record<string, string> = {
-  'cd-frigibax': 'Día de la Comunidad',
-  'supermega-skarmory': 'Supermegaincursiones',
   'supermega-raichu': 'Supermegaincursiones',
   'fest-global': 'GO Fest',
 }
@@ -52,7 +47,7 @@ function slideFromGoEvent(ev: PokemonGoEvent): PresencialCarouselSlide {
     dateLabel: formatRangeLabel(ev.startDate, ev.endDate),
     startDate: ev.startDate,
     endDate: ev.endDate,
-    banner: BANNER_BY_ID[ev.id] ?? cdBanner,
+    banner: BANNER_BY_ID[ev.id] ?? megaRaichuBanner,
     badge: BADGE_BY_ID[ev.id],
     accent: ev.accent,
     selloDex: ev.selloDex,

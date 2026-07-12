@@ -1,8 +1,5 @@
-import { CD_FRIGIBAX_HOURS, CD_SOBBLE_HOURS, formatTimeRangeLabel } from '@/app/utils/formatTime'
-import { CALENDAR_GIFS } from '@/app/utils/driveGifs'
+import { formatTimeRangeLabel } from '@/app/utils/formatTime'
 import logoFest from '@/assets/logos/logofest.png'
-import frigibaxLogo from '@/assets/pokemon gif/Frigibax.gif'
-import communityDayGenericLogo from '@/assets/logos/diadelacomunidad.png'
 import megaEvIcon from '@/assets/iconos/megaev.png'
 
 /** Eventos oficiales de Pokémon GO (fechas locales, día inclusive). */
@@ -35,8 +32,6 @@ export interface PokemonGoEvent {
   /** Incluir en la lista semanal (prioridad baja si false). */
   weekList?: boolean
 }
-
-const CD_LOGO = communityDayGenericLogo
 
 export const POKEMON_GO_EVENTS: PokemonGoEvent[] = [
   {
@@ -203,20 +198,6 @@ export const POKEMON_GO_EVENTS: PokemonGoEvent[] = [
     weekList: false,
   },
   {
-    id: 'cd-frigibax',
-    title: 'Día de la Comunidad: Frigibax',
-    description: `${CD_FRIGIBAX_HOURS.event} · SelloDex en reuniones de comunidad`,
-    startDate: '2026-06-20',
-    endDate: '2026-06-20',
-    category: 'community-day',
-    accent: '#06b6d4',
-    tint: 'rgba(6, 182, 212, 0.35)',
-    logo: frigibaxLogo,
-    selloDex: true,
-    calendarMarker: true,
-    weekList: true,
-  },
-  {
     id: 'max-hoothoot',
     title: 'Combates Max: Hoothoot',
     startDate: '2026-06-22',
@@ -267,20 +248,6 @@ export const POKEMON_GO_EVENTS: PokemonGoEvent[] = [
     weekList: true,
   },
   {
-    id: 'supermega-skarmory',
-    title: 'Día de Super Mega Incursiones de Skarmory',
-    description: `${formatTimeRangeLabel(14, 0, 17, 0)} · SelloDex en reunión de comunidad`,
-    startDate: '2026-06-27',
-    endDate: '2026-06-27',
-    category: 'raid-day',
-    accent: '#64748b',
-    tint: 'rgba(100, 116, 139, 0.35)',
-    calendarMarker: true,
-    weekList: true,
-    selloDex: true,
-    logo: megaEvIcon,
-  },
-  {
     id: 'max-pidove',
     title: 'Combates Max: Pidove',
     startDate: '2026-06-29',
@@ -289,20 +256,6 @@ export const POKEMON_GO_EVENTS: PokemonGoEvent[] = [
     accent: '#65a30d',
     tint: 'rgba(101, 163, 13, 0.12)',
     weekList: false,
-  },
-  {
-    id: 'cd-julio',
-    title: 'Día de la Comunidad: Sobble',
-    description: `${CD_SOBBLE_HOURS.event} · SelloDex en reuniones de comunidad`,
-    startDate: '2026-07-04',
-    endDate: '2026-07-04',
-    category: 'community-day',
-    accent: '#0891b2',
-    tint: 'rgba(8, 145, 178, 0.35)',
-    logo: CALENDAR_GIFS.sobble,
-    selloDex: true,
-    calendarMarker: true,
-    weekList: true,
   },
   {
     id: 'fest-chicago',
@@ -364,20 +317,6 @@ export const POKEMON_GO_EVENTS: PokemonGoEvent[] = [
     weekList: true,
   },
   {
-    id: 'cd-agosto',
-    title: 'Día de la Comunidad (agosto)',
-    description: 'SelloDex en reuniones de comunidad',
-    startDate: '2026-08-15',
-    endDate: '2026-08-15',
-    category: 'community-day',
-    accent: '#06b6d4',
-    tint: 'rgba(6, 182, 212, 0.35)',
-    logo: CD_LOGO,
-    selloDex: true,
-    calendarMarker: true,
-    weekList: true,
-  },
-  {
     id: 'raid-day-ago',
     title: 'Día de incursiones (agosto)',
     startDate: '2026-08-22',
@@ -390,11 +329,14 @@ export const POKEMON_GO_EVENTS: PokemonGoEvent[] = [
   },
 ]
 
-/** Eventos GO visibles en calendario e infografías. */
-export const ACTIVE_GO_EVENT_IDS = new Set(['cd-frigibax', 'cd-julio', 'supermega-skarmory', 'supermega-raichu'])
+/**
+ * Eventos GO visibles en calendario e infografías.
+ * Sin Días de la Comunidad ni eventos ya pasados.
+ */
+export const ACTIVE_GO_EVENT_IDS = new Set(['supermega-raichu'])
 
 export function isActiveGoEvent(event: PokemonGoEvent): boolean {
-  return ACTIVE_GO_EVENT_IDS.has(event.id)
+  return ACTIVE_GO_EVENT_IDS.has(event.id) && event.category !== 'community-day'
 }
 
 export const ACTIVE_POKEMON_GO_EVENTS = POKEMON_GO_EVENTS.filter(isActiveGoEvent)
