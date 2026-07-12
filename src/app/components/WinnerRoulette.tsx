@@ -1113,13 +1113,13 @@ export function WinnerRoulette({
       <AlertDialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
         <AlertDialogContent className="rounded-2xl border border-[#dde3f2]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#1d2442] font-black">Reintegrar a todos</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#1d2442] font-black">Reintegrar ganadores</AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-[#5b6483] leading-relaxed text-center">
               <span className="block">
-                Esta acción regresará a todos los usuarios activos a la ruleta.
+                Vuelve a meter en la ruleta a quienes ya ganaron.
               </span>
-              <span className="block mt-1">
-                Los ganadores recientes podrían volver a salir.
+              <span className="block mt-1 font-bold text-[#0d3b66]">
+                No actualiza la lista de registrados: usa «Actualizar lista» para eso.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
