@@ -21,6 +21,7 @@ import {
   type AdminSession,
 } from '@/app/config/admins'
 import { ErrorBoundary } from '@/app/components/ErrorBoundary'
+import { DebugDiagnosticsPanel } from '@/app/components/DebugDiagnosticsPanel'
 import { prefetchClientIp } from '@/app/hooks/useClientIp'
 import {
   modalDialogSmClass,
@@ -116,7 +117,7 @@ export default function App() {
 
   const {
     participants, bannedUsers, recentWinners, sponsors, banners, loading,
-    syncError, realtimeReady, syncParticipantsFresh,
+    syncError, realtimeReady, syncParticipantsFresh, verifyParticipantRegistered,
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner, removeRecentWinner, removeMultipleRecentWinners,
@@ -460,6 +461,7 @@ export default function App() {
         return (
           <RegistrationForm
             saveRegistration={addParticipant}
+            verifyRegistration={verifyParticipantRegistered}
             isAdmin={isAdmin}
             sponsorBanners={banners}
           />
@@ -718,6 +720,7 @@ export default function App() {
         return (
           <RegistrationForm
             saveRegistration={addParticipant}
+            verifyRegistration={verifyParticipantRegistered}
             isAdmin={isAdmin}
             sponsorBanners={banners}
           />
@@ -740,6 +743,12 @@ export default function App() {
       >
         {renderMainContent()}
       </MobileShell>
+
+      <DebugDiagnosticsPanel
+        participantCount={participants.length}
+        realtimeReady={realtimeReady}
+        syncError={syncError}
+      />
 
       {showLogin && (
         <div className={modalOverlayCenterClass} onClick={() => setShowLogin(false)}>

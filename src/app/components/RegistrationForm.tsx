@@ -55,6 +55,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 
 interface RegistrationFormProps {
   saveRegistration: (username: string, team: string, ip: string, isAdminBypass?: boolean) => Promise<void>
+  /** Tras timeout: comprueba si el INSERT tardío sí quedó. */
+  verifyRegistration?: (ip: string) => Promise<boolean>
   isAdmin?: boolean
   sponsorBanners?: Banner[]
 }
@@ -97,6 +99,7 @@ const teams: {
 
 export function RegistrationForm({
   saveRegistration,
+  verifyRegistration,
   isAdmin = false,
   sponsorBanners = [],
 }: RegistrationFormProps) {
@@ -171,7 +174,6 @@ export function RegistrationForm({
     submittingRef.current = true
     setLoading(true)
     const timer = eventLog.timed('register', 'submit')
-    // Cinturón de seguridad: nunca dejar loading > timeout+1s
     const hardStop = window.setTimeout(() => {
       if (submittingRef.current) {
         submittingRef.current = false
@@ -180,6 +182,13 @@ export function RegistrationForm({
         timer.fail(new Error('hardStop'))
       }
     }, REGISTER_TIMEOUT_MS + 1500)
+
+    const markSuccess = () => {
+      setSuccess(true)
+      setUsername('')
+      setTeam('')
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
 
     try {
       const save = isAdmin
@@ -193,12 +202,33 @@ export function RegistrationForm({
       )
 
       timer.end({ ok: true })
-      setSuccess(true)
-      setUsername('')
-      setTeam('')
-      setTimeout(() => inputRef.current?.focus(), 100)
+      markSuccess()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al registrar'
+      const isTimeout = /tardó demasiado/i.test(message)
+
+      // Timeout ≠ fallo seguro: el INSERT pudo completar después. Verifica por IP.
+      if (isTimeout && !isAdmin && clientIp && verifyRegistration) {
+        try {
+          const confirmed = await verifyRegistration(clientIp)
+          if (confirmed) {
+            timer.end({ ok: true, recoveredAfterTimeout: true })
+            markSuccess()
+            return
+          }
+        } catch {
+          // sigue al error visible
+        }
+      }
+
+      // Idempotencia: si el UNIQUE ya tenía el registro, el hook lo trata como OK;
+      // si llega mensaje legacy, también mostrar éxito.
+      if (/ya registrado|un registro por persona/i.test(message) && !isAdmin) {
+        timer.end({ ok: true, idempotentMessage: true })
+        markSuccess()
+        return
+      }
+
       timer.fail(err)
       setError(message)
     } finally {

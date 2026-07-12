@@ -14,6 +14,7 @@ import {
 } from '@/app/utils/rouletteCode'
 import { isValidPublicIp } from '@/app/hooks/useClientIp'
 import { eventLog } from '@/app/utils/eventLog'
+import { diagnostics } from '@/app/utils/runtimeDiagnostics'
 
 const PARTICIPANT_COLUMNS = 'id,username,team,status,ip_address'
 const UPSERT_BATCH_MS = 200
@@ -200,6 +201,7 @@ export function useParticipants(
   const syncParticipantsFresh = useCallback(async (reason: string): Promise<Participant[]> => {
     const gen = ++fetchGenRef.current
     const code = rouletteCodeRef.current
+    const started = performance.now()
     const timer = eventLog.timed('roulette', 'syncParticipantsFresh')
 
     try {
@@ -220,12 +222,22 @@ export function useParticipants(
 
       setParticipants(filtered)
       setSyncError(null)
+      const ms = Math.round(performance.now() - started)
       timer.end({ reason, count: filtered.length, code })
+      diagnostics.patch({
+        lastSyncAt: Date.now(),
+        lastSyncReason: reason,
+        lastSyncCount: filtered.length,
+        lastSyncMs: ms,
+        participantCount: filtered.length,
+        lastError: null,
+      })
       return filtered
     } catch (error) {
       timer.fail(error, { reason, code })
-      setSyncError(error instanceof Error ? error.message : 'Error al sincronizar')
-      // Conserva lista previa: nunca borrar participantes por un fallo de red.
+      const msg = error instanceof Error ? error.message : 'Error al sincronizar'
+      setSyncError(msg)
+      diagnostics.patch({ lastError: msg })
       return participantsRef.current
     }
   }, [])
@@ -320,19 +332,25 @@ export function useParticipants(
 
     syncChannel.subscribe((status) => {
       setRealtimeReady(status === 'SUBSCRIBED')
+      diagnostics.patch({ realtimeStatus: String(status) })
       eventLog.info('roulette', 'sync channel', { status, code: rouletteCode })
     })
     channelRef.current = syncChannel
 
     return () => {
-      supabase.removeChannel(syncChannel)
+      void supabase.removeChannel(syncChannel)
       if (channelRef.current === syncChannel) channelRef.current = null
       setRealtimeReady(false)
+      diagnostics.patch({ realtimeStatus: 'unsubscribed' })
     }
   }, [rouletteCode, syncParticipantsFresh])
 
-  // Realtime DB: SIEMPRE escucha INSERT/UPDATE/DELETE de participants
-  // (aunque loadParticipants sea false) para no perder registros al abrir la ruleta.
+  // Boot de datos (puede cambiar con loadParticipants) — canal DB va aparte.
+  const loadParticipantsRef = useRef(loadParticipants)
+  useEffect(() => {
+    loadParticipantsRef.current = loadParticipants
+  }, [loadParticipants])
+
   useEffect(() => {
     const cached = loadCachedSponsorBanners()
     if (cached.length > 0) preloadSponsorBannerImages(cached)
@@ -357,6 +375,13 @@ export function useParticipants(
     }
     void boot()
 
+    return () => {
+      cancelled = true
+    }
+  }, [rouletteCode, loadParticipants, fetchBanners, fetchParticipantsData, fetchRegistrationMeta])
+
+  // Realtime DB: un solo canal por sala; NO se remonta al flip de loadParticipants.
+  useEffect(() => {
     const dbChannel = supabase.channel(`public:db_changes_${rouletteCode}`)
 
     dbChannel
@@ -392,7 +417,7 @@ export function useParticipants(
         },
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'banned_ips' }, () => {
-        if (loadParticipants) scheduleParticipantsRefetch()
+        if (loadParticipantsRef.current) scheduleParticipantsRefetch()
         else void fetchRegistrationMeta()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_winners' }, () => {
@@ -401,18 +426,17 @@ export function useParticipants(
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_banners' }, () => {
         void fetchBanners()
       })
-      .subscribe()
+      .subscribe((status) => {
+        eventLog.info('realtime', 'db channel', { status, code: rouletteCode })
+      })
 
     return () => {
-      cancelled = true
       if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
-      supabase.removeChannel(dbChannel)
+      void supabase.removeChannel(dbChannel)
     }
   }, [
     rouletteCode,
-    loadParticipants,
     fetchBanners,
-    fetchParticipantsData,
     fetchRegistrationMeta,
     fetchRecentWinners,
     scheduleParticipantsRefetch,
@@ -447,6 +471,34 @@ export function useParticipants(
     }
   }
 
+  const loadParticipantByIp = async (finalIp: string): Promise<Participant | null> => {
+    const { data } = await supabase
+      .from('participants')
+      .select(PARTICIPANT_COLUMNS)
+      .eq('ip_address', finalIp)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return (data as Participant | null) ?? null
+  }
+
+  /**
+   * Tras un timeout de UI: confirma si el INSERT tardío ya quedó en DB.
+   * Evita reintentos que el usuario percibe como "falló" cuando en realidad sí registró.
+   */
+  const verifyParticipantRegistered = async (ip: string): Promise<boolean> => {
+    const finalIp = encodeIpForRoulette(ip, rouletteCode)
+    try {
+      const row = await loadParticipantByIp(finalIp)
+      if (!row) return false
+      if (belongsToRoomRef.current(row.ip_address)) upsertParticipant(row, true)
+      diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const addParticipant = async (
     username: string,
     team: string,
@@ -457,9 +509,20 @@ export function useParticipants(
     const rawIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
     const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
 
+    const finishOk = (row: Participant, extra?: Record<string, unknown>) => {
+      upsertParticipant(row, true)
+      timer.end({ id: row.id, username, ...extra })
+      diagnostics.patch({
+        lastRegisterAt: Date.now(),
+        lastRegisterOk: true,
+        lastError: null,
+      })
+    }
+
     if (!isAdminBypass) {
       if (!isValidPublicIp(ip)) {
         timer.fail(new Error('invalid ip'))
+        diagnostics.patch({ lastRegisterOk: false, lastError: 'invalid ip' })
         throw new Error('No pudimos verificar tu conexión. Reintenta en un momento.')
       }
 
@@ -470,66 +533,63 @@ export function useParticipants(
       if (banned) {
         await new Promise((resolve) => setTimeout(resolve, 800))
         timer.end({ bannedSilent: true })
+        diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
         return
       }
 
-      const alreadyRegistered = participantsRef.current.some(
+      const alreadyLocal = participantsRef.current.find(
         (row) =>
           row.ip_address === finalIp ||
           (extractBaseIp(row.ip_address) === ip && belongsToRoomRef.current(row.ip_address)),
       )
-      if (alreadyRegistered) {
-        timer.fail(new Error('duplicate local'))
-        throw new Error('Solo se permite un registro por persona.')
+      if (alreadyLocal) {
+        // Idempotente: ya está en lista local → éxito (reintento post-timeout).
+        finishOk(alreadyLocal, { idempotent: 'local' })
+        return
       }
 
-      // Chequeo rápido en DB (falla abierta si la red cae: el UNIQUE cubre el insert).
-      const { data: existingRow } = await supabase
-        .from('participants')
-        .select('id')
-        .eq('ip_address', finalIp)
-        .maybeSingle()
+      const existingRow = await loadParticipantByIp(finalIp)
       if (existingRow) {
-        timer.fail(new Error('duplicate db'))
-        throw new Error('Solo se permite un registro por persona.')
+        finishOk(existingRow, { idempotent: 'db-precheck' })
+        return
       }
     }
 
-    // INSERT sin RETURNING: evita falso error si RLS bloquea el SELECT post-insert.
+    // INSERT sin RETURNING. UNIQUE(ip_address) evita duplicados reales.
     const { error } = await supabase
       .from('participants')
       .insert([{ username, team, status: 'active', ip_address: finalIp }])
 
     if (error) {
+      // Carrera timeout/reintento: el INSERT previo ganó → éxito idempotente.
       if (error.code === '23505') {
+        const existing = await loadParticipantByIp(finalIp)
+        if (existing) {
+          finishOk(existing, { idempotent: '23505' })
+          return
+        }
         timer.fail(error, { code: '23505' })
+        diagnostics.patch({ lastRegisterOk: false, lastError: '23505' })
         throw new Error('Usuario ya registrado.')
       }
       timer.fail(error)
+      diagnostics.patch({
+        lastRegisterOk: false,
+        lastError: error.message,
+      })
       throw error
     }
 
-    // Intenta recuperar la fila; si falla, usa fila local optimista.
-    const { data: inserted } = await supabase
-      .from('participants')
-      .select(PARTICIPANT_COLUMNS)
-      .eq('ip_address', finalIp)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    const inserted = await loadParticipantByIp(finalIp)
+    const row: Participant = inserted ?? {
+      id: makeTempId(),
+      username,
+      team: team as Participant['team'],
+      status: 'active',
+      ip_address: finalIp,
+    }
 
-    const row: Participant = inserted
-      ? (inserted as Participant)
-      : {
-          id: makeTempId(),
-          username,
-          team: team as Participant['team'],
-          status: 'active',
-          ip_address: finalIp,
-        }
-
-    upsertParticipant(row, true)
-    timer.end({ id: row.id, username, optimistic: !inserted })
+    finishOk(row, { optimistic: !inserted })
   }
 
   const deleteParticipant = async (id: string) => {
@@ -719,6 +779,7 @@ export function useParticipants(
     syncError,
     realtimeReady,
     syncParticipantsFresh,
+    verifyParticipantRegistered,
     addParticipant,
     deleteParticipant,
     deleteMultiple,

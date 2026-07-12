@@ -1,5 +1,9 @@
 -- Índices y restricciones recomendados para 500+ registros simultáneos.
 -- Ejecutar en el SQL Editor de Supabase antes del evento.
+--
+-- CRÍTICO: UNIQUE(ip_address) es la defensa contra doble registro cuando
+-- el cliente hace timeout y reintenta (el INSERT tardío + reintento).
+-- Sin este índice, un timeout puede crear dos filas.
 
 -- Un registro por IP (incluye código de ruleta en ip_address).
 CREATE UNIQUE INDEX IF NOT EXISTS participants_ip_address_unique
