@@ -454,16 +454,16 @@ export function RegistrationForm({
               En la quedada anterior se reunieron{' '}
               <AnimatedCounter value={PREVIOUS_MEETUP_TRAINERS} /> entrenadores
             </p>
-            <div className="w-20 h-20 shrink-0 flex items-center justify-center overflow-visible">
+            <div className="w-20 h-20 shrink-0 flex items-center justify-center overflow-hidden rounded-xl bg-[#0d3b66]/5">
               {anteriorGifUrl ? (
                 <img
                   src={anteriorGifUrl}
                   alt="Pokémon de la quedada anterior"
-                  className="w-28 h-28 object-contain scale-125 origin-center"
+                  className="max-w-full max-h-full w-full h-full object-contain"
                   decoding="async"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-full bg-[#0d3b66]/5" aria-hidden />
+                <div className="w-full h-full" aria-hidden />
               )}
             </div>
           </div>
