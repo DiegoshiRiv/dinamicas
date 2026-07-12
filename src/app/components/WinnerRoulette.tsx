@@ -379,7 +379,11 @@ export function WinnerRoulette({
       ctx.strokeStyle = 'rgba(255,255,255,0.7)'
       ctx.stroke()
 
-      const showLabels = playersForWheel.length <= 80
+      // Siempre mostrar nombres (antes se ocultaban con >80 y solo se veía el conteo).
+      const n = playersForWheel.length
+      const showPattern = n <= 36
+      const fontSize = n > 120 ? 7 : n > 80 ? 8 : n > 50 ? 10 : n > 20 ? 12 : 16
+      const maxChars = n > 120 ? 8 : n > 80 ? 10 : 15
       let currentAngle = -Math.PI / 2
 
       playersForWheel.forEach((player, idx) => {
@@ -404,61 +408,53 @@ export function WinnerRoulette({
         ctx.fillStyle = sliceGrad
         ctx.fill()
 
-        // Textura sutil tipo rombos en el segmento
-        ctx.save()
-        ctx.beginPath()
-        ctx.moveTo(center, center)
-        ctx.arc(center, center, radius, currentAngle, endAngle)
-        ctx.closePath()
-        ctx.clip()
-        const patternStep = 14
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)'
-        ctx.lineWidth = 1
-        for (let px = center - radius; px < center + radius; px += patternStep) {
-          ctx.beginPath()
-          ctx.moveTo(px, center - radius)
-          ctx.lineTo(px + radius, center + radius)
-          ctx.stroke()
-        }
-        ctx.restore()
-
-        ctx.beginPath()
-        ctx.moveTo(center, center)
-        ctx.arc(center, center, radius, currentAngle, endAngle)
-        ctx.closePath()
-        ctx.lineWidth = 2
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)'
-        ctx.stroke()
-
-        if (showLabels || isVenaderoBlacklisted(player.username)) {
-          const textAngle = currentAngle + sliceAngle / 2
+        // Textura solo con pocos segmentos (en móviles con muchos nombres era muy lento).
+        if (showPattern) {
           ctx.save()
-          ctx.translate(center, center)
-          ctx.rotate(textAngle)
-          ctx.textAlign = 'right'
-          ctx.fillStyle = player.team === 'yellow' ? '#1f2937' : '#ffffff'
-          ctx.shadowColor = 'rgba(0,0,0,0.35)'
-          ctx.shadowBlur = 4
-          const fontSize = playersForWheel.length > 50 ? 10 : playersForWheel.length > 20 ? 12 : 16
-          ctx.font = `bold ${fontSize}px sans-serif`
-          const label = player.username.length > 15 ? `${player.username.substring(0, 15)}...` : player.username
-          ctx.fillText(label, radius - 18, 4)
-          ctx.shadowBlur = 0
+          ctx.beginPath()
+          ctx.moveTo(center, center)
+          ctx.arc(center, center, radius, currentAngle, endAngle)
+          ctx.closePath()
+          ctx.clip()
+          const patternStep = 14
+          ctx.strokeStyle = 'rgba(255,255,255,0.08)'
+          ctx.lineWidth = 1
+          for (let px = center - radius; px < center + radius; px += patternStep) {
+            ctx.beginPath()
+            ctx.moveTo(px, center - radius)
+            ctx.lineTo(px + radius, center + radius)
+            ctx.stroke()
+          }
           ctx.restore()
         }
 
+        ctx.beginPath()
+        ctx.moveTo(center, center)
+        ctx.arc(center, center, radius, currentAngle, endAngle)
+        ctx.closePath()
+        ctx.lineWidth = n > 80 ? 1 : 2
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'
+        ctx.stroke()
+
+        const textAngle = currentAngle + sliceAngle / 2
+        ctx.save()
+        ctx.translate(center, center)
+        ctx.rotate(textAngle)
+        ctx.textAlign = 'right'
+        ctx.fillStyle = player.team === 'yellow' ? '#1f2937' : '#ffffff'
+        ctx.shadowColor = 'rgba(0,0,0,0.35)'
+        ctx.shadowBlur = n > 80 ? 2 : 4
+        ctx.font = `bold ${fontSize}px sans-serif`
+        const label =
+          player.username.length > maxChars
+            ? `${player.username.substring(0, maxChars)}…`
+            : player.username
+        ctx.fillText(label, radius - 14, 3)
+        ctx.shadowBlur = 0
+        ctx.restore()
+
         currentAngle = endAngle
       })
-
-      if (!showLabels) {
-        ctx.fillStyle = '#1f2937'
-        ctx.font = 'bold 28px sans-serif'
-        ctx.textAlign = 'center'
-        ctx.fillText(String(playersForWheel.length), center, center - 8)
-        ctx.font = 'bold 14px sans-serif'
-        ctx.fillStyle = '#6b7280'
-        ctx.fillText('participantes', center, center + 18)
-      }
 
       // Centro: Poké Ball
       const hubSize = radius * 0.22
@@ -477,7 +473,7 @@ export function WinnerRoulette({
       ctx.stroke()
     }
 
-    const delay = isSpinning ? 0 : 300
+    const delay = isSpinning ? 0 : playersForWheel.length === 0 ? 0 : 120
     drawTimerRef.current = window.setTimeout(drawWheel, delay)
 
     return () => {
@@ -503,43 +499,63 @@ export function WinnerRoulette({
       return null
     }
 
-    const winningPlayer = resolveWinner()
-    // Si la lista aún no llegó, giramos con el ganador sintético para no perder el spin.
-    const wheelPlayers =
-      activePlayers.length > 0
-        ? activePlayers
-        : winningPlayer
-          ? [winningPlayer]
-          : []
+    const runSpin = (list: Participant[]) => {
+      const winningPlayer = resolveWinner()
+      const wheelPlayers =
+        list.length > 0
+          ? list
+          : winningPlayer
+            ? [winningPlayer]
+            : []
 
-    const isOldSpin = Date.now() - incomingSpin.localReceivedAt > 2000
+      const isOldSpin = Date.now() - incomingSpin.localReceivedAt > 2000
 
-    if (isOldSpin) {
-      const finalRotation = rotationForEqualWheel(
-        wheelPlayers,
-        incomingSpin.winnerId,
-        0,
+      if (isOldSpin) {
+        const finalRotation = rotationForEqualWheel(
+          wheelPlayers,
+          incomingSpin.winnerId,
+          0,
+        )
+        setRotation(finalRotation)
+        if (winningPlayer) setWinner(winningPlayer)
+        return
+      }
+
+      setIsSpinning(true)
+      setWinner(null)
+
+      setRotation((prev) =>
+        rotationForEqualWheel(wheelPlayers, incomingSpin.winnerId, prev),
       )
-      setRotation(finalRotation)
-      if (winningPlayer) setWinner(winningPlayer)
-      return
+
+      if (spinTimerRef.current) window.clearTimeout(spinTimerRef.current)
+      spinTimerRef.current = window.setTimeout(() => {
+        setIsSpinning(false)
+        if (winningPlayer) {
+          setWinner(winningPlayer)
+          fireWinnerConfetti(winningPlayer.team)
+        }
+      }, SPIN_DURATION_MS)
     }
 
-    setIsSpinning(true)
-    setWinner(null)
-
-    setRotation((prev) =>
-      rotationForEqualWheel(wheelPlayers, incomingSpin.winnerId, prev),
-    )
-
-    if (spinTimerRef.current) window.clearTimeout(spinTimerRef.current)
-    spinTimerRef.current = window.setTimeout(() => {
-      setIsSpinning(false)
-      if (winningPlayer) {
-        setWinner(winningPlayer)
-        fireWinnerConfetti(winningPlayer.team)
+    // Si la lista aún no cargó, sincroniza una vez y luego gira (evita ruleta incompleta).
+    if (activePlayers.length === 0 && syncParticipantsFresh) {
+      let cancelled = false
+      void syncParticipantsFresh('spectator_spin_wait')
+        .then((fresh) => {
+          if (cancelled) return
+          const actives = fresh.filter((p) => p.status === 'active')
+          runSpin(actives.length > 0 ? actives : activePlayers)
+        })
+        .catch(() => {
+          if (!cancelled) runSpin(activePlayers)
+        })
+      return () => {
+        cancelled = true
       }
-    }, SPIN_DURATION_MS)
+    }
+
+    runSpin(activePlayers)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingSpin, isSpectator])
 
@@ -551,11 +567,21 @@ export function WinnerRoulette({
     let cancelled = false
     if (!syncParticipantsFresh) return
     setIsSyncing(true)
-    void syncParticipantsFresh('roulette_open')
-      .catch(() => {})
-      .finally(() => {
+    const warm = async () => {
+      try {
+        let list = await syncParticipantsFresh('roulette_open')
+        // Reintento si llegó vacío (red lenta / race al abrir).
+        if (!cancelled && list.filter((p) => p.status === 'active').length === 0) {
+          await new Promise((r) => window.setTimeout(r, 600))
+          if (!cancelled) list = await syncParticipantsFresh('roulette_open_retry')
+        }
+      } catch {
+        /* syncError queda en el hook */
+      } finally {
         if (!cancelled) setIsSyncing(false)
-      })
+      }
+    }
+    void warm()
     return () => {
       cancelled = true
     }
@@ -822,6 +848,21 @@ export function WinnerRoulette({
               <p className="mt-1 text-[11px] sm:text-xs text-[#5b6483] font-semibold">
                 Estás viendo la ruleta en tiempo real.
               </p>
+              <p className="mt-1 text-[11px] font-bold text-[#0d3b66]">
+                {listLoading || isSyncing
+                  ? 'Cargando nombres…'
+                  : `${activePlayers.length} participante${activePlayers.length === 1 ? '' : 's'}`}
+              </p>
+              {syncParticipantsFresh && (
+                <button
+                  type="button"
+                  onClick={() => void forceSyncParticipants()}
+                  disabled={isSpinning || isSyncing}
+                  className="mt-2 text-[11px] font-bold text-[#3d76e5] underline underline-offset-2 disabled:opacity-50"
+                >
+                  {isSyncing ? 'Sincronizando…' : 'Actualizar lista'}
+                </button>
+              )}
             </div>
           )}
 

@@ -359,6 +359,10 @@ export function useParticipants(
       setRealtimeReady(status === 'SUBSCRIBED')
       diagnostics.patch({ realtimeStatus: String(status) })
       eventLog.info('roulette', 'sync channel', { status, code: rouletteCode })
+      // Precarga lista al conectar: el espectador no espera a abrir la ruleta.
+      if (status === 'SUBSCRIBED') {
+        void syncParticipantsFresh('channel_subscribed')
+      }
     })
     channelRef.current = syncChannel
 
