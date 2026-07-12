@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Button } from '@/app/components/ui/button'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, RefreshCw } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
 import { Input } from '@/app/components/ui/input'
 import type { Participant, RecentWinner, IncomingSpin } from '@/hooks/useParticipants'
@@ -851,18 +851,33 @@ export function WinnerRoulette({
               </h2>
               <p className="mt-1 text-[11px] sm:text-xs text-[#5b6483] font-semibold leading-relaxed">
                 <span className="block">¡Gira la ruleta y descubre al afortunado!</span>
-                <span className="block">Los participantes entran al registrarse.</span>
+                <span className="block font-bold text-[#0d3b66]">
+                  {listLoading || isSyncing
+                    ? 'Actualizando lista…'
+                    : `${activePlayers.length} en la ruleta`}
+                </span>
               </p>
             </div>
             <div className="flex justify-center w-full">
               <div className="flex flex-wrap justify-center gap-2">
                 <Button
+                  type="button"
+                  onClick={() => void forceSyncParticipants()}
+                  disabled={isSpinning || isSyncing || !syncParticipantsFresh}
+                  className="bg-[#23c8b6] hover:bg-[#1fb7a7] text-white font-bold rounded-xl border border-[#1fb7a7] px-3 h-10 flex items-center gap-1.5 text-[10px] sm:text-xs shadow-sm"
+                >
+                  <RefreshCw className={`w-4 h-4 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isSyncing ? 'ACTUALIZANDO…' : 'ACTUALIZAR LISTA'}</span>
+                </Button>
+                <Button
                   onClick={() => setConfirmResetOpen(true)}
                   disabled={isSpinning}
-                  className="bg-[#f3f6ff] hover:bg-[#e8eefc] text-[#2e3c62] font-bold rounded-xl border border-[#dce3f6] px-3 h-10 flex items-center gap-1.5 text-[10px] sm:text-xs"
+                  variant="outline"
+                  className="bg-white hover:bg-[#f7f9ff] text-[#5b6483] font-bold rounded-xl border border-[#dce3f6] px-3 h-10 flex items-center gap-1.5 text-[10px] sm:text-xs"
+                  title="Devuelve a los ganadores a la ruleta (no actualiza la lista)"
                 >
                   <RotateCcw className="w-4 h-4 shrink-0" />
-                  <span>REINTEGRAR A TODOS</span>
+                  <span>REINTEGRAR GANADORES</span>
                 </Button>
                 {onDeleteRouletteCode && activeRouletteCode !== 'general' && (
                   <Button
@@ -876,6 +891,11 @@ export function WinnerRoulette({
                 )}
               </div>
             </div>
+            {forceSyncStatus && (
+              <p className="text-center text-[11px] font-semibold text-[#5b6483] leading-snug px-1 max-w-sm">
+                {forceSyncStatus}
+              </p>
+            )}
           </div>
         )}
 
@@ -985,20 +1005,6 @@ export function WinnerRoulette({
 
           {!isSpectator && (
             <div className="w-[90%] sm:w-full mx-auto space-y-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void forceSyncParticipants()}
-                disabled={isSpinning || isSyncing || !syncParticipantsFresh}
-                className="w-full h-11 rounded-2xl border-[#dce3f6] bg-[#f3f6ff] hover:bg-[#e8eefc] text-[#0d3b66] font-bold text-sm"
-              >
-                {isSyncing ? 'Sincronizando participantes…' : 'Forzar sincronización'}
-              </Button>
-              {forceSyncStatus && (
-                <p className="text-center text-[11px] font-semibold text-[#5b6483] leading-snug px-1">
-                  {forceSyncStatus}
-                </p>
-              )}
               <Button 
                 onClick={() => void spinRoulette()} 
                 disabled={isSpinning || isSyncing || (playersWithWeight.length === 0 && !listLoading)} 
@@ -1012,7 +1018,7 @@ export function WinnerRoulette({
                 ) : isSyncing || listLoading ? (
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full register-active-spin" />
-                    SINCRONIZANDO...
+                    ACTUALIZANDO LISTA...
                   </span>
                 ) : (
                   '¡GIRAR RULETA!'
