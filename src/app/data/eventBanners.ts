@@ -304,8 +304,8 @@ const SKARMORY_SUPERMEGA_PERKS: BannerPerk[] = [
 ]
 
 const RAICHU_SUPERMEGA_PERKS: BannerPerk[] = [
-  { icon: RAICHU_SUPERMEGA_IMAGES.megaIcon, label: 'Debut de Mega-Raichu X', tone: 'dark' },
-  { icon: RAICHU_SUPERMEGA_IMAGES.megaIcon, label: 'Debut de Mega-Raichu Y', tone: 'dark' },
+  { icon: RAICHU_SUPERMEGA_IMAGES.mega, label: 'Debut de Mega-Raichu X', tone: 'dark' },
+  { icon: RAICHU_SUPERMEGA_IMAGES.megaY, label: 'Debut de Mega-Raichu Y', tone: 'dark' },
   { icon: shinyImg, label: 'Más probabilidad de Raichu brillante', tone: 'dark' },
   { icon: megaEvIcon, label: 'Meganivel 1 desbloqueado al capturar', tone: 'dark' },
   { icon: paseRemotoImg, label: 'Límite de pases remotos será de 20', tone: 'dark' },
@@ -503,9 +503,10 @@ const GO_BANNERS: Record<string, Omit<EventBannerConfig, 'id' | 'schedule'> & { 
     scheduleColor: '#d97706',
     modalTitle: 'Sábado 18 de julio de 2026',
     description: `${RAICHU_DEBUT_INTRO} ${RAICHU_SHINY_FOOTNOTE}`,
-    banner: RAICHU_SUPERMEGA_IMAGES.mega,
+    banner: RAICHU_SUPERMEGA_IMAGES.banner,
     heroImage: RAICHU_SUPERMEGA_IMAGES.mega,
     heroImageSecondary: RAICHU_SUPERMEGA_IMAGES.megaY,
+    photoHero: true,
     badge: 'Supermegaincursiones',
     accent: '#f59e0b',
     selloDex: true,

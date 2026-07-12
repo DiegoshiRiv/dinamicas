@@ -1,6 +1,7 @@
 import megaRaichuBanner from '@/assets/wallpaper/MegaRaichu.png'
+import megaRaichuX from '@/assets/Pokemon/mega-raichu-x.png'
+import megaRaichuY from '@/assets/Pokemon/mega-raichu-y.png'
 import pasePremiumImg from '@/assets/objetos del juego/pase_premium.png'
-import { CALENDAR_GIFS } from '@/app/utils/driveGifs'
 import { formatClockLabel, formatTimeRangeLabel } from '@/app/utils/formatTime'
 
 const STEELIX_IMG = 'https://img.pokemondb.net/sprites/home/normal/steelix.png'
@@ -14,8 +15,10 @@ export const RAICHU_SUPERMEGA_SCHEDULE =
   `Sábado 18 de julio de 2026 · ${RAICHU_SUPERMEGA_HOURS.event}`
 
 export const RAICHU_SUPERMEGA_IMAGES = {
-  mega: CALENDAR_GIFS.megaRaichuX,
-  megaY: CALENDAR_GIFS.megaRaichuY,
+  /** Wallpaper del banner principal. */
+  banner: megaRaichuBanner,
+  mega: megaRaichuX,
+  megaY: megaRaichuY,
   megaIcon: megaRaichuBanner,
   premiumPass: pasePremiumImg,
   steelix: STEELIX_IMG,
