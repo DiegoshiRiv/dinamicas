@@ -22,6 +22,7 @@ import {
 } from '@/app/config/admins'
 import { ErrorBoundary } from '@/app/components/ErrorBoundary'
 import { DebugDiagnosticsPanel } from '@/app/components/DebugDiagnosticsPanel'
+import { EventAnnouncementOverlay } from '@/app/components/EventAnnouncementOverlay'
 import { prefetchClientIp } from '@/app/hooks/useClientIp'
 import { getOrCreateDeviceToken } from '@/app/utils/registrationToken'
 import {
@@ -122,11 +123,15 @@ export default function App() {
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner, removeRecentWinner, removeMultipleRecentWinners,
-    deleteRouletteData, spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig 
+    deleteRouletteData, spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig,
+    roundVersion, showWaitingAnnouncement,
   } = useParticipants(activeRouletteCode, {
     // Solo admin/ruleta hacen fetch inicial completo; realtime INSERT siempre está activo.
     loadParticipants: isAdmin || currentView === 'roulette' || activeTab === 'ruleta',
   })
+
+  const [announcementDismissed, setAnnouncementDismissed] = useState(false)
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false)
 
   const { tournaments } = useTournaments(isAdmin || activeTab === 'tournaments')
   const { polls } = usePolls(isAdmin || activeTab === 'polls')
@@ -145,6 +150,33 @@ export default function App() {
     void prefetchClientIp()
     getOrCreateDeviceToken()
   }, [])
+
+  // Al limpiar ruleta (nueva ronda): anuncio otra vez + permitir registro.
+  useEffect(() => {
+    setAnnouncementDismissed(false)
+    setAlreadyRegistered(false)
+  }, [roundVersion])
+
+  useEffect(() => {
+    if (isAdmin) return
+    let cancelled = false
+    const check = async () => {
+      try {
+        const ip = await prefetchClientIp()
+        const ok = await verifyParticipantRegistered(ip)
+        if (!cancelled) setAlreadyRegistered(ok)
+      } catch {
+        if (!cancelled) setAlreadyRegistered(false)
+      }
+    }
+    void check()
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, activeRouletteCode, roundVersion])
+
+  const announcementOpen =
+    !isAdmin && showWaitingAnnouncement && !announcementDismissed
 
   useEffect(() => {
     saveAdminSession(adminSession)
@@ -466,6 +498,9 @@ export default function App() {
             verifyRegistration={verifyParticipantRegistered}
             isAdmin={isAdmin}
             sponsorBanners={banners}
+            alreadyRegistered={alreadyRegistered}
+            onViewRoulette={openRoulette}
+            onRegistered={() => setAlreadyRegistered(true)}
           />
         )
       case 'friends':
@@ -725,6 +760,9 @@ export default function App() {
             verifyRegistration={verifyParticipantRegistered}
             isAdmin={isAdmin}
             sponsorBanners={banners}
+            alreadyRegistered={alreadyRegistered}
+            onViewRoulette={openRoulette}
+            onRegistered={() => setAlreadyRegistered(true)}
           />
         )
     }
@@ -732,6 +770,10 @@ export default function App() {
 
   return (
     <>
+      <EventAnnouncementOverlay
+        open={announcementOpen}
+        onDismiss={() => setAnnouncementDismissed(true)}
+      />
       <MobileShell
         activeTab={activeTab}
         onTabChange={handleTabChange}
@@ -742,6 +784,8 @@ export default function App() {
         onAdminLogout={handleLogout}
         showTournaments={isAdmin || hasActiveTournaments}
         showPolls={isAdmin || hasActivePolls}
+        registerNavLabel={alreadyRegistered && !isAdmin ? 'VER RULETA' : undefined}
+        onRegisterNav={alreadyRegistered && !isAdmin ? openRoulette : undefined}
       >
         {renderMainContent()}
       </MobileShell>

@@ -59,6 +59,10 @@ interface RegistrationFormProps {
   verifyRegistration?: (ip: string) => Promise<boolean>
   isAdmin?: boolean
   sponsorBanners?: Banner[]
+  /** Usuario ya tiene registro activo en esta ronda. */
+  alreadyRegistered?: boolean
+  onViewRoulette?: () => void
+  onRegistered?: () => void
 }
 
 type Team = 'blue' | 'yellow' | 'red'
@@ -102,6 +106,9 @@ export function RegistrationForm({
   verifyRegistration,
   isAdmin = false,
   sponsorBanners = [],
+  alreadyRegistered = false,
+  onViewRoulette,
+  onRegistered,
 }: RegistrationFormProps) {
   const [username, setUsername] = useState('')
   const [team, setTeam] = useState<Team | ''>('')
@@ -187,6 +194,7 @@ export function RegistrationForm({
       setSuccess(true)
       setUsername('')
       setTeam('')
+      onRegistered?.()
       setTimeout(() => inputRef.current?.focus(), 100)
     }
 
@@ -241,9 +249,31 @@ export function RegistrationForm({
   return (
     <>
       <h1 className="text-[1.05rem] font-black text-[#0d3b66] uppercase tracking-tight text-center leading-snug">
-        {isAdmin ? 'Registrar persona' : 'Registrarse en la dinámica'}
+        {isAdmin
+          ? 'Registrar persona'
+          : alreadyRegistered
+            ? 'Ya estás en la dinámica'
+            : 'Registrarse en la dinámica'}
       </h1>
 
+      {!isAdmin && alreadyRegistered ? (
+        <div className="mt-4 mb-6 space-y-4 text-center">
+          <div className="rounded-2xl border border-[#bbf7d0] bg-[#f0fdf4] px-4 py-4">
+            <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-green-600" />
+            <p className="text-sm font-bold text-[#166534] leading-relaxed">
+              Tu registro ya quedó. Cuando empiece el sorteo, mira la ruleta en vivo.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onViewRoulette?.()}
+            className="w-full rounded-2xl bg-[#0d3b66] py-4 text-base font-black text-white shadow-lg active:scale-[0.99]"
+          >
+            Ver la ruleta
+          </button>
+        </div>
+      ) : (
+        <>
       <p className="text-[13px] text-[#0d3b66]/85 text-center mt-2 mb-5 leading-relaxed px-1">
         {isAdmin ? (
           'Estás en modo admin, puedes añadir a cualquier persona.'
@@ -453,6 +483,8 @@ export function RegistrationForm({
             <AnimatedCounter value={whatsappFollowers} className="text-[#25D366] font-black" />
           </p>
         </section>
+      )}
+        </>
       )}
 
       {showExamples && (

@@ -75,6 +75,10 @@ export function useParticipants(
 
   const [spectatorView, setSpectatorView] = useState<'main' | 'roulette'>('main')
   const [incomingSpin, setIncomingSpin] = useState<IncomingSpin | null>(null)
+  /** Sube cuando admin limpia la ruleta → nueva ronda de registro. */
+  const [roundVersion, setRoundVersion] = useState(0)
+  /** false cuando la ruleta gira (o se recibió el giro). */
+  const [showWaitingAnnouncement, setShowWaitingAnnouncement] = useState(true)
 
   const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 70 })
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
@@ -346,6 +350,7 @@ export function useParticipants(
     })
 
     syncChannel.on('broadcast', { event: 'spin' }, (payload) => {
+      setShowWaitingAnnouncement(false)
       setIncomingSpin({
         rotation: payload.payload.rotation,
         winnerId: payload.payload.winnerId,
@@ -353,6 +358,13 @@ export function useParticipants(
         winnerTeam: payload.payload.winnerTeam,
         localReceivedAt: Date.now(),
       })
+    })
+
+    syncChannel.on('broadcast', { event: 'round_reset' }, () => {
+      setShowWaitingAnnouncement(true)
+      setIncomingSpin(null)
+      setRoundVersion((v) => v + 1)
+      eventLog.info('roulette', 'round_reset received', { code: rouletteCode })
     })
 
     syncChannel.subscribe((status) => {
@@ -491,11 +503,25 @@ export function useParticipants(
     winnerUsername?: string,
     winnerTeam?: Participant['team'],
   ) => {
+    setShowWaitingAnnouncement(false)
     if (channelRef.current) {
       await channelRef.current.send({
         type: 'broadcast',
         event: 'spin',
         payload: { rotation, winnerId, winnerUsername, winnerTeam },
+      })
+    }
+  }
+
+  const broadcastRoundReset = async () => {
+    setShowWaitingAnnouncement(true)
+    setIncomingSpin(null)
+    setRoundVersion((v) => v + 1)
+    if (channelRef.current) {
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'round_reset',
+        payload: { at: Date.now() },
       })
     }
   }
@@ -777,10 +803,14 @@ export function useParticipants(
   }
 
   const clearAll = async () => {
-    if (participants.length === 0) return
+    if (participants.length === 0) {
+      await broadcastRoundReset()
+      return
+    }
     const ids = participants.map((p) => p.id)
     await supabase.from('participants').delete().in('id', ids)
     setParticipants([])
+    await broadcastRoundReset()
   }
 
   const removeRecentWinner = async (id: string) => {
@@ -913,8 +943,11 @@ export function useParticipants(
     deleteRouletteData,
     spectatorView,
     incomingSpin,
+    roundVersion,
+    showWaitingAnnouncement,
     broadcastView,
     broadcastSpin,
+    broadcastRoundReset,
     rouletteConfig,
   }
 }

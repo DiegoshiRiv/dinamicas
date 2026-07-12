@@ -71,6 +71,10 @@ interface MobileShellProps {
   onAdminLogout?: () => void
   showTournaments?: boolean
   showPolls?: boolean
+  /** Si ya está registrado: etiqueta del botón central (ej. VER RULETA). */
+  registerNavLabel?: string
+  /** Si ya está registrado: al tocar REGISTRO abre la ruleta. */
+  onRegisterNav?: () => void
 }
 
 const menuItems: {
@@ -122,6 +126,8 @@ export function MobileShell({
   onAdminLogout,
   showTournaments = true,
   showPolls = true,
+  registerNavLabel,
+  onRegisterNav,
 }: MobileShellProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [faqOpen, setFaqOpen] = useState(false)
@@ -168,12 +174,20 @@ export function MobileShell({
       onOpenRoulette()
       return
     }
+    if (id === 'register' && onRegisterNav) {
+      onRegisterNav()
+      return
+    }
     onTabChange(id)
   }
 
   const handleNavPress = (id: BottomNavId) => {
     if (id === 'roulette-action') {
       onOpenRoulette()
+      return
+    }
+    if (id === 'register' && onRegisterNav) {
+      onRegisterNav()
       return
     }
     onTabChange(id)
@@ -215,6 +229,8 @@ export function MobileShell({
   const renderSlotButton = (id: BottomNavId, isCenter: boolean) => {
     const meta = NAV_META[id]
     const isActive = id === activeId
+    const label =
+      id === 'register' && registerNavLabel ? registerNavLabel : meta.label
 
     return (
       <button
@@ -236,7 +252,7 @@ export function MobileShell({
           renderIcon(id, false, isActive)
         )}
         <span className={`text-[9px] font-bold tracking-wide text-center leading-tight truncate max-w-[56px] ${isCenter ? 'mt-1 font-black uppercase' : ''}`}>
-          {meta.label}
+          {label}
         </span>
       </button>
     )
