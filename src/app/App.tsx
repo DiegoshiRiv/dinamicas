@@ -23,6 +23,7 @@ import {
 import { ErrorBoundary } from '@/app/components/ErrorBoundary'
 import { DebugDiagnosticsPanel } from '@/app/components/DebugDiagnosticsPanel'
 import { prefetchClientIp } from '@/app/hooks/useClientIp'
+import { getOrCreateDeviceToken } from '@/app/utils/registrationToken'
 import {
   modalDialogSmClass,
   modalOverlayCenterClass,
@@ -142,6 +143,7 @@ export default function App() {
 
   useEffect(() => {
     void prefetchClientIp()
+    getOrCreateDeviceToken()
   }, [])
 
   useEffect(() => {

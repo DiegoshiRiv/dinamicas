@@ -15,8 +15,13 @@ import {
 import { isValidPublicIp } from '@/app/hooks/useClientIp'
 import { eventLog } from '@/app/utils/eventLog'
 import { diagnostics } from '@/app/utils/runtimeDiagnostics'
+import {
+  encodeRegistrationToken,
+  getOrCreateDeviceToken,
+} from '@/app/utils/registrationToken'
 
-const PARTICIPANT_COLUMNS = 'id,username,team,status,ip_address'
+const PARTICIPANT_COLUMNS = 'id,username,team,status,ip_address,registration_token'
+const PARTICIPANT_COLUMNS_LEGACY = 'id,username,team,status,ip_address'
 const UPSERT_BATCH_MS = 200
 
 export interface Participant {
@@ -25,6 +30,7 @@ export interface Participant {
   team: 'blue' | 'yellow' | 'red'
   status: 'active' | 'winner' | 'discarded'
   ip_address?: string
+  registration_token?: string | null
   created_at?: string
 }
 export interface BannedUser {
@@ -205,10 +211,19 @@ export function useParticipants(
     const timer = eventLog.timed('roulette', 'syncParticipantsFresh')
 
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('participants')
         .select(PARTICIPANT_COLUMNS)
         .order('created_at', { ascending: true })
+
+      if (error && /registration_token/i.test(error.message)) {
+        const legacy = await supabase
+          .from('participants')
+          .select(PARTICIPANT_COLUMNS_LEGACY)
+          .order('created_at', { ascending: true })
+        data = legacy.data
+        error = legacy.error
+      }
 
       if (error) throw error
       if (gen !== fetchGenRef.current) {
@@ -247,12 +262,20 @@ export function useParticipants(
     const code = rouletteCodeRef.current
     const timer = eventLog.timed('roulette', 'fetchParticipantsData')
 
-    const [pRes, bRes, sRes, rwRes] = await Promise.all([
+    const [pResRaw, bRes, sRes, rwRes] = await Promise.all([
       supabase.from('participants').select(PARTICIPANT_COLUMNS).order('created_at', { ascending: true }),
       supabase.from('banned_ips').select('*').order('created_at', { ascending: false }),
       supabase.from('sponsors').select('*').order('order_index', { ascending: true }),
       supabase.from('recent_winners').select('*').order('won_at', { ascending: false }),
     ])
+
+    let pRes = pResRaw
+    if (pRes.error && /registration_token/i.test(pRes.error.message)) {
+      pRes = await supabase
+        .from('participants')
+        .select(PARTICIPANT_COLUMNS_LEGACY)
+        .order('created_at', { ascending: true })
+    }
 
     if (gen !== fetchGenRef.current) {
       timer.end({ stale: true, code })
@@ -471,28 +494,72 @@ export function useParticipants(
     }
   }
 
+  const selectParticipants = async (query: {
+    eq?: { col: string; val: string }
+    orderAsc?: boolean
+    orderDesc?: boolean
+    limit?: number
+    single?: boolean
+  }) => {
+    let builder = supabase.from('participants').select(PARTICIPANT_COLUMNS)
+    if (query.eq) builder = builder.eq(query.eq.col, query.eq.val)
+    if (query.orderAsc) builder = builder.order('created_at', { ascending: true })
+    if (query.orderDesc) builder = builder.order('created_at', { ascending: false })
+    if (query.limit) builder = builder.limit(query.limit)
+
+    let result = query.single || query.limit === 1
+      ? await builder.maybeSingle()
+      : await builder
+
+    if (result.error && /registration_token/i.test(result.error.message)) {
+      let legacy = supabase.from('participants').select(PARTICIPANT_COLUMNS_LEGACY)
+      if (query.eq) legacy = legacy.eq(query.eq.col, query.eq.val)
+      if (query.orderAsc) legacy = legacy.order('created_at', { ascending: true })
+      if (query.orderDesc) legacy = legacy.order('created_at', { ascending: false })
+      if (query.limit) legacy = legacy.limit(query.limit)
+      result = query.single || query.limit === 1 ? await legacy.maybeSingle() : await legacy
+    }
+    return result
+  }
+
   const loadParticipantByIp = async (finalIp: string): Promise<Participant | null> => {
-    const { data } = await supabase
-      .from('participants')
-      .select(PARTICIPANT_COLUMNS)
-      .eq('ip_address', finalIp)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    const { data } = await selectParticipants({
+      eq: { col: 'ip_address', val: finalIp },
+      orderDesc: true,
+      limit: 1,
+      single: true,
+    })
+    return (data as Participant | null) ?? null
+  }
+
+  const loadParticipantByToken = async (token: string): Promise<Participant | null> => {
+    const { data, error } = await selectParticipants({
+      eq: { col: 'registration_token', val: token },
+      single: true,
+    })
+    if (error) return null
     return (data as Participant | null) ?? null
   }
 
   /**
-   * Tras un timeout de UI: confirma si el INSERT tardío ya quedó en DB.
-   * Evita reintentos que el usuario percibe como "falló" cuando en realidad sí registró.
+   * Tras un timeout de UI: confirma si el INSERT tardío ya quedó (token primero, luego IP).
    */
   const verifyParticipantRegistered = async (ip: string): Promise<boolean> => {
     const finalIp = encodeIpForRoulette(ip, rouletteCode)
+    const roomToken = encodeRegistrationToken(getOrCreateDeviceToken(), rouletteCode)
     try {
-      const row = await loadParticipantByIp(finalIp)
-      if (!row) return false
-      if (belongsToRoomRef.current(row.ip_address)) upsertParticipant(row, true)
+      const byToken = await loadParticipantByToken(roomToken)
+      if (byToken && belongsToRoomRef.current(byToken.ip_address)) {
+        upsertParticipant(byToken, true)
+        diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
+        eventLog.info('register', 'verify ok by token', { id: byToken.id })
+        return true
+      }
+      const byIp = await loadParticipantByIp(finalIp)
+      if (!byIp) return false
+      if (belongsToRoomRef.current(byIp.ip_address)) upsertParticipant(byIp, true)
       diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
+      eventLog.info('register', 'verify ok by ip', { id: byIp.id })
       return true
     } catch {
       return false
@@ -508,6 +575,9 @@ export function useParticipants(
     const timer = eventLog.timed('register', 'addParticipant')
     const rawIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
     const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
+    const roomToken = isAdminBypass
+      ? encodeRegistrationToken(`admin-${Date.now()}`, rouletteCode)
+      : encodeRegistrationToken(getOrCreateDeviceToken(), rouletteCode)
 
     const finishOk = (row: Participant, extra?: Record<string, unknown>) => {
       upsertParticipant(row, true)
@@ -539,31 +609,62 @@ export function useParticipants(
 
       const alreadyLocal = participantsRef.current.find(
         (row) =>
+          row.registration_token === roomToken ||
           row.ip_address === finalIp ||
           (extractBaseIp(row.ip_address) === ip && belongsToRoomRef.current(row.ip_address)),
       )
       if (alreadyLocal) {
-        // Idempotente: ya está en lista local → éxito (reintento post-timeout).
         finishOk(alreadyLocal, { idempotent: 'local' })
+        return
+      }
+
+      const byToken = await loadParticipantByToken(roomToken)
+      if (byToken) {
+        finishOk(byToken, { idempotent: 'token-precheck' })
         return
       }
 
       const existingRow = await loadParticipantByIp(finalIp)
       if (existingRow) {
-        finishOk(existingRow, { idempotent: 'db-precheck' })
+        finishOk(existingRow, { idempotent: 'ip-precheck' })
         return
       }
     }
 
-    // INSERT sin RETURNING. UNIQUE(ip_address) evita duplicados reales.
-    const { error } = await supabase
-      .from('participants')
-      .insert([{ username, team, status: 'active', ip_address: finalIp }])
+    // INSERT: IP ya es por sala ({ip}::r:{code}). Token = identidad de dispositivo+sala.
+    const payload: Record<string, string> = {
+      username,
+      team,
+      status: 'active',
+      ip_address: finalIp,
+      registration_token: roomToken,
+    }
+
+    let { error } = await supabase.from('participants').insert([payload])
+
+    // Si la columna aún no existe en Supabase, reintenta sin token (compat).
+    if (error && /registration_token/i.test(error.message)) {
+      eventLog.warn('register', 'registration_token column missing; fallback insert', {
+        message: error.message,
+      })
+      const fallback = await supabase.from('participants').insert([
+        { username, team, status: 'active', ip_address: finalIp },
+      ])
+      error = fallback.error
+    }
 
     if (error) {
-      // Carrera timeout/reintento: el INSERT previo ganó → éxito idempotente.
       if (error.code === '23505') {
-        const existing = await loadParticipantByIp(finalIp)
+        // Log explícito: en eventos reales debe ser reintento, no colisión rara.
+        eventLog.warn('register', '23505 unique conflict (likely retry)', {
+          code: error.code,
+          details: error.details,
+          message: error.message,
+          finalIp,
+          roomTokenPrefix: roomToken.slice(0, 12),
+        })
+        const existing =
+          (await loadParticipantByToken(roomToken)) || (await loadParticipantByIp(finalIp))
         if (existing) {
           finishOk(existing, { idempotent: '23505' })
           return
@@ -580,13 +681,15 @@ export function useParticipants(
       throw error
     }
 
-    const inserted = await loadParticipantByIp(finalIp)
+    const inserted =
+      (await loadParticipantByToken(roomToken)) || (await loadParticipantByIp(finalIp))
     const row: Participant = inserted ?? {
       id: makeTempId(),
       username,
       team: team as Participant['team'],
       status: 'active',
       ip_address: finalIp,
+      registration_token: roomToken,
     }
 
     finishOk(row, { optimistic: !inserted })
