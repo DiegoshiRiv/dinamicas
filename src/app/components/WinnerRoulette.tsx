@@ -161,6 +161,41 @@ interface WinnerRouletteProps {
 
 type WheelPlayer = Participant & { weight: number }
 
+const LAST_WIN_TEAM_KEY = (code: string) => `dinamicas:lastWinTeam:${sanitizeRouletteCode(code)}`
+
+function readLastWinTeam(code: string): Participant['team'] | null {
+  try {
+    const raw = sessionStorage.getItem(LAST_WIN_TEAM_KEY(code))
+    if (raw === 'blue' || raw === 'yellow' || raw === 'red') return raw
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+function writeLastWinTeam(code: string, team: Participant['team']) {
+  try {
+    sessionStorage.setItem(LAST_WIN_TEAM_KEY(code), team)
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Baja mucho el peso del equipo que acaba de ganar, si hay gente de otros equipos. */
+function applyTeamVariety<T extends { team: Participant['team']; secretWeight: number }>(
+  players: T[],
+  lastTeam: Participant['team'] | null,
+): T[] {
+  if (!lastTeam) return players
+  const hasOtherTeam = players.some((p) => p.team !== lastTeam && p.secretWeight > 0)
+  if (!hasOtherTeam) return players
+  // ~6% del peso original → casi nunca repite equipo; si solo queda ese equipo, no se aplica.
+  return players.map((p) =>
+    p.team === lastTeam ? { ...p, secretWeight: p.secretWeight * 0.06 } : p,
+  )
+}
+
+
 /** Ruleta con segmentos iguales (espectador): ángulo para que el puntero caiga en el ganador */
 function rotationForEqualWheel(
   players: Participant[],
@@ -690,14 +725,17 @@ export function WinnerRoulette({
       if (isNerfed(p.username)) trackIp(nerfedIpsRef.current, p.ip_address)
     })
 
-    const secretPlayers = weighted.map((p) => {
-      let secretWeight = p.weight
-      const isIpNerfed = ipIsTracked(nerfedIpsRef.current, p.ip_address)
-      if (isNerfed(p.username) || isIpNerfed) {
-        secretWeight = p.weight * 0.01
-      }
-      return { ...p, secretWeight }
-    })
+    const secretPlayers = applyTeamVariety(
+      weighted.map((p) => {
+        let secretWeight = p.weight
+        const isIpNerfed = ipIsTracked(nerfedIpsRef.current, p.ip_address)
+        if (isNerfed(p.username) || isIpNerfed) {
+          secretWeight = p.weight * 0.01
+        }
+        return { ...p, secretWeight }
+      }),
+      readLastWinTeam(activeRouletteCode),
+    )
 
     const secretTotalWeight = secretPlayers.reduce((acc, p) => acc + p.secretWeight, 0)
 
@@ -718,6 +756,8 @@ export function WinnerRoulette({
       setIsSpinning(false)
       return
     }
+
+    writeLastWinTeam(activeRouletteCode, winningPlayer.team)
 
     const visualIndex = wheelPlayers.findIndex((p) => p.id === winningPlayer.id)
     const n = wheelPlayers.length || 1
