@@ -60,6 +60,7 @@ import { meetingPoints } from '@/app/data/meetingPoints'
 import { CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
 import tiempoLibreLogo from '@/assets/logos/tiempolibre.png'
 import communityDayLogo from '@/assets/logos/diadelacomunidad.png'
+import sellodexImg from '@/assets/recursos/sellodex.png'
 import {
   modalOverlayClass,
   modalSheetBodyClass,

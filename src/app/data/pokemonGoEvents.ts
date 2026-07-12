@@ -1,6 +1,6 @@
 import { CD_FRIGIBAX_HOURS, CD_SOBBLE_HOURS, formatTimeRangeLabel } from '@/app/utils/formatTime'
 import { CALENDAR_GIFS } from '@/app/utils/driveGifs'
-import logoFest from '@/assets/logos/LogoFest.png'
+import logoFest from '@/assets/logos/logofest.png'
 import frigibaxLogo from '@/assets/pokemon gif/Frigibax.gif'
 import communityDayGenericLogo from '@/assets/logos/diadelacomunidad.png'
 import megaEvIcon from '@/assets/iconos/megaev.png'
