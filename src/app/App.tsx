@@ -20,6 +20,7 @@ import {
   saveAdminSession,
   type AdminSession,
 } from '@/app/config/admins'
+import { ErrorBoundary } from '@/app/components/ErrorBoundary'
 import { prefetchClientIp } from '@/app/hooks/useClientIp'
 import {
   modalDialogSmClass,
@@ -115,12 +116,13 @@ export default function App() {
 
   const {
     participants, bannedUsers, recentWinners, sponsors, banners, loading,
+    syncError, realtimeReady, syncParticipantsFresh,
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner, removeRecentWinner, removeMultipleRecentWinners,
     deleteRouletteData, spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig 
   } = useParticipants(activeRouletteCode, {
-    // Solo admin/ruleta cargan la lista completa; al broadcast set_view se precarga igual.
+    // Solo admin/ruleta hacen fetch inicial completo; realtime INSERT siempre está activo.
     loadParticipants: isAdmin || currentView === 'roulette' || activeTab === 'ruleta',
   })
 
@@ -244,8 +246,21 @@ export default function App() {
     setActiveRouletteCode((prev) => (prev === code ? DEFAULT_ROULETTE_CODE : prev))
   }
 
-  const handleStartRoulette = () => { setCurrentView('roulette'); broadcastView('roulette', { penaltyMonths, penaltyPercent }); }
-  const handleExitRoulette = () => { setCurrentView('main'); broadcastView('main'); }
+  const handleStartRoulette = () => {
+    setCurrentView('roulette')
+    void syncParticipantsFresh('admin_open_roulette')
+    void broadcastView('roulette', { penaltyMonths, penaltyPercent })
+  }
+  const handleExitRoulette = () => { setCurrentView('main'); void broadcastView('main') }
+
+  const openRoulette = () => {
+    setActiveTab('ruleta')
+    if (isAdmin) handleStartRoulette()
+    else {
+      setCurrentView('roulette')
+      void syncParticipantsFresh('spectator_open_roulette')
+    }
+  }
 
   const optimizeImageFile = (file: File, maxDimension = 1200, quality = 0.85): Promise<string> => {
     if (file.type === 'image/svg+xml') {
@@ -409,12 +424,6 @@ export default function App() {
     navAvailability.tournaments ||
     tournaments.some((t) => t.status === 'open' || t.status === 'active')
 
-  const openRoulette = () => {
-    setActiveTab('ruleta')
-    if (isAdmin) handleStartRoulette()
-    else setCurrentView('roulette')
-  }
-
   const handleTabChange = (tab: NavTab) => {
     if (currentView === 'roulette') setCurrentView('main')
     setActiveTab(tab)
@@ -424,6 +433,7 @@ export default function App() {
     if (currentView === 'roulette') {
       return (
         <Suspense fallback={<TabFallback />}>
+          <ErrorBoundary label="roulette">
           <WinnerRoulette 
             onBack={isAdmin ? handleExitRoulette : () => setCurrentView('main')} 
             participants={participants} recentWinners={recentWinners} updateStatus={updateStatus} onResetGame={resetGame} 
@@ -437,7 +447,11 @@ export default function App() {
             onDeleteRouletteCode={isAdmin ? handleDeleteRouletteCode : undefined}
             registrationBaseUrl={registrationUrl}
             listLoading={loading}
+            syncParticipantsFresh={syncParticipantsFresh}
+            realtimeReady={realtimeReady}
+            syncError={syncError}
           />
+          </ErrorBoundary>
         </Suspense>
       )
     }

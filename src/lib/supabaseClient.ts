@@ -1,11 +1,24 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-// Asegúrate de tener estas variables en tu archivo .env en la raíz (junto a package.json)
-export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-export const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+export const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Faltan las variables de entorno VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY')
-}
+export const supabaseConfigError =
+  !supabaseUrl || !supabaseKey
+    ? 'Faltan las variables de entorno VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY'
+    : null
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+/**
+ * Cliente único. Si faltan env vars no lanzamos en import-time (evita pantalla blanca);
+ * las llamadas fallarán con mensaje claro.
+ */
+export const supabase: SupabaseClient = supabaseConfigError
+  ? (new Proxy(
+      {},
+      {
+        get() {
+          throw new Error(supabaseConfigError)
+        },
+      },
+    ) as SupabaseClient)
+  : createClient(supabaseUrl!, supabaseKey!)

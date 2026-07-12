@@ -152,6 +152,10 @@ interface WinnerRouletteProps {
   registrationBaseUrl?: string
   /** true mientras se descarga la lista (espectadores: evita "Sin participantes" falso) */
   listLoading?: boolean
+  /** Consulta fresca a Supabase antes de sortear / al abrir */
+  syncParticipantsFresh?: (reason: string) => Promise<Participant[]>
+  realtimeReady?: boolean
+  syncError?: string | null
 }
 
 type WheelPlayer = Participant & { weight: number }
@@ -182,10 +186,14 @@ export function WinnerRoulette({
   rouletteCodes = [], activeRouletteCode = 'general', onChangeRouletteCode,
   onCreateRouletteCode, onDeleteRouletteCode, registrationBaseUrl = '',
   listLoading = false,
+  syncParticipantsFresh,
+  realtimeReady = false,
+  syncError = null,
 }: WinnerRouletteProps) {
   
   const [rotation, setRotation] = useState(0)
   const [isSpinning, setIsSpinning] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [winner, setWinner] = useState<Participant | null>(null)
   const [clientIp, setClientIp] = useState<string>('')
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
@@ -317,7 +325,7 @@ export function WinnerRoulette({
         }
         ctx.fillStyle = '#5b6483'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center'
         ctx.fillText(
-          listLoading ? 'Cargando...' : 'Sin participantes',
+          listLoading || isSyncing ? 'Cargando...' : 'Sin participantes',
           center,
           center + radius * 0.45,
         )
@@ -473,7 +481,7 @@ export function WinnerRoulette({
     return () => {
       if (drawTimerRef.current) window.clearTimeout(drawTimerRef.current)
     }
-  }, [playersForWheel, totalWeight, isSpinning, wheelAssetsReady, listLoading])
+  }, [playersForWheel, totalWeight, isSpinning, wheelAssetsReady, listLoading, isSyncing])
 
   useEffect(() => {
     if (!isSpectator || !incomingSpin) return
@@ -537,38 +545,85 @@ export function WinnerRoulette({
     if (spinTimerRef.current) window.clearTimeout(spinTimerRef.current)
   }, [])
 
-  const spinRoulette = () => {
-    if (isSpinning || playersWithWeight.length === 0 || isSpectator) return
-    setIsSpinning(true); setWinner(null)
+  useEffect(() => {
+    let cancelled = false
+    if (!syncParticipantsFresh) return
+    setIsSyncing(true)
+    void syncParticipantsFresh('roulette_open')
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setIsSyncing(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [syncParticipantsFresh, activeRouletteCode])
 
-    // 1. Rastrear IPs solo para usuarios nerfeados (venaderos: 0% solo por nombre)
-    playersWithWeight.forEach(p => {
-      if (isNerfed(p.username)) trackIp(nerfedIpsRef.current, p.ip_address)
-    });
+  const spinRoulette = async () => {
+    if (isSpinning || isSpectator || isSyncing) return
 
-    // 2. Pesos ocultos (pool ya excluye venaderos)
-    const secretPlayers = playersWithWeight.map(p => {
-      let secretWeight = p.weight;
-      const isIpNerfed = ipIsTracked(nerfedIpsRef.current, p.ip_address)
-
-      if (isNerfed(p.username) || isIpNerfed) {
-        secretWeight = p.weight * 0.01;
+    setIsSyncing(true)
+    let freshList = participants
+    try {
+      if (syncParticipantsFresh) {
+        freshList = await syncParticipantsFresh('before_spin')
       }
-      
-      return { ...p, secretWeight };
-    });
+    } finally {
+      setIsSyncing(false)
+    }
 
-    const secretTotalWeight = secretPlayers.reduce((acc, p) => acc + p.secretWeight, 0);
+    const freshActive = freshList.filter((p) => p.status === 'active')
+    const freshEligible = freshActive.filter((p) => !cannotWin(p))
+    const now = new Date()
+    const weighted: WheelPlayer[] = freshEligible.map((p) => {
+      let weight = 100
+      const recent = recentWinnerByUsername.get(p.username)
+      if (recent) {
+        const wonAt = new Date(recent.won_at)
+        const monthsDiff = (now.getTime() - wonAt.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+        if (monthsDiff <= penaltyMonths) {
+          weight = Math.max(1, 100 - penaltyPercent)
+        }
+      }
+      return { ...p, weight }
+    })
+    const wheelPlayers: WheelPlayer[] = freshActive.map((p) => ({ ...p, weight: 1 }))
 
-    // 3. Elegir ganador (solo elegibles; venaderos nunca)
-    let winningPlayer = playersWithWeight[0]
+    if (weighted.length === 0) {
+      console.warn('[dinamicas:roulette] spin aborted: no eligible players after sync', {
+        total: freshList.length,
+        active: freshActive.length,
+        realtimeReady,
+      })
+      return
+    }
+
+    setIsSpinning(true)
+    setWinner(null)
+
+    weighted.forEach((p) => {
+      if (isNerfed(p.username)) trackIp(nerfedIpsRef.current, p.ip_address)
+    })
+
+    const secretPlayers = weighted.map((p) => {
+      let secretWeight = p.weight
+      const isIpNerfed = ipIsTracked(nerfedIpsRef.current, p.ip_address)
+      if (isNerfed(p.username) || isIpNerfed) {
+        secretWeight = p.weight * 0.01
+      }
+      return { ...p, secretWeight }
+    })
+
+    const secretTotalWeight = secretPlayers.reduce((acc, p) => acc + p.secretWeight, 0)
+
+    let winningPlayer = weighted[0]
     if (secretTotalWeight > 0) {
       const randomWeightPoint = Math.random() * secretTotalWeight
       let currentWeightSum = 0
       for (const p of secretPlayers) {
         currentWeightSum += p.secretWeight
         if (randomWeightPoint <= currentWeightSum) {
-          winningPlayer = playersWithWeight.find((orig) => orig.id === p.id) || p
+          winningPlayer = weighted.find((orig) => orig.id === p.id) || p
           break
         }
       }
@@ -579,20 +634,15 @@ export function WinnerRoulette({
       return
     }
 
-    // 4. Aguja visual sobre la ruleta completa (incluye venaderos visibles)
-    const visualIndex = playersForWheel.findIndex(p => p.id === winningPlayer.id);
-    const n = playersForWheel.length;
-    
-    let newRotation = rotation + (360 * 5); 
-
-    if (isSpectator || true) { 
-      const sliceDeg = 360 / n;
-      const sliceCenter = visualIndex * sliceDeg + (sliceDeg / 2);
-      const targetMod = (360 - sliceCenter + 360) % 360;
-      const currentMod = ((rotation % 360) + 360) % 360;
-      const delta = (targetMod - currentMod + 360) % 360;
-      newRotation += delta;
-    }
+    const visualIndex = wheelPlayers.findIndex((p) => p.id === winningPlayer.id)
+    const n = wheelPlayers.length || 1
+    let newRotation = rotation + 360 * 5
+    const sliceDeg = 360 / n
+    const sliceCenter = Math.max(0, visualIndex) * sliceDeg + sliceDeg / 2
+    const targetMod = (360 - sliceCenter + 360) % 360
+    const currentMod = ((rotation % 360) + 360) % 360
+    const delta = (targetMod - currentMod + 360) % 360
+    newRotation += delta
 
     setRotation(newRotation)
 
@@ -604,8 +654,8 @@ export function WinnerRoulette({
     spinTimerRef.current = window.setTimeout(() => {
       setIsSpinning(false)
       setWinner(winningPlayer)
-      if (!cannotWin(winningPlayer)) {
-        updateStatus(winningPlayer.id, 'winner')
+      if (!cannotWin(winningPlayer) && !String(winningPlayer.id).startsWith('local-')) {
+        void updateStatus(winningPlayer.id, 'winner')
       }
       fireWinnerConfetti(winningPlayer.team)
     }, SPIN_DURATION_MS)
@@ -795,19 +845,31 @@ export function WinnerRoulette({
 
           {!isSpectator && (
             <Button 
-              onClick={spinRoulette} 
-              disabled={isSpinning || playersWithWeight.length === 0} 
-              className={`w-[90%] sm:w-full h-14 sm:h-16 bg-[#0d3b66] hover:bg-[#0a2f52] text-white rounded-2xl text-lg sm:text-xl font-black tracking-wide disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 mx-auto border-2 border-[#0a2f52] ${!isSpinning && playersWithWeight.length > 0 ? 'roulette-btn-idle' : ''}`}
+              onClick={() => void spinRoulette()} 
+              disabled={isSpinning || isSyncing || (playersWithWeight.length === 0 && !listLoading)} 
+              className={`w-[90%] sm:w-full h-14 sm:h-16 bg-[#0d3b66] hover:bg-[#0a2f52] text-white rounded-2xl text-lg sm:text-xl font-black tracking-wide disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 mx-auto border-2 border-[#0a2f52] ${!isSpinning && !isSyncing && playersWithWeight.length > 0 ? 'roulette-btn-idle' : ''}`}
             >
               {isSpinning ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full register-active-spin" />
                   GIRANDO...
                 </span>
+              ) : isSyncing || listLoading ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full register-active-spin" />
+                  SINCRONIZANDO...
+                </span>
               ) : (
                 '¡GIRAR RULETA!'
               )}
             </Button>
+          )}
+          {(syncError || (!realtimeReady && !isSpectator)) && (
+            <p className="text-center text-[11px] font-semibold text-[#5b6483] px-4 mt-2">
+              {syncError
+                ? `Sincronización: ${syncError}. Se conserva la última lista.`
+                : 'Conectando canal en vivo…'}
+            </p>
           )}
         </div>
       </div>

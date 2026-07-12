@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 
 const IP_CACHE_KEY = 'client-public-ip'
-const PER_PROVIDER_MS = 3500
-const MAX_ROUNDS = 2
+const PER_PROVIDER_MS = 2500
+const MAX_ROUNDS = 1
 
 type IpProvider = (signal: AbortSignal) => Promise<string>
 

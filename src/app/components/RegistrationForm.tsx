@@ -20,22 +20,32 @@ import { SponsorBannerCarousel } from '@/app/components/SponsorBannerCarousel'
 import type { Banner } from '@/hooks/useParticipants'
 import { useWhatsAppFollowers } from '@/app/hooks/useWhatsAppFollowers'
 import { useClientIp } from '@/app/hooks/useClientIp'
+import { eventLog } from '@/app/utils/eventLog'
 import {
   modalOverlayClass,
   modalSheetClass,
 } from '@/app/layout/mobileShellLayout'
 
-const REGISTER_TIMEOUT_MS = 15000
+const REGISTER_TIMEOUT_MS = 12000
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let settled = false
   return new Promise<T>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error(message)), ms)
+    const timer = window.setTimeout(() => {
+      if (settled) return
+      settled = true
+      reject(new Error(message))
+    }, ms)
     promise.then(
       (value) => {
+        if (settled) return
+        settled = true
         window.clearTimeout(timer)
         resolve(value)
       },
       (err) => {
+        if (settled) return
+        settled = true
         window.clearTimeout(timer)
         reject(err)
       },
@@ -160,6 +170,17 @@ export function RegistrationForm({
 
     submittingRef.current = true
     setLoading(true)
+    const timer = eventLog.timed('register', 'submit')
+    // Cinturón de seguridad: nunca dejar loading > timeout+1s
+    const hardStop = window.setTimeout(() => {
+      if (submittingRef.current) {
+        submittingRef.current = false
+        setLoading(false)
+        setError('La conexión tardó demasiado. Revisa tu red e intenta de nuevo.')
+        timer.fail(new Error('hardStop'))
+      }
+    }, REGISTER_TIMEOUT_MS + 1500)
+
     try {
       const save = isAdmin
         ? saveRegistration(username.trim(), team, 'admin-ip', true)
@@ -171,14 +192,17 @@ export function RegistrationForm({
         'La conexión tardó demasiado. Revisa tu red e intenta de nuevo.',
       )
 
+      timer.end({ ok: true })
       setSuccess(true)
       setUsername('')
       setTeam('')
       setTimeout(() => inputRef.current?.focus(), 100)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al registrar'
+      timer.fail(err)
       setError(message)
     } finally {
+      window.clearTimeout(hardStop)
       setLoading(false)
       submittingRef.current = false
     }

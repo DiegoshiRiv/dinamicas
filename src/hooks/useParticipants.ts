@@ -13,11 +13,19 @@ import {
   sanitizeRouletteCode,
 } from '@/app/utils/rouletteCode'
 import { isValidPublicIp } from '@/app/hooks/useClientIp'
+import { eventLog } from '@/app/utils/eventLog'
 
 const PARTICIPANT_COLUMNS = 'id,username,team,status,ip_address'
 const UPSERT_BATCH_MS = 200
 
-export interface Participant { id: string; username: string; team: 'blue' | 'yellow' | 'red'; status: 'active' | 'winner' | 'discarded'; ip_address?: string }
+export interface Participant {
+  id: string
+  username: string
+  team: 'blue' | 'yellow' | 'red'
+  status: 'active' | 'winner' | 'discarded'
+  ip_address?: string
+  created_at?: string
+}
 export interface BannedUser {
   id: string
   ip_address: string
@@ -38,6 +46,10 @@ export type IncomingSpin = {
   localReceivedAt: number
 }
 
+function makeTempId() {
+  return `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
 export function useParticipants(
   activeRouletteCode: string = DEFAULT_ROULETTE_CODE,
   options: { loadParticipants?: boolean } = {},
@@ -50,10 +62,12 @@ export function useParticipants(
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
   const [banners, setBanners] = useState<Banner[]>(() => loadCachedSponsorBanners())
   const [loading, setLoading] = useState(true)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [realtimeReady, setRealtimeReady] = useState(false)
 
   const [spectatorView, setSpectatorView] = useState<'main' | 'roulette'>('main')
   const [incomingSpin, setIncomingSpin] = useState<IncomingSpin | null>(null)
-  
+
   const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 70 })
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const refetchTimerRef = useRef<number | null>(null)
@@ -62,6 +76,9 @@ export function useParticipants(
   const participantsByIdRef = useRef<Map<string, Participant>>(new Map())
   const pendingUpsertsRef = useRef<Map<string, Participant>>(new Map())
   const upsertFlushTimerRef = useRef<number | null>(null)
+  const fetchGenRef = useRef(0)
+  const rouletteCodeRef = useRef(rouletteCode)
+  const belongsToRoomRef = useRef((ip?: string) => extractRouletteCodeFromIp(ip) === rouletteCode)
 
   useEffect(() => {
     participantsRef.current = participants
@@ -73,6 +90,11 @@ export function useParticipants(
   useEffect(() => {
     bannedUsersRef.current = bannedUsers
   }, [bannedUsers])
+
+  useEffect(() => {
+    rouletteCodeRef.current = rouletteCode
+    belongsToRoomRef.current = (ip?: string) => extractRouletteCodeFromIp(ip) === rouletteCode
+  }, [rouletteCode])
 
   const belongsToRoom = useCallback(
     (ipAddress?: string) => extractRouletteCodeFromIp(ipAddress) === rouletteCode,
@@ -119,12 +141,13 @@ export function useParticipants(
     scheduleUpsertFlush()
   }, [flushPendingUpserts, scheduleUpsertFlush])
 
-  const fetchBanners = async () => {
+  const fetchBanners = useCallback(async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('sponsor_banners')
         .select('id, image_url, link_url')
         .order('created_at', { ascending: true })
+      if (error) throw error
       if (data?.length) {
         const next = data as Banner[]
         setBanners(next)
@@ -132,98 +155,145 @@ export function useParticipants(
         preloadSponsorBannerImages(next)
       }
     } catch (error) {
-      console.error('Error cargando banners:', error)
+      eventLog.error('banners', 'fetch failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
-  }
+  }, [])
 
-  const fetchRegistrationMeta = async () => {
-    const { data: bData } = await supabase
+  const fetchRegistrationMeta = useCallback(async () => {
+    const { data: bData, error } = await supabase
       .from('banned_ips')
       .select('*')
       .order('created_at', { ascending: false })
-
+    if (error) {
+      eventLog.error('register', 'banned_ips fetch failed', { error: error.message })
+      return
+    }
     if (bData) {
       setBannedUsers(
-        (bData as BannedUser[]).filter((b) => belongsToRoom(b.ip_address)),
+        (bData as BannedUser[]).filter((b) => belongsToRoomRef.current(b.ip_address)),
       )
     }
-  }
+  }, [])
 
-  const fetchRecentWinners = async () => {
-    const { data: rwData } = await supabase
+  const fetchRecentWinners = useCallback(async () => {
+    const { data: rwData, error } = await supabase
       .from('recent_winners')
       .select('*')
       .order('won_at', { ascending: false })
-
+    if (error) {
+      eventLog.error('roulette', 'recent_winners fetch failed', { error: error.message })
+      return
+    }
     if (rwData) {
       setRecentWinners(
-        (rwData as RecentWinner[]).filter((w) => belongsToRoom(w.ip_address)),
+        (rwData as RecentWinner[]).filter((w) => belongsToRoomRef.current(w.ip_address)),
       )
     }
-  }
+  }, [])
 
-  const fetchParticipantsData = async () => {
-    const [
-      { data: pData },
-      { data: bData },
-      { data: sData },
-      { data: rwData },
-    ] = await Promise.all([
+  /**
+   * Consulta fresca de participantes. Usa generación para evitar que una
+   * respuesta vieja pise una más nueva (race de Promise.all / realtime).
+   */
+  const syncParticipantsFresh = useCallback(async (reason: string): Promise<Participant[]> => {
+    const gen = ++fetchGenRef.current
+    const code = rouletteCodeRef.current
+    const timer = eventLog.timed('roulette', 'syncParticipantsFresh')
+
+    try {
+      const { data, error } = await supabase
+        .from('participants')
+        .select(PARTICIPANT_COLUMNS)
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+      if (gen !== fetchGenRef.current) {
+        timer.end({ reason, stale: true, code })
+        return participantsRef.current
+      }
+
+      const filtered = ((data ?? []) as Participant[]).filter((p) =>
+        belongsToRoomRef.current(p.ip_address),
+      )
+
+      setParticipants(filtered)
+      setSyncError(null)
+      timer.end({ reason, count: filtered.length, code })
+      return filtered
+    } catch (error) {
+      timer.fail(error, { reason, code })
+      setSyncError(error instanceof Error ? error.message : 'Error al sincronizar')
+      // Conserva lista previa: nunca borrar participantes por un fallo de red.
+      return participantsRef.current
+    }
+  }, [])
+
+  const fetchParticipantsData = useCallback(async () => {
+    const gen = ++fetchGenRef.current
+    const code = rouletteCodeRef.current
+    const timer = eventLog.timed('roulette', 'fetchParticipantsData')
+
+    const [pRes, bRes, sRes, rwRes] = await Promise.all([
       supabase.from('participants').select(PARTICIPANT_COLUMNS).order('created_at', { ascending: true }),
       supabase.from('banned_ips').select('*').order('created_at', { ascending: false }),
       supabase.from('sponsors').select('*').order('order_index', { ascending: true }),
       supabase.from('recent_winners').select('*').order('won_at', { ascending: false }),
     ])
 
-    if (pData) {
-      setParticipants(
-        (pData as Participant[]).filter((p) => belongsToRoom(p.ip_address)),
+    if (gen !== fetchGenRef.current) {
+      timer.end({ stale: true, code })
+      return
+    }
+
+    if (pRes.error) {
+      timer.fail(pRes.error, { code })
+      setSyncError(pRes.error.message)
+    } else if (pRes.data) {
+      const filtered = (pRes.data as Participant[]).filter((p) =>
+        belongsToRoomRef.current(p.ip_address),
+      )
+      setParticipants(filtered)
+      setSyncError(null)
+      timer.end({ count: filtered.length, code })
+    }
+
+    if (!bRes.error && bRes.data) {
+      setBannedUsers(
+        (bRes.data as BannedUser[]).filter((b) => belongsToRoomRef.current(b.ip_address)),
       )
     }
 
-    if (bData) {
-      const filtered = (bData as BannedUser[]).filter(
-        (b) => extractRouletteCodeFromIp(b.ip_address) === rouletteCode,
+    if (!sRes.error && sRes.data) setSponsors(sRes.data as Sponsor[])
+
+    if (!rwRes.error && rwRes.data) {
+      setRecentWinners(
+        (rwRes.data as RecentWinner[]).filter((w) => belongsToRoomRef.current(w.ip_address)),
       )
-      setBannedUsers(filtered)
     }
+  }, [])
 
-    if (sData) setSponsors(sData as Sponsor[])
-
-    if (rwData) {
-      const filtered = (rwData as RecentWinner[]).filter(
-        (w) => extractRouletteCodeFromIp(w.ip_address) === rouletteCode,
-      )
-      setRecentWinners(filtered)
-    }
-  }
-
-  const fetchData = async () => {
-    try {
-      if (loadParticipants) {
-        setLoading(true)
-        await fetchParticipantsData()
-      } else {
-        await fetchRegistrationMeta()
-      }
-    } catch (error) {
-      console.error('Error cargando:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const scheduleParticipantsRefetch = () => {
+  const scheduleParticipantsRefetch = useCallback(() => {
     if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
     refetchTimerRef.current = window.setTimeout(() => {
       void fetchParticipantsData().catch((error) => {
-        console.error('Error refrescando participantes:', error)
+        eventLog.error('roulette', 'scheduled refetch failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
       })
     }, 1500)
-  }
+  }, [fetchParticipantsData])
 
-  // Canal de sync de ruleta: NUNCA se reinicia al cambiar loadParticipants
-  // (evita perder spins/broadcasts al abrir la ruleta).
+  // Cambio de sala: limpia lista y marca loading para no pintar sala anterior.
+  useEffect(() => {
+    setParticipants([])
+    setLoading(true)
+    setSyncError(null)
+    fetchGenRef.current += 1
+  }, [rouletteCode])
+
+  // Canal de sync de ruleta: estable respecto a loadParticipants.
   useEffect(() => {
     const syncChannel = supabase.channel(`roulette_sync_${rouletteCode}`, {
       config: { broadcast: { self: false } },
@@ -232,11 +302,9 @@ export function useParticipants(
     syncChannel.on('broadcast', { event: 'set_view' }, (payload) => {
       setSpectatorView(payload.payload.view)
       if (payload.payload.config) setRouletteConfig(payload.payload.config)
-      // Precarga lista apenas el admin abre la ruleta (antes del render de currentView).
       if (payload.payload.view === 'roulette') {
-        void fetchParticipantsData().catch((error) => {
-          console.error('Error precargando ruleta:', error)
-        })
+        setLoading(true)
+        void syncParticipantsFresh('broadcast_set_view').finally(() => setLoading(false))
       }
     })
 
@@ -250,79 +318,118 @@ export function useParticipants(
       })
     })
 
-    syncChannel.subscribe()
+    syncChannel.subscribe((status) => {
+      setRealtimeReady(status === 'SUBSCRIBED')
+      eventLog.info('roulette', 'sync channel', { status, code: rouletteCode })
+    })
     channelRef.current = syncChannel
 
     return () => {
       supabase.removeChannel(syncChannel)
       if (channelRef.current === syncChannel) channelRef.current = null
+      setRealtimeReady(false)
     }
-    // fetchParticipantsData is stable enough via closure; rouletteCode is the key
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rouletteCode])
+  }, [rouletteCode, syncParticipantsFresh])
 
-  // Datos + realtime DB (sí depende de loadParticipants).
+  // Realtime DB: SIEMPRE escucha INSERT/UPDATE/DELETE de participants
+  // (aunque loadParticipants sea false) para no perder registros al abrir la ruleta.
   useEffect(() => {
     const cached = loadCachedSponsorBanners()
     if (cached.length > 0) preloadSponsorBannerImages(cached)
     void fetchBanners()
-    void fetchData()
 
-    const dbChannel = supabase.channel(`public:db_changes_${rouletteCode}_${loadParticipants ? 'full' : 'light'}`)
-
-    if (loadParticipants) {
-      dbChannel
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'participants' },
-          (payload) => {
-            const row = payload.new as Participant
-            if (belongsToRoom(row.ip_address)) upsertParticipant(row)
-          },
-        )
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'participants' },
-          (payload) => {
-            const row = payload.new as Participant
-            if (belongsToRoom(row.ip_address)) {
-              upsertParticipant(row)
-              return
-            }
-            setParticipants((prev) => prev.filter((p) => p.id !== row.id))
-          },
-        )
-        .on(
-          'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'participants' },
-          (payload) => {
-            const row = payload.old as { id?: string }
-            if (row.id) setParticipants((prev) => prev.filter((p) => p.id !== row.id))
-          },
-        )
+    let cancelled = false
+    const boot = async () => {
+      try {
+        if (loadParticipants) {
+          setLoading(true)
+          await fetchParticipantsData()
+        } else {
+          await fetchRegistrationMeta()
+        }
+      } catch (error) {
+        eventLog.error('boot', 'initial fetch failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
+    void boot()
+
+    const dbChannel = supabase.channel(`public:db_changes_${rouletteCode}`)
 
     dbChannel
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'participants' },
+        (payload) => {
+          const row = payload.new as Participant
+          if (belongsToRoomRef.current(row.ip_address)) {
+            eventLog.info('realtime', 'participant INSERT', { id: row.id, user: row.username })
+            upsertParticipant(row)
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'participants' },
+        (payload) => {
+          const row = payload.new as Participant
+          if (belongsToRoomRef.current(row.ip_address)) {
+            upsertParticipant(row)
+            return
+          }
+          setParticipants((prev) => prev.filter((p) => p.id !== row.id))
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'participants' },
+        (payload) => {
+          const row = payload.old as { id?: string }
+          if (row.id) setParticipants((prev) => prev.filter((p) => p.id !== row.id))
+        },
+      )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'banned_ips' }, () => {
         if (loadParticipants) scheduleParticipantsRefetch()
         else void fetchRegistrationMeta()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_winners' }, () => {
-        if (loadParticipants) void fetchRecentWinners()
+        void fetchRecentWinners()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_banners' }, () => fetchBanners())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_banners' }, () => {
+        void fetchBanners()
+      })
       .subscribe()
 
     return () => {
+      cancelled = true
       if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
-      if (upsertFlushTimerRef.current) window.clearTimeout(upsertFlushTimerRef.current)
       supabase.removeChannel(dbChannel)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rouletteCode, loadParticipants, belongsToRoom, upsertParticipant])
+  }, [
+    rouletteCode,
+    loadParticipants,
+    fetchBanners,
+    fetchParticipantsData,
+    fetchRegistrationMeta,
+    fetchRecentWinners,
+    scheduleParticipantsRefetch,
+    upsertParticipant,
+  ])
+
+  // Cleanup upsert timer on unmount only
+  useEffect(() => {
+    return () => {
+      if (upsertFlushTimerRef.current) window.clearTimeout(upsertFlushTimerRef.current)
+    }
+  }, [])
 
   const broadcastView = async (view: 'main' | 'roulette', config?: unknown) => {
-    if (channelRef.current) await channelRef.current.send({ type: 'broadcast', event: 'set_view', payload: { view, config } })
+    if (channelRef.current) {
+      await channelRef.current.send({ type: 'broadcast', event: 'set_view', payload: { view, config } })
+    }
   }
 
   const broadcastSpin = async (
@@ -340,24 +447,19 @@ export function useParticipants(
     }
   }
 
-  const checkDuplicateInDb = async (finalIp: string) => {
-    const { data: existingRow, error } = await supabase
-      .from('participants')
-      .select('id')
-      .eq('ip_address', finalIp)
-      .maybeSingle()
-    if (error) throw error
-    if (existingRow) {
-      throw new Error('Solo se permite un registro por persona.')
-    }
-  }
-
-  const addParticipant = async (username: string, team: string, ip: string, isAdminBypass: boolean = false) => {
+  const addParticipant = async (
+    username: string,
+    team: string,
+    ip: string,
+    isAdminBypass: boolean = false,
+  ) => {
+    const timer = eventLog.timed('register', 'addParticipant')
     const rawIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
     const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
 
     if (!isAdminBypass) {
       if (!isValidPublicIp(ip)) {
+        timer.fail(new Error('invalid ip'))
         throw new Error('No pudimos verificar tu conexión. Reintenta en un momento.')
       }
 
@@ -366,38 +468,68 @@ export function useParticipants(
         (ban) => ban.ip_address === finalIp && new Date(ban.expires_at) > now,
       )
       if (banned) {
-        // Respuesta silenciosa: el usuario ve "¡Registro completado!" sin insertar en DB
-        // (evita conflictos presenciales con personas baneadas).
         await new Promise((resolve) => setTimeout(resolve, 800))
+        timer.end({ bannedSilent: true })
         return
       }
 
       const alreadyRegistered = participantsRef.current.some(
         (row) =>
           row.ip_address === finalIp ||
-          (extractBaseIp(row.ip_address) === ip && belongsToRoom(row.ip_address)),
+          (extractBaseIp(row.ip_address) === ip && belongsToRoomRef.current(row.ip_address)),
       )
       if (alreadyRegistered) {
+        timer.fail(new Error('duplicate local'))
         throw new Error('Solo se permite un registro por persona.')
       }
 
-      await checkDuplicateInDb(finalIp)
+      // Chequeo rápido en DB (falla abierta si la red cae: el UNIQUE cubre el insert).
+      const { data: existingRow } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('ip_address', finalIp)
+        .maybeSingle()
+      if (existingRow) {
+        timer.fail(new Error('duplicate db'))
+        throw new Error('Solo se permite un registro por persona.')
+      }
     }
 
-    const { data: inserted, error } = await supabase
+    // INSERT sin RETURNING: evita falso error si RLS bloquea el SELECT post-insert.
+    const { error } = await supabase
       .from('participants')
       .insert([{ username, team, status: 'active', ip_address: finalIp }])
-      .select(PARTICIPANT_COLUMNS)
-      .single()
 
     if (error) {
-      if (error.code === '23505') throw new Error('Usuario ya registrado.')
+      if (error.code === '23505') {
+        timer.fail(error, { code: '23505' })
+        throw new Error('Usuario ya registrado.')
+      }
+      timer.fail(error)
       throw error
     }
 
-    if (inserted) {
-      upsertParticipant(inserted as Participant, true)
-    }
+    // Intenta recuperar la fila; si falla, usa fila local optimista.
+    const { data: inserted } = await supabase
+      .from('participants')
+      .select(PARTICIPANT_COLUMNS)
+      .eq('ip_address', finalIp)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const row: Participant = inserted
+      ? (inserted as Participant)
+      : {
+          id: makeTempId(),
+          username,
+          team: team as Participant['team'],
+          status: 'active',
+          ip_address: finalIp,
+        }
+
+    upsertParticipant(row, true)
+    timer.end({ id: row.id, username, optimistic: !inserted })
   }
 
   const deleteParticipant = async (id: string) => {
@@ -410,7 +542,7 @@ export function useParticipants(
     const idSet = new Set(ids)
     setParticipants((prev) => prev.filter((p) => !idSet.has(p.id)))
   }
-  
+
   const updateStatus = async (id: string, status: string) => {
     const previous = participantsByIdRef.current.get(id)
     setParticipants((prev) =>
@@ -433,7 +565,7 @@ export function useParticipants(
           .select('*')
           .single()
 
-        if (winnerRow && belongsToRoom(winnerRow.ip_address)) {
+        if (winnerRow && belongsToRoomRef.current(winnerRow.ip_address)) {
           setRecentWinners((prev) => [winnerRow as RecentWinner, ...prev])
         }
       }
@@ -441,7 +573,7 @@ export function useParticipants(
   }
 
   const banUser = async (id: string, durationInDays: number, bannedBy?: string) => {
-    const user = participants.find(p => p.id === id)
+    const user = participants.find((p) => p.id === id)
     if (!user || !user.ip_address) return
     const expirationDate = new Date()
     expirationDate.setDate(expirationDate.getDate() + durationInDays)
@@ -454,7 +586,7 @@ export function useParticipants(
 
     const { error } = await supabase.from('banned_ips').insert([payload])
     if (error) {
-      console.error('Error al banear:', error)
+      eventLog.error('admin', 'ban failed', { error: error.message })
       throw new Error('No se pudo banear al usuario. Verifica la columna banned_by en Supabase.')
     }
     await deleteParticipant(id)
@@ -501,19 +633,47 @@ export function useParticipants(
         : `https://instagram.com/${username}`
       : `https://instagram.com/${username}`
     const image_url = customImageUrl || `https://unavatar.io/instagram/${username}`
-    const nextOrder = sponsors.length > 0 ? Math.max(...sponsors.map(s => s.order_index || 0)) + 1 : 0
+    const nextOrder = sponsors.length > 0 ? Math.max(...sponsors.map((s) => s.order_index || 0)) + 1 : 0
     await supabase.from('sponsors').insert([{ name: username, url: finalUrl, image_url, order_index: nextOrder }])
     await fetchParticipantsData()
   }
 
-  const deleteSponsor = async (id: string) => { await supabase.from('sponsors').delete().eq('id', id); await fetchParticipantsData() }
-  const deleteMultipleSponsors = async (ids: string[]) => { await supabase.from('sponsors').delete().in('id', ids); await fetchParticipantsData() }
-  const updateSponsorsOrder = async (reorderedList: Sponsor[]) => { setSponsors(reorderedList); const updates = reorderedList.map((s, idx) => ({ id: s.id, name: s.name, url: s.url, image_url: s.image_url, order_index: idx })); await supabase.from('sponsors').upsert(updates) }
-  const updateSponsorDetails = async (id: string, image_url: string, url: string) => { await supabase.from('sponsors').update({ image_url, url }).eq('id', id); await fetchParticipantsData() }
+  const deleteSponsor = async (id: string) => {
+    await supabase.from('sponsors').delete().eq('id', id)
+    await fetchParticipantsData()
+  }
+  const deleteMultipleSponsors = async (ids: string[]) => {
+    await supabase.from('sponsors').delete().in('id', ids)
+    await fetchParticipantsData()
+  }
+  const updateSponsorsOrder = async (reorderedList: Sponsor[]) => {
+    setSponsors(reorderedList)
+    const updates = reorderedList.map((s, idx) => ({
+      id: s.id,
+      name: s.name,
+      url: s.url,
+      image_url: s.image_url,
+      order_index: idx,
+    }))
+    await supabase.from('sponsors').upsert(updates)
+  }
+  const updateSponsorDetails = async (id: string, image_url: string, url: string) => {
+    await supabase.from('sponsors').update({ image_url, url }).eq('id', id)
+    await fetchParticipantsData()
+  }
 
-  const addBanner = async (image_url: string, link_url: string = '') => { await supabase.from('sponsor_banners').insert([{ image_url, link_url }]); await fetchBanners() }
-  const updateBanner = async (id: string, image_url: string, link_url: string = '') => { await supabase.from('sponsor_banners').update({ image_url, link_url }).eq('id', id); await fetchBanners() }
-  const deleteBanner = async (id: string) => { await supabase.from('sponsor_banners').delete().eq('id', id); await fetchBanners() }
+  const addBanner = async (image_url: string, link_url: string = '') => {
+    await supabase.from('sponsor_banners').insert([{ image_url, link_url }])
+    await fetchBanners()
+  }
+  const updateBanner = async (id: string, image_url: string, link_url: string = '') => {
+    await supabase.from('sponsor_banners').update({ image_url, link_url }).eq('id', id)
+    await fetchBanners()
+  }
+  const deleteBanner = async (id: string) => {
+    await supabase.from('sponsor_banners').delete().eq('id', id)
+    await fetchBanners()
+  }
 
   const deleteRouletteData = async (targetRouletteCode: string) => {
     const targetCode = sanitizeRouletteCode(targetRouletteCode)
@@ -546,17 +706,42 @@ export function useParticipants(
       await supabase.from('recent_winners').delete().in('id', winnerIds)
     }
 
-    await fetchData()
+    await syncParticipantsFresh('delete_roulette')
   }
 
   return {
-    participants, bannedUsers, recentWinners, sponsors, banners, loading,
-    addParticipant, deleteParticipant, deleteMultiple, updateStatus,
-    banUser, unbanUser, resetGame, clearAll, 
-    removeRecentWinner, removeMultipleRecentWinners,
-    addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
-    addBanner, updateBanner, deleteBanner,
+    participants,
+    bannedUsers,
+    recentWinners,
+    sponsors,
+    banners,
+    loading,
+    syncError,
+    realtimeReady,
+    syncParticipantsFresh,
+    addParticipant,
+    deleteParticipant,
+    deleteMultiple,
+    updateStatus,
+    banUser,
+    unbanUser,
+    resetGame,
+    clearAll,
+    removeRecentWinner,
+    removeMultipleRecentWinners,
+    addSponsor,
+    deleteSponsor,
+    deleteMultipleSponsors,
+    updateSponsorsOrder,
+    updateSponsorDetails,
+    addBanner,
+    updateBanner,
+    deleteBanner,
     deleteRouletteData,
-    spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig
+    spectatorView,
+    incomingSpin,
+    broadcastView,
+    broadcastSpin,
+    rouletteConfig,
   }
 }
