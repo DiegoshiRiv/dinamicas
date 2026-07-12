@@ -1036,7 +1036,12 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
           />
         )}
         {photoHero && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent pointer-events-none" />
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: `linear-gradient(to top, ${config.accent}f2 0%, ${config.accent}99 28%, ${config.accent}33 55%, transparent 78%)`,
+            }}
+          />
         )}
         {hasDualHero ? (
           <div className="absolute bottom-0 right-0 z-[5] flex h-full w-[62%] items-end justify-end pointer-events-none pr-0.5">
