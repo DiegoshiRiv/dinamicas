@@ -8,7 +8,7 @@ export const WHATSAPP_CHANNEL_URL =
 
 export const CAMPFIRE_MEMBER_COUNT = 11735
 
-export const PREVIOUS_MEETUP_TRAINERS = 380
+export const PREVIOUS_MEETUP_TRAINERS = 846
 
 /** Fallback si no se puede leer el conteo en vivo del canal */
 export const WHATSAPP_FOLLOWER_COUNT = 1600

@@ -137,7 +137,7 @@ export function RegistrationForm({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          void import('@/assets/pokemon gif/anterior.gif').then((mod) => setAnteriorGifUrl(mod.default))
+          void import('@/assets/pokemon gif/megamewtwox.gif').then((mod) => setAnteriorGifUrl(mod.default))
           observer.disconnect()
         }
       },
