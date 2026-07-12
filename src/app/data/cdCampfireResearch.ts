@@ -90,6 +90,35 @@ export const FRIGIBAX_CAMPFIRE_REGISTRATION: {
   ],
 }
 
+/** Investigación temporal al registrarte en Campfire (Día de Supermegaincursiones de Raichu). */
+export const RAICHU_CAMPFIRE_REGISTRATION: {
+  intro: string
+  pages: CampfireResearchPage[]
+} = {
+  intro:
+    'Al registrarte en Campfire durante el evento recibes esta investigación temporal en Pokémon GO.',
+  pages: [
+    {
+      title: 'Incursiones / Día de incursiones',
+      tasks: [
+        {
+          task: 'Usa 12 bayas para capturar Pokémon',
+          rewards: [{ label: '×10 Bayas Pinia', icon: pinapBerryImg }],
+        },
+        {
+          task: 'Gana 2 incursiones',
+          rewards: [{ label: '5000 XP', icon: expImg }],
+        },
+        {
+          task: 'Usa 3 ataques cargados supereficaces',
+          rewards: [{ label: '1500 polvo estelar', icon: stardustImg }],
+        },
+      ],
+      pageComplete: [{ label: '×1 Pase de Combate Prémium', icon: premiumPassImg }],
+    },
+  ],
+}
+
 /** Investigación temporal al registrarte en Campfire (Día de Supermegaincursiones de Skarmory). */
 export const SKARMORY_CAMPFIRE_REGISTRATION: {
   intro: string

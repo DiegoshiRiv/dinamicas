@@ -1,5 +1,6 @@
-import { CD_FRIGIBAX_HOURS, formatTimeRangeLabel } from '@/app/utils/formatTime'
-import logoFest from '@/assets/logos/logofest.png'
+import { CD_FRIGIBAX_HOURS, CD_SOBBLE_HOURS, formatTimeRangeLabel } from '@/app/utils/formatTime'
+import { CALENDAR_GIFS } from '@/app/utils/driveGifs'
+import logoFest from '@/assets/logos/LogoFest.png'
 import frigibaxLogo from '@/assets/pokemon gif/Frigibax.gif'
 import communityDayGenericLogo from '@/assets/logos/diadelacomunidad.png'
 import megaEvIcon from '@/assets/iconos/megaev.png'
@@ -291,14 +292,14 @@ export const POKEMON_GO_EVENTS: PokemonGoEvent[] = [
   },
   {
     id: 'cd-julio',
-    title: 'Día de la Comunidad (julio)',
-    description: 'SelloDex en reuniones de comunidad',
+    title: 'Día de la Comunidad: Sobble',
+    description: `${CD_SOBBLE_HOURS.event} · SelloDex en reuniones de comunidad`,
     startDate: '2026-07-04',
     endDate: '2026-07-04',
     category: 'community-day',
-    accent: '#06b6d4',
-    tint: 'rgba(6, 182, 212, 0.35)',
-    logo: CD_LOGO,
+    accent: '#0891b2',
+    tint: 'rgba(8, 145, 178, 0.35)',
+    logo: CALENDAR_GIFS.sobble,
     selloDex: true,
     calendarMarker: true,
     weekList: true,
@@ -338,16 +339,18 @@ export const POKEMON_GO_EVENTS: PokemonGoEvent[] = [
     weekList: true,
   },
   {
-    id: 'evento-julio-18',
-    title: '??',
-    description: 'Por confirmar',
+    id: 'supermega-raichu',
+    title: 'Día de Supermegaincursiones de Raichu',
+    description: `${formatTimeRangeLabel(14, 0, 17, 0)} · SelloDex en reunión de comunidad`,
     startDate: '2026-07-18',
     endDate: '2026-07-18',
-    category: 'special',
-    accent: '#94a3b8',
-    tint: 'rgba(148, 163, 184, 0.35)',
+    category: 'raid-day',
+    accent: '#f59e0b',
+    tint: 'rgba(245, 158, 11, 0.35)',
     calendarMarker: true,
     weekList: true,
+    selloDex: true,
+    logo: megaEvIcon,
   },
   {
     id: 'eclosiones-agosto',
@@ -388,7 +391,7 @@ export const POKEMON_GO_EVENTS: PokemonGoEvent[] = [
 ]
 
 /** Eventos GO visibles en calendario e infografías. */
-export const ACTIVE_GO_EVENT_IDS = new Set(['cd-frigibax', 'supermega-skarmory'])
+export const ACTIVE_GO_EVENT_IDS = new Set(['cd-frigibax', 'cd-julio', 'supermega-skarmory', 'supermega-raichu'])
 
 export function isActiveGoEvent(event: PokemonGoEvent): boolean {
   return ACTIVE_GO_EVENT_IDS.has(event.id)

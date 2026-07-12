@@ -20,7 +20,11 @@ import {
   saveAdminSession,
   type AdminSession,
 } from '@/app/config/admins'
-import { modalDialogSmClass, modalOverlayCenterClass } from '@/app/layout/mobileShellLayout'
+import { prefetchClientIp } from '@/app/hooks/useClientIp'
+import {
+  modalDialogSmClass,
+  modalOverlayCenterClass,
+} from '@/app/layout/mobileShellLayout'
 
 const AdminPanel = lazy(() =>
   import('@/app/components/AdminPanel').then((m) => ({ default: m.AdminPanel })),
@@ -101,21 +105,24 @@ export default function App() {
   const [penaltyMonths, setPenaltyMonths] = useState(() => Number(localStorage.getItem('penaltyMonths')) || 2)
   const [penaltyPercent, setPenaltyPercent] = useState(() => Number(localStorage.getItem('penaltyPercent')) || 70)
 
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(() => loadAdminSession())
+  const isAdmin = Boolean(adminSession)
+
   useEffect(() => {
     localStorage.setItem('penaltyMonths', penaltyMonths.toString())
     localStorage.setItem('penaltyPercent', penaltyPercent.toString())
   }, [penaltyMonths, penaltyPercent])
 
-  const [adminSession, setAdminSession] = useState<AdminSession | null>(() => loadAdminSession())
-  const isAdmin = Boolean(adminSession)
-
   const {
-    participants, bannedUsers, recentWinners, sponsors, banners,
+    participants, bannedUsers, recentWinners, sponsors, banners, loading,
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner, removeRecentWinner, removeMultipleRecentWinners,
     deleteRouletteData, spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig 
-  } = useParticipants(activeRouletteCode, isAdmin)
+  } = useParticipants(activeRouletteCode, {
+    // Solo admin/ruleta cargan la lista completa; al broadcast set_view se precarga igual.
+    loadParticipants: isAdmin || currentView === 'roulette' || activeTab === 'ruleta',
+  })
 
   const { tournaments } = useTournaments(isAdmin || activeTab === 'tournaments')
   const { polls } = usePolls(isAdmin || activeTab === 'polls')
@@ -129,6 +136,10 @@ export default function App() {
 
   const passwordRef = useRef<HTMLInputElement>(null)
   const registrationUrl = typeof window !== 'undefined' ? window.location.origin : ''
+
+  useEffect(() => {
+    void prefetchClientIp()
+  }, [])
 
   useEffect(() => {
     saveAdminSession(adminSession)
@@ -425,6 +436,7 @@ export default function App() {
             onCreateRouletteCode={isAdmin ? handleCreateRouletteCode : undefined}
             onDeleteRouletteCode={isAdmin ? handleDeleteRouletteCode : undefined}
             registrationBaseUrl={registrationUrl}
+            listLoading={loading}
           />
         </Suspense>
       )

@@ -96,6 +96,7 @@ import megaMaxImg from '@/assets/recursos/Maxinodo.png'
 import gigamaxImg from '@/assets/iconos/gigamax.png'
 import globalImg from '@/assets/iconos/global.png'
 import { FRIGIBAX_CANDY } from '@/app/data/cdFrigibax'
+import { INTELEON_HEAD, SOBBLE_IMG } from '@/app/data/cdSobble'
 import {
   SKARMORY_DEBUT_INTRO,
   SKARMORY_REMOTE_PASS_WINDOW,
@@ -103,9 +104,23 @@ import {
   SKARMORY_SUPERMEGA_HOURS,
   SKARMORY_SUPERMEGA_IMAGES,
   SKARMORY_SUPERMEGA_SCHEDULE,
+  SKARMORY_TEMPORAL_RESEARCH_INTRO,
   SKARMORY_TEMPORAL_RESEARCH_NOTE,
+  SKARMORY_TEMPORAL_RESEARCH_REWARDS,
 } from '@/app/data/supermegaSkarmory'
-import { CD_FRIGIBAX_HOURS, formatClockLabel, formatTimeRangeLabel } from '@/app/utils/formatTime'
+import {
+  RAICHU_DEBUT_INTRO,
+  RAICHU_REMOTE_PASS_WINDOW,
+  RAICHU_SHINY_FOOTNOTE,
+  RAICHU_SUPERMEGA_HOURS,
+  RAICHU_SUPERMEGA_IMAGES,
+  RAICHU_SUPERMEGA_SCHEDULE,
+  RAICHU_TEMPORAL_RESEARCH_INTRO,
+  RAICHU_TEMPORAL_RESEARCH_NOTE,
+  RAICHU_TEMPORAL_RESEARCH_REWARDS,
+} from '@/app/data/supermegaRaichu'
+import { CD_FRIGIBAX_HOURS, CD_SOBBLE_HOURS, formatClockLabel, formatTimeRangeLabel } from '@/app/utils/formatTime'
+import { CALENDAR_GIFS } from '@/app/utils/driveGifs'
 
 /** Iconos claros/blancos → fondo oscuro (`light`). Iconos oscuros/coloreados → fondo claro (`dark`). */
 export type BannerPerkDetail =
@@ -113,6 +128,7 @@ export type BannerPerkDetail =
   | 'specialBackground'
   | 'fieldResearch'
   | 'baxcalibur'
+  | 'inteleon'
   | 'snapshot'
   | 'lureModule'
   | 'sellodex'
@@ -164,6 +180,11 @@ export type EventBannerConfig = {
   heroBlendScreen?: boolean
   /** Evento con sello SelloDex en reunión presencial. */
   selloDex?: boolean
+  temporalResearch?: {
+    intro: string
+    note: string
+    rewards: readonly { label: string; icon: string }[]
+  }
 }
 
 const TEAM_PERKS_BASE: BannerPerk[] = [
@@ -199,6 +220,28 @@ const CD_FRIGIBAX_PERKS: BannerPerk[] = [
   },
   { icon: iv100Img, label: 'PC de 100% IVs', tone: 'dark', detail: 'iv100' },
   { icon: baxcaliburHeadImg, label: 'Baxcalibur: Asalto Espadón', tone: 'dark', detail: 'baxcalibur' },
+  { icon: shinyImg, label: 'Foto GO Snapshot', tone: 'dark', useCameraIcon: true, detail: 'snapshot' },
+  { icon: fondoEspecial, label: 'Fondo especial', tone: 'dark', detail: 'specialBackground' },
+  { icon: sellodexImg, label: 'SELLODEX', tone: 'dark', detail: 'sellodex' },
+]
+
+const CD_SOBBLE_PERKS: BannerPerk[] = [
+  { icon: SOBBLE_IMG, label: 'Sobble con más probabilidad de salir shiny', tone: 'dark' },
+  { icon: INTELEON_HEAD, label: 'Inteleon: Hidrocañón', tone: 'dark', detail: 'inteleon' },
+  { icon: huevoImg, label: '1/4 distancia para eclosionar huevos', tone: 'light' },
+  { icon: carameloImg, label: '×2 caramelos al capturar', tone: 'light' },
+  { icon: carameloImg, label: '×2 probabilidad de Caramelos XL (Nv. 31+)', tone: 'dark' },
+  { icon: inciensoGoImg, label: 'Incienso activo 3 horas', tone: 'dark' },
+  { icon: lureModuleGoImg, label: 'Módulos señuelo: 1 hora', tone: 'dark', detail: 'lureModule' },
+  { icon: intercambioImg, label: '+1 intercambio especial (máx 2)', tone: 'dark', iconNavy: true },
+  { icon: stardustGoImg, label: '50 % menos polvo al intercambiar', tone: 'dark' },
+  {
+    icon: investigacionImg,
+    label: 'Investigación de campo',
+    tone: 'dark',
+    detail: 'fieldResearch',
+    iconNavy: true,
+  },
   { icon: shinyImg, label: 'Foto GO Snapshot', tone: 'dark', useCameraIcon: true, detail: 'snapshot' },
   { icon: fondoEspecial, label: 'Fondo especial', tone: 'dark', detail: 'specialBackground' },
   { icon: sellodexImg, label: 'SELLODEX', tone: 'dark', detail: 'sellodex' },
@@ -256,6 +299,17 @@ const SKARMORY_SUPERMEGA_PERKS: BannerPerk[] = [
   { icon: shinyImg, label: 'Más probabilidad de salir shiny en super mega incursiones', tone: 'dark' },
   { icon: paseRemotoImg, label: 'Límite de pases remotos será de 20', tone: 'dark' },
   { icon: paseGratisImg, label: 'Hasta 6 pases gratis al girar fotodiscos de gimnasios.', tone: 'dark' },
+  { icon: investigacionImg, label: 'Investigación temporal', tone: 'dark', detail: 'temporalResearch' },
+  { icon: sellodexImg, label: 'SELLODEX', tone: 'dark', detail: 'sellodex' },
+]
+
+const RAICHU_SUPERMEGA_PERKS: BannerPerk[] = [
+  { icon: RAICHU_SUPERMEGA_IMAGES.megaIcon, label: 'Debut de Mega-Raichu X', tone: 'dark' },
+  { icon: RAICHU_SUPERMEGA_IMAGES.megaIcon, label: 'Debut de Mega-Raichu Y', tone: 'dark' },
+  { icon: shinyImg, label: 'Más probabilidad de Raichu brillante', tone: 'dark' },
+  { icon: megaEvIcon, label: 'Meganivel 1 desbloqueado al capturar', tone: 'dark' },
+  { icon: paseRemotoImg, label: 'Límite de pases remotos será de 20', tone: 'dark' },
+  { icon: paseGratisImg, label: 'Hasta 6 pases gratis al girar fotodiscos', tone: 'dark' },
   { icon: investigacionImg, label: 'Investigación temporal', tone: 'dark', detail: 'temporalResearch' },
   { icon: sellodexImg, label: 'SELLODEX', tone: 'dark', detail: 'sellodex' },
 ]
@@ -332,19 +386,27 @@ const GO_BANNERS: Record<string, Omit<EventBannerConfig, 'id' | 'schedule'> & { 
       `¡Trae tu SELLODEX a la quedada! Al hacer tu registro en Campfire podrás obtener el sello del evento y una investigación temporal en el juego con las recompensas que ves abajo.`,
   },
   'cd-julio': {
-    title: 'Día de la Comunidad (julio)',
-    subtitle: 'SELLODEX',
-    description: 'Día de la Comunidad de julio. Reunión de comunidad con SelloDex.',
+    title: 'Día de la Comunidad: Sobble',
+    subtitle: CD_SOBBLE_HOURS.event,
+    schedule: 'Bonus del evento',
+    scheduleCapitalize: false,
+    scheduleColor: '#0891b2',
+    modalTitle: 'Sábado 4 de julio de 2026',
+    description:
+      '¡Sobble, el Pokémon Acuartija, será el destacado! Aparecerá en estado salvaje con más frecuencia. Con suerte, podrían encontrarse con uno brillante o con fondo especial.',
     banner: FONDO_CD_DYNAMIC,
-    heroImage: cdLogo,
+    heroImage: CALENDAR_GIFS.sobble,
+    heroImageShiny: CALENDAR_GIFS.sobbleShiny,
     badge: 'Día de la Comunidad',
-    accent: '#06b6d4',
-    perks: [
-      { icon: sellodexImg, label: 'SELLODEX', tone: 'dark' },
-      { icon: polvoImg, label: 'Bonos de captura', tone: 'dark' },
-      { icon: carameloImg, label: 'Doble caramelos', tone: 'light' },
-      { icon: moduloImg, label: 'Módulos señuelo', tone: 'dark' },
-    ],
+    accent: '#0891b2',
+    selloDexBadgeColor: '#1d4ed8',
+    perks: CD_SOBBLE_PERKS,
+    footerNote:
+      `La mayoría de las bonificaciones aplican de ${CD_SOBBLE_HOURS.event}. Los Módulos Señuelo y algunos bonus se extienden hasta las ${formatClockLabel(21, 0)}.`,
+    lureModuleNote:
+      `De ${CD_SOBBLE_HOURS.lure} será muy probable que Sobble aparezca en Poképaradas con Módulos Señuelo normales, con muchas probabilidades de ser brillante o tener fondo especial, incluso después del evento.`,
+    sellodexNote:
+      '¡Trae tu SELLODEX a la quedada! Al registrarte en Campfire podrás obtener el sello del evento.',
   },
   'cd-agosto': {
     title: 'Día de la Comunidad (agosto)',
@@ -427,14 +489,36 @@ const GO_BANNERS: Record<string, Omit<EventBannerConfig, 'id' | 'schedule'> & { 
       '¡Trae tu SELLODEX a la quedada! Al registrarte en Campfire obtendrás el sello del evento y la investigación temporal con las recompensas que ves abajo.',
     perks: SKARMORY_SUPERMEGA_PERKS,
     footerNote: `${SKARMORY_REMOTE_PASS_WINDOW} ${SKARMORY_TEMPORAL_RESEARCH_NOTE}`,
+    temporalResearch: {
+      intro: SKARMORY_TEMPORAL_RESEARCH_INTRO,
+      note: SKARMORY_TEMPORAL_RESEARCH_NOTE,
+      rewards: SKARMORY_TEMPORAL_RESEARCH_REWARDS,
+    },
   },
-  'evento-julio-18': {
-    title: '??',
-    description: 'Por confirmar. Mantente atento a las redes de la comunidad.',
-    banner: fondoRelleno,
-    heroImage: globalImg,
-    badge: 'Próximamente',
-    accent: '#94a3b8',
+  'supermega-raichu': {
+    title: 'Día de Supermegaincursiones de Raichu',
+    subtitle: RAICHU_SUPERMEGA_HOURS.event,
+    schedule: RAICHU_SUPERMEGA_SCHEDULE,
+    scheduleCapitalize: false,
+    scheduleColor: '#d97706',
+    modalTitle: 'Sábado 18 de julio de 2026',
+    description: `${RAICHU_DEBUT_INTRO} ${RAICHU_SHINY_FOOTNOTE}`,
+    banner: RAICHU_SUPERMEGA_IMAGES.mega,
+    heroImage: RAICHU_SUPERMEGA_IMAGES.mega,
+    heroImageSecondary: RAICHU_SUPERMEGA_IMAGES.megaY,
+    badge: 'Supermegaincursiones',
+    accent: '#f59e0b',
+    selloDex: true,
+    selloDexBadgeColor: '#d97706',
+    sellodexNote:
+      '¡Trae tu SELLODEX a la quedada! Al registrarte en Campfire obtendrás el sello del evento y la investigación temporal con las recompensas que ves abajo.',
+    perks: RAICHU_SUPERMEGA_PERKS,
+    footerNote: `${RAICHU_REMOTE_PASS_WINDOW} ${RAICHU_TEMPORAL_RESEARCH_NOTE}`,
+    temporalResearch: {
+      intro: RAICHU_TEMPORAL_RESEARCH_INTRO,
+      note: RAICHU_TEMPORAL_RESEARCH_NOTE,
+      rewards: RAICHU_TEMPORAL_RESEARCH_REWARDS,
+    },
   },
   'taxi-volador': {
     title: 'Taxi Volador',

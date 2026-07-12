@@ -35,7 +35,7 @@ import {
   getFondoCdUrl,
   type FondoCdId,
 } from '@/app/utils/alternatingFondoCd'
-import logoImg from '@/assets/logos/Logo.png'
+import logoImg from '@/assets/logos/LogoFest.png'
 import pokebolaImg from '@/assets/iconos/Pokebola.png'
 import ruletaIcon from '@/assets/iconos/ruleta.png'
 

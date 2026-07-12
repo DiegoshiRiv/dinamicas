@@ -20,3 +20,10 @@ export const CD_FRIGIBAX_HOURS = {
   lure: formatTimeRangeLabel(14, 0, 21, 0),
   reunion: formatTimeRangeLabel(14, 0, 17, 0),
 } as const
+
+/** Día de la Comunidad Sobble — julio 2026. */
+export const CD_SOBBLE_HOURS = {
+  event: formatTimeRangeLabel(14, 0, 17, 0),
+  lure: formatTimeRangeLabel(14, 0, 21, 0),
+  reunion: formatTimeRangeLabel(14, 0, 17, 0),
+} as const

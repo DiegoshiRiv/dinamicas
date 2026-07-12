@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs'
 import { Trash2, AlertTriangle, Search, Ban, CheckSquare, ShieldCheck, Trophy, Settings2, RotateCcw, Check, MoreVertical, Users } from 'lucide-react'
@@ -9,6 +9,19 @@ import { Label } from '@/app/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/app/components/ui/dropdown-menu'
 import type { Participant, BannedUser, RecentWinner } from '@/hooks/useParticipants'
 import pokebolaImg from '@/assets/iconos/Pokebola.png'
+
+const PARTICIPANT_ROW_HEIGHT = 56
+const PARTICIPANT_LIST_HEIGHT = 430
+const VIRTUAL_OVERSCAN = 6
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs)
+    return () => window.clearTimeout(timer)
+  }, [value, delayMs])
+  return debounced
+}
 
 interface AdminPanelProps {
   participants: Participant[]; 
@@ -43,6 +56,9 @@ export function AdminPanel({
   // Estados para Participantes
   const [filterTeam, setFilterTeam] = useState<'all' | 'blue' | 'yellow' | 'red'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearch = useDebouncedValue(searchTerm, 200)
+  const [listScrollTop, setListScrollTop] = useState(0)
+  const listRef = useRef<HTMLDivElement>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [showBanModal, setShowBanModal] = useState<string | null>(null)
@@ -58,15 +74,37 @@ export function AdminPanel({
   useEffect(() => { setLocalPercent(penaltyPercent.toString()) }, [penaltyPercent])
 
   // Filtrado
-  const filteredParticipants = participants.filter(p => {
-    if (p.status !== 'active') return false
-    const matchesTeam = filterTeam === 'all' || p.team === filterTeam
-    const matchesSearch = p.username.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesTeam && matchesSearch
-  })
+  const filteredParticipants = useMemo(() => {
+    const term = debouncedSearch.toLowerCase()
+    return participants.filter((p) => {
+      if (p.status !== 'active') return false
+      const matchesTeam = filterTeam === 'all' || p.team === filterTeam
+      const matchesSearch = !term || p.username.toLowerCase().includes(term)
+      return matchesTeam && matchesSearch
+    })
+  }, [participants, filterTeam, debouncedSearch])
 
-  const filteredWinners = recentWinners.filter(w => 
-    w.username.toLowerCase().includes(searchWinnerTerm.toLowerCase())
+  const virtualRange = useMemo(() => {
+    const visibleCount = Math.ceil(PARTICIPANT_LIST_HEIGHT / PARTICIPANT_ROW_HEIGHT) + VIRTUAL_OVERSCAN
+    const start = Math.max(0, Math.floor(listScrollTop / PARTICIPANT_ROW_HEIGHT) - Math.floor(VIRTUAL_OVERSCAN / 2))
+    const end = Math.min(filteredParticipants.length, start + visibleCount)
+    return { start, end, offsetY: start * PARTICIPANT_ROW_HEIGHT }
+  }, [filteredParticipants.length, listScrollTop])
+
+  const visibleParticipants = useMemo(
+    () => filteredParticipants.slice(virtualRange.start, virtualRange.end),
+    [filteredParticipants, virtualRange.start, virtualRange.end],
+  )
+
+  const handleListScroll = useCallback(() => {
+    if (listRef.current) setListScrollTop(listRef.current.scrollTop)
+  }, [])
+
+  const filteredWinners = useMemo(
+    () => recentWinners.filter((w) =>
+      w.username.toLowerCase().includes(searchWinnerTerm.toLowerCase()),
+    ),
+    [recentWinners, searchWinnerTerm],
   )
 
   const toggleSelect = (id: string) => {
@@ -275,7 +313,11 @@ export function AdminPanel({
               </div>
             )}
 
-            <div className="bg-[#fafbff] rounded-xl border border-[#e5e9f3] p-3 max-h-[430px] overflow-y-auto">
+            <div
+              ref={listRef}
+              onScroll={handleListScroll}
+              className="bg-[#fafbff] rounded-xl border border-[#e5e9f3] p-3 max-h-[430px] overflow-y-auto"
+            >
               <div className="flex items-center justify-between mb-3 px-1">
                 <h4 className="text-lg font-black text-[#1f2a44]">Participantes ({filteredParticipants.length})</h4>
                 <span className="text-sm font-semibold text-[#7f879f]">Más recientes</span>
@@ -283,9 +325,13 @@ export function AdminPanel({
               {filteredParticipants.length === 0 ? (
                 <div className="p-8 text-center text-[#7f879f] font-semibold">No hay participantes registrados.</div>
               ) : (
-                <div className="space-y-2">
-                  {filteredParticipants.map(p => (
-                    <div key={p.id} className="rounded-xl bg-white border border-[#e7ebf4] p-3 flex items-center justify-between gap-2">
+                <div className="relative" style={{ height: filteredParticipants.length * PARTICIPANT_ROW_HEIGHT }}>
+                  <div
+                    className="absolute left-0 right-0 space-y-2"
+                    style={{ transform: `translateY(${virtualRange.offsetY}px)` }}
+                  >
+                  {visibleParticipants.map((p) => (
+                    <div key={p.id} className="rounded-xl bg-white border border-[#e7ebf4] p-3 flex items-center justify-between gap-2" style={{ minHeight: PARTICIPANT_ROW_HEIGHT - 8 }}>
                       <div className="flex items-center gap-3 min-w-0">
                         <Checkbox
                           checked={selectedIds.has(p.id)}
@@ -328,6 +374,7 @@ export function AdminPanel({
                       </DropdownMenu>
                     </div>
                   ))}
+                  </div>
                 </div>
               )}
             </div>

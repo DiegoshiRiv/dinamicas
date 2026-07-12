@@ -3,10 +3,11 @@ import { es } from 'date-fns/locale'
 import { POKEMON_GO_EVENTS, type PokemonGoEvent } from '@/app/data/pokemonGoEvents'
 import { dateToDayKey } from '@/app/utils/eventDates'
 import cdBanner from '@/assets/Parque Morelos/dia de la comunidad frigibax parque morelos.png'
+import megaRaichuBanner from '@/assets/wallpaper/MegaRaichu.png'
 import skarmoryBanner from '@/assets/wallpaper/mega-skarmory-banner.png'
 import festBanner from '@/assets/wallpaper/bannnerFest.png'
 /** CD y Supermegaincursiones Skarmory en el carrusel presencial. */
-export const PRESENTIAL_CAROUSEL_GO_IDS = ['cd-frigibax', 'supermega-skarmory'] as const
+export const PRESENTIAL_CAROUSEL_GO_IDS = ['cd-frigibax', 'supermega-skarmory', 'supermega-raichu'] as const
 
 export type PresencialCarouselSlide = {
   id: string
@@ -24,12 +25,14 @@ export type PresencialCarouselSlide = {
 const BANNER_BY_ID: Record<string, string> = {
   'cd-frigibax': cdBanner,
   'supermega-skarmory': skarmoryBanner,
+  'supermega-raichu': megaRaichuBanner,
   'fest-global': festBanner,
 }
 
 const BADGE_BY_ID: Record<string, string> = {
   'cd-frigibax': 'Día de la Comunidad',
   'supermega-skarmory': 'Supermegaincursiones',
+  'supermega-raichu': 'Supermegaincursiones',
   'fest-global': 'GO Fest',
 }
 

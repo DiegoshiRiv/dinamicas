@@ -635,7 +635,7 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
             const goStyle = getPokemonGoDayStyle(goMarkers)
             const festMarker = goMarkers.find((e) => e.id === 'fest-global')
             const cdMarker = goMarkers.find((e) => e.category === 'community-day')
-            const megaDayMarker = goMarkers.find((e) => e.id === 'supermega-skarmory')
+            const megaDayMarker = goMarkers.find((e) => e.category === 'raid-day' && e.logo)
             const logoMarker =
               festMarker?.logo ??
               (cdMarker ? communityDayLogo : undefined) ??

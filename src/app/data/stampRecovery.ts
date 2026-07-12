@@ -11,6 +11,7 @@ import lechonkImg from '@/assets/eventos pasados/lecjonk.png'
 import deinoImg from '@/assets/eventos pasados/deino.png'
 import megaFalinksImg from '@/assets/eventos pasados/mega falinks.png'
 import pikachuGigaImg from '@/assets/eventos pasados/pikachu giga.png'
+import frigibaxImg from '@/assets/eventos pasados/frigibaxs.png'
 
 export interface StampRecoveryLink {
   id: string
@@ -98,5 +99,11 @@ export const STAMP_RECOVERY_LINKS: StampRecoveryLink[] = [
     title: 'Mega Falinks',
     url: 'https://cmpf.re/cgWBwK',
     image: megaFalinksImg,
+  },
+  {
+    id: 'frigibax',
+    title: 'Día de la Comunidad Frigibax',
+    url: 'https://cmpf.re/yvEWih',
+    image: frigibaxImg,
   },
 ]

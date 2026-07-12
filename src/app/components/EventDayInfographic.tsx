@@ -12,21 +12,27 @@ import {
   FRIGIBAX_FIELD_RESEARCH_SPECIAL_BG,
   FRIGIBAX_FIELD_RESEARCH_STANDARD,
   FRIGIBAX_SPECIAL_BACKGROUND_SOURCES,
-  type FrigibaxSpecialBgSourceId,
   FRIGIBAX_SNAPSHOT_INTRO,
   FRIGIBAX_SNAPSHOT_STEPS,
   FRIGIBAX_SNAPSHOT_TIPS,
 } from '@/app/data/cdFrigibax'
 import {
+  INTELEON_INFO,
+  SOBBLE_CD_IV,
+  SOBBLE_FIELD_RESEARCH_INTRO,
+  SOBBLE_FIELD_RESEARCH_SPECIAL_BG,
+  SOBBLE_FIELD_RESEARCH_STANDARD,
+  SOBBLE_SNAPSHOT_INTRO,
+  SOBBLE_SNAPSHOT_STEPS,
+  SOBBLE_SNAPSHOT_TIPS,
+  SOBBLE_SPECIAL_BACKGROUND_SOURCES,
+} from '@/app/data/cdSobble'
+import {
   FRIGIBAX_CAMPFIRE_REGISTRATION,
+  RAICHU_CAMPFIRE_REGISTRATION,
   SKARMORY_CAMPFIRE_REGISTRATION,
   type CampfireResearchPage,
 } from '@/app/data/cdCampfireResearch'
-import {
-  SKARMORY_TEMPORAL_RESEARCH_INTRO,
-  SKARMORY_TEMPORAL_RESEARCH_NOTE,
-  SKARMORY_TEMPORAL_RESEARCH_REWARDS,
-} from '@/app/data/supermegaSkarmory'
 import {
   isFestPagerBanners,
   type EventBannerConfig,
@@ -68,8 +74,38 @@ const PERK_DETAILS_WITH_VER_HINT: BannerPerkDetail[] = [
   'snapshot',
   'specialBackground',
   'baxcalibur',
+  'inteleon',
   'temporalResearch',
 ]
+
+function cdPresentation(eventId: string) {
+  if (eventId === 'cd-julio') {
+    return {
+      pokemonName: 'Sobble',
+      iv: SOBBLE_CD_IV,
+      fieldResearchIntro: SOBBLE_FIELD_RESEARCH_INTRO,
+      fieldResearchStandard: SOBBLE_FIELD_RESEARCH_STANDARD,
+      fieldResearchSpecialBg: SOBBLE_FIELD_RESEARCH_SPECIAL_BG,
+      specialBackgroundSources: SOBBLE_SPECIAL_BACKGROUND_SOURCES,
+      snapshotIntro: SOBBLE_SNAPSHOT_INTRO,
+      snapshotSteps: SOBBLE_SNAPSHOT_STEPS,
+      snapshotTips: SOBBLE_SNAPSHOT_TIPS,
+      isSobble: true as const,
+    }
+  }
+  return {
+    pokemonName: 'Frigibax',
+    iv: FRIGIBAX_CD_IV,
+    fieldResearchIntro: FRIGIBAX_FIELD_RESEARCH_INTRO,
+    fieldResearchStandard: FRIGIBAX_FIELD_RESEARCH_STANDARD,
+    fieldResearchSpecialBg: FRIGIBAX_FIELD_RESEARCH_SPECIAL_BG,
+    specialBackgroundSources: FRIGIBAX_SPECIAL_BACKGROUND_SOURCES,
+    snapshotIntro: FRIGIBAX_SNAPSHOT_INTRO,
+    snapshotSteps: FRIGIBAX_SNAPSHOT_STEPS,
+    snapshotTips: FRIGIBAX_SNAPSHOT_TIPS,
+    isSobble: false as const,
+  }
+}
 
 /** Clicables con estilo blanco (sin degradado ni «Ver ›»). */
 const PLAIN_CLICKABLE_PERK_DETAILS: BannerPerkDetail[] = ['lureModule', 'sellodex']
@@ -127,35 +163,39 @@ function PerkNavyIcon({ src, size = 'md' }: { src: string; size?: 'sm' | 'md' })
 function CampfireRewardChip({
   reward,
   size = 'md',
+  eventId,
 }: {
   reward: {
     label: string
     icon?: string
     frigibaxEncounter?: boolean
+    sobbleEncounter?: boolean
     specialBackground?: boolean
   }
   size?: 'md' | 'sm'
+  eventId?: string
 }) {
   const [shiny, setShiny] = useState(false)
   const iconClass = size === 'sm' ? 'w-8 h-8' : 'w-9 h-9'
-  const spriteSrc =
-    reward.frigibaxEncounter && shiny ? FRIGIBAX_CD_IV.imageShiny : reward.icon
+  const cd = cdPresentation(eventId ?? 'cd-frigibax')
+  const isFeatured = reward.frigibaxEncounter || reward.sobbleEncounter
+  const spriteSrc = isFeatured && shiny ? cd.iv.imageShiny : reward.icon
 
   return (
     <span className="flex flex-col items-center gap-1 min-w-[4.5rem] max-w-[5.75rem]">
       {spriteSrc && (
         <span className="relative flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden shadow-sm border border-[#0d3b66]/8">
-          {reward.frigibaxEncounter && reward.specialBackground && (
+          {isFeatured && reward.specialBackground && (
             <img src={fondoEspecialImg} alt="" className="absolute inset-0 w-full h-full object-cover" />
           )}
           <img src={spriteSrc} alt="" className={`relative z-[1] ${iconClass} object-contain`} />
-          {reward.frigibaxEncounter && (
+          {isFeatured && (
             <ShinyToggleButton
               active={shiny}
               onToggle={() => setShiny((s) => !s)}
               size="xs"
               className="absolute -top-1 -right-1 z-[2]"
-              ariaPrefix="Frigibax"
+              ariaPrefix={cd.pokemonName}
             />
           )}
         </span>
@@ -382,7 +422,59 @@ function BaxcaliburDetailBody() {
   )
 }
 
-const SPECIAL_BG_SOURCE_ICONS: Record<FrigibaxSpecialBgSourceId, string> = {
+function InteleonDetailBody() {
+  const info = INTELEON_INFO
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2.5 rounded-xl bg-[#e8f4fc] p-2.5">
+        <img src={info.image} alt="" className="w-16 h-16 object-contain shrink-0" />
+        <div>
+          <p className="text-[11px] font-black text-[#0d3b66]">#{info.number} Inteleon</p>
+          <div className="mt-1">
+            <TypeBadgeRow types={[...info.types]} />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-cyan-400/40 bg-cyan-50/80 p-2.5 space-y-1.5">
+        <p className="text-[10px] font-black uppercase text-cyan-700">Ataque destacado del CD</p>
+        <div className="flex items-center gap-2">
+          <TypeIcon type={info.communityDayMove.type} className="w-7 h-7" />
+          <p className="text-[13px] font-black text-[#0d3b66]">{info.communityDayMove.name}</p>
+        </div>
+        <p className="text-[10px] font-semibold text-[#0d3b66]/85 leading-relaxed">
+          {info.communityDayMove.intro}
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-[#0d3b66]/15 bg-slate-50/90 p-2.5 space-y-1.5">
+        <p className="text-[10px] font-black uppercase text-[#0d3b66]/70">Actualización permanente</p>
+        <div className="flex items-center gap-2">
+          <TypeIcon type={info.permanentMove.type} className="w-7 h-7" />
+          <p className="text-[13px] font-black text-[#0d3b66]">{info.permanentMove.name}</p>
+        </div>
+        <p className="text-[10px] font-semibold text-[#0d3b66]/85 leading-relaxed">
+          {info.permanentMove.intro}
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-[#0d3b66]/10 bg-white p-2.5 space-y-2">
+        <p className="text-[10px] font-black text-[#0d3b66]">Evolución</p>
+        <div className="flex items-center justify-center gap-1.5 py-0.5">
+          <img src={info.evolution.fromImage} alt="" className="h-14 w-14 object-contain" />
+          <img src={evolucionIcon} alt="" className="h-7 w-7 object-contain shrink-0 opacity-90" />
+          <img src={info.image} alt="" className="h-14 w-14 object-contain" />
+        </div>
+        <p className="text-[10px] font-semibold text-[#0d3b66]/85 leading-relaxed text-center">
+          {info.evolution.description}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+const SPECIAL_BG_SOURCE_ICONS: Record<string, string> = {
   wild: salvajeIcon,
   fieldResearch: investigacionIcon,
   paidResearch: cdCommunityTicketImg,
@@ -390,41 +482,18 @@ const SPECIAL_BG_SOURCE_ICONS: Record<FrigibaxSpecialBgSourceId, string> = {
   lureModule: lureModuleGoImg,
 }
 
-const SPECIAL_BG_NAVY_ICON_IDS: FrigibaxSpecialBgSourceId[] = [
-  'wild',
-  'fieldResearch',
-  'campfireResearch',
-]
-
-function InfographicSectionHeader({
-  label,
-  tone = 'navy',
-}: {
-  label: string
-  tone?: 'navy' | 'amber' | 'violet' | 'rose'
-}) {
-  const tones = {
-    navy: 'from-[#0d3b66] to-[#0c4a6e]',
-    amber: 'from-[#1fb988] to-[#f59e0b]',
-    violet: 'from-violet-600 to-fuchsia-500',
-    rose: 'from-rose-500 to-pink-500',
-  }
-  return (
-    <div
-      className={`rounded-lg px-2.5 py-1.5 bg-gradient-to-r ${tones[tone]} shadow-sm`}
-    >
-      <p className="text-[9px] font-black uppercase tracking-wide text-white">{label}</p>
-    </div>
-  )
-}
+const SPECIAL_BG_NAVY_ICON_IDS = new Set(['wild', 'fieldResearch', 'campfireResearch'])
 
 function SpecialBackgroundDetailBody({
   onSwitchDetail,
+  eventId = 'cd-frigibax',
 }: {
   onSwitchDetail?: (detail: BannerPerkDetail) => void
+  eventId?: string
 }) {
+  const cd = cdPresentation(eventId)
   const [shiny, setShiny] = useState(false)
-  const spriteSrc = shiny ? FRIGIBAX_CD_IV.imageShiny : FRIGIBAX_CD_IV.image
+  const spriteSrc = shiny ? cd.iv.imageShiny : cd.iv.image
 
   return (
     <div className="space-y-3">
@@ -444,20 +513,20 @@ function SpecialBackgroundDetailBody({
               onToggle={() => setShiny((s) => !s)}
               size="xs"
               className="absolute top-0.5 right-0.5"
-              ariaPrefix="Frigibax"
+              ariaPrefix={cd.pokemonName}
             />
           </div>
           <p className="flex-1 min-w-0 text-[11px] font-semibold text-white leading-relaxed drop-shadow-sm">
-            Frigibax puede traer el <span className="font-black">fondo exclusivo</span> del Día de la
+            {cd.pokemonName} puede traer el <span className="font-black">fondo exclusivo</span> del Día de la
             Comunidad en cualquiera de estos casos:
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        {FRIGIBAX_SPECIAL_BACKGROUND_SOURCES.map((source) => {
+        {cd.specialBackgroundSources.map((source) => {
           const icon = SPECIAL_BG_SOURCE_ICONS[source.id]
-          const useNavy = SPECIAL_BG_NAVY_ICON_IDS.includes(source.id)
+          const useNavy = SPECIAL_BG_NAVY_ICON_IDS.has(source.id)
           return (
             <div
               key={source.id}
@@ -492,7 +561,30 @@ function SpecialBackgroundDetailBody({
   )
 }
 
-function SnapshotDetailBody() {
+function InfographicSectionHeader({
+  label,
+  tone = 'navy',
+}: {
+  label: string
+  tone?: 'navy' | 'amber' | 'violet' | 'rose'
+}) {
+  const tones = {
+    navy: 'from-[#0d3b66] to-[#0c4a6e]',
+    amber: 'from-[#1fb988] to-[#f59e0b]',
+    violet: 'from-violet-600 to-fuchsia-500',
+    rose: 'from-rose-500 to-pink-500',
+  }
+  return (
+    <div
+      className={`rounded-lg px-2.5 py-1.5 bg-gradient-to-r ${tones[tone]} shadow-sm`}
+    >
+      <p className="text-[9px] font-black uppercase tracking-wide text-white">{label}</p>
+    </div>
+  )
+}
+
+function SnapshotDetailBody({ eventId = 'cd-frigibax' }: { eventId?: string }) {
+  const cd = cdPresentation(eventId)
   const stepIcons = [Camera, Camera, MapPin, Camera, Clock] as const
 
   return (
@@ -505,7 +597,7 @@ function SnapshotDetailBody() {
               5 encuentros seguidos
             </p>
             <p className="text-[11px] font-semibold text-[#0d3b66]/90 leading-relaxed mt-1">
-              {FRIGIBAX_SNAPSHOT_INTRO}
+              {cd.snapshotIntro}
             </p>
             <div className="flex gap-1 mt-2.5 justify-center sm:justify-start">
               {[1, 2, 3, 4, 5].map((n) => (
@@ -524,9 +616,9 @@ function SnapshotDetailBody() {
       <InfographicSectionHeader label="La mecánica · paso a paso" tone="violet" />
 
       <div className="rounded-2xl border border-[#0d3b66]/10 bg-white p-2.5 shadow-sm space-y-0">
-        {FRIGIBAX_SNAPSHOT_STEPS.map((step, index) => {
+        {cd.snapshotSteps.map((step, index) => {
           const StepIcon = stepIcons[index] ?? Camera
-          const isLast = index === FRIGIBAX_SNAPSHOT_STEPS.length - 1
+          const isLast = index === cd.snapshotSteps.length - 1
           return (
             <div key={step} className="flex gap-2.5">
               <div className="flex flex-col items-center shrink-0 w-8">
@@ -549,7 +641,7 @@ function SnapshotDetailBody() {
       <InfographicSectionHeader label="Ten en cuenta" tone="amber" />
 
       <div className="space-y-2">
-        {FRIGIBAX_SNAPSHOT_TIPS.map((tip, index) => (
+        {cd.snapshotTips.map((tip) => (
           <div
             key={tip}
             className="flex gap-2 rounded-xl border border-amber-200/70 bg-amber-50/90 px-2.5 py-2 shadow-sm"
@@ -626,6 +718,11 @@ const PERK_TILE_STYLES: Partial<
     label: 'text-amber-950',
     hint: 'text-amber-800',
   },
+  inteleon: {
+    box: 'bg-gradient-to-br from-cyan-50 via-sky-50 to-blue-50 border-cyan-400/70 shadow-md hover:border-cyan-500 hover:shadow-lg',
+    label: 'text-cyan-950',
+    hint: 'text-cyan-800',
+  },
   lureModule: {
     box: 'bg-gradient-to-br from-teal-50 via-sky-50 to-cyan-100 border-[#2563eb]/70 shadow-md hover:border-teal-500 hover:shadow-lg',
     label: 'text-[#0d3b66]',
@@ -648,19 +745,24 @@ const DEFAULT_SELLODEX_NOTE =
 
 function PerkDetailModal({
   detail,
+  eventId = 'cd-frigibax',
   sellodexNote,
   showCampfireResearch,
   campfireRegistration,
+  temporalResearch,
   onClose,
   onSwitchDetail,
 }: {
   detail: BannerPerkDetail
+  eventId?: string
   sellodexNote?: string
   showCampfireResearch?: boolean
   campfireRegistration?: { intro: string; pages: CampfireResearchPage[] }
+  temporalResearch?: EventBannerConfig['temporalResearch']
   onClose: () => void
   onSwitchDetail?: (detail: BannerPerkDetail) => void
 }) {
+  const cd = cdPresentation(eventId)
   const title =
     detail === 'iv100'
       ? 'PC de 100% IVs'
@@ -668,6 +770,8 @@ function PerkDetailModal({
         ? 'Investigación de campo'
         : detail === 'baxcalibur'
           ? 'Baxcalibur'
+          : detail === 'inteleon'
+            ? 'Inteleon'
           : detail === 'snapshot'
             ? 'GO Snapshot'
             : detail === 'sellodex'
@@ -679,7 +783,7 @@ function PerkDetailModal({
   const nestedSheetClass =
     detail === 'sellodex' && (showCampfireResearch || campfireRegistration)
       ? modalSheetNestedMdClass
-      : detail === 'snapshot' || detail === 'specialBackground' || detail === 'fieldResearch' || detail === 'iv100' || detail === 'temporalResearch'
+      : detail === 'snapshot' || detail === 'specialBackground' || detail === 'fieldResearch' || detail === 'iv100' || detail === 'temporalResearch' || detail === 'inteleon'
         ? modalSheetNestedMdClass
         : modalSheetNestedClass
 
@@ -712,7 +816,7 @@ function PerkDetailModal({
         {detail === 'fieldResearch' && (
           <div className="space-y-3">
             <p className="text-[11px] font-semibold text-[#0d3b66]/85 leading-relaxed">
-              {FRIGIBAX_FIELD_RESEARCH_INTRO}
+              {cd.fieldResearchIntro}
             </p>
             <div className="rounded-xl border border-[#0d3b66]/10 bg-slate-50/80 p-3 space-y-2.5">
               <div className="flex gap-2 items-start">
@@ -722,7 +826,7 @@ function PerkDetailModal({
                     Investigación habitual
                   </p>
                   <p className="text-[11px] font-bold text-[#0d3b66] leading-snug">
-                    {FRIGIBAX_FIELD_RESEARCH_STANDARD.task}
+                    {cd.fieldResearchStandard.task}
                   </p>
                 </div>
               </div>
@@ -730,8 +834,8 @@ function PerkDetailModal({
                 Posibles recompensas
               </p>
               <div className="flex flex-wrap gap-2 justify-center">
-                {FRIGIBAX_FIELD_RESEARCH_STANDARD.rewards.map((reward) => (
-                  <CampfireRewardChip key={reward.label} reward={reward} size="sm" />
+                {cd.fieldResearchStandard.rewards.map((reward) => (
+                  <CampfireRewardChip key={reward.label} reward={reward} size="sm" eventId={eventId} />
                 ))}
               </div>
             </div>
@@ -739,7 +843,7 @@ function PerkDetailModal({
               <p className="text-[10px] font-black uppercase text-[#0d3b66]/70">
                 Investigaciones con fondo especial
               </p>
-              {FRIGIBAX_FIELD_RESEARCH_SPECIAL_BG.map((row) => (
+              {cd.fieldResearchSpecialBg.map((row) => (
                 <FieldResearchSpecialRow key={row.task} task={row.task} reward={row.reward} />
               ))}
             </div>
@@ -747,12 +851,14 @@ function PerkDetailModal({
         )}
 
         {detail === 'specialBackground' && (
-          <SpecialBackgroundDetailBody onSwitchDetail={onSwitchDetail} />
+          <SpecialBackgroundDetailBody onSwitchDetail={onSwitchDetail} eventId={eventId} />
         )}
 
-        {detail === 'snapshot' && <SnapshotDetailBody />}
+        {detail === 'snapshot' && <SnapshotDetailBody eventId={eventId} />}
 
         {detail === 'baxcalibur' && <BaxcaliburDetailBody />}
+
+        {detail === 'inteleon' && <InteleonDetailBody />}
 
         {detail === 'sellodex' && (
           <div className="space-y-3">
@@ -782,23 +888,23 @@ function PerkDetailModal({
           </div>
         )}
 
-        {detail === 'temporalResearch' && (
+        {detail === 'temporalResearch' && temporalResearch && (
           <div className="space-y-3">
             <p className="text-[11px] font-semibold text-[#0d3b66]/85 leading-relaxed">
-              {SKARMORY_TEMPORAL_RESEARCH_INTRO}
+              {temporalResearch.intro}
             </p>
             <div className="rounded-xl border border-[#0d3b66]/10 bg-slate-50/80 p-3 space-y-2.5">
               <p className="text-[10px] font-black uppercase text-[#0d3b66]/70">
                 Recompensas
               </p>
               <div className="flex flex-wrap gap-2 justify-center">
-                {SKARMORY_TEMPORAL_RESEARCH_REWARDS.map((reward) => (
+                {temporalResearch.rewards.map((reward) => (
                   <CampfireRewardChip key={reward.label} reward={reward} size="sm" />
                 ))}
               </div>
             </div>
             <p className="text-[10px] font-semibold text-[#0d3b66]/75 leading-relaxed">
-              {SKARMORY_TEMPORAL_RESEARCH_NOTE}
+              {temporalResearch.note}
             </p>
           </div>
         )}
@@ -867,9 +973,17 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
   const bannerSrc =
     config.banner === FONDO_CD_DYNAMIC ? (fondoCdUrl ?? config.banner) : config.banner
   const canToggleHeroShiny = Boolean(config.heroImageShiny)
-  const heroShinyAriaPrefix = config.id === 'supermega-skarmory' ? 'Mega-Skarmory' : 'Frigibax'
+  const isSuperMegaDay = config.id.startsWith('supermega-')
+  const heroShinyAriaPrefix =
+    config.id === 'supermega-skarmory'
+      ? 'Mega-Skarmory'
+      : config.id === 'supermega-raichu'
+        ? 'Mega-Raichu'
+        : config.id === 'cd-julio'
+          ? 'Sobble'
+          : 'Frigibax'
   const heroBlendClass = config.heroBlendScreen ? 'mix-blend-screen' : ''
-  const heroLarge = config.id === 'supermega-skarmory'
+  const heroLarge = isSuperMegaDay
   const isSelloDex =
     config.selloDex === true ||
     config.subtitle?.includes('SelloDex') ||
@@ -894,11 +1008,17 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
     {perkDetail && perkDetail !== 'lureModule' && (
       <PerkDetailModal
         detail={perkDetail}
+        eventId={config.id}
         sellodexNote={config.sellodexNote}
         showCampfireResearch={config.id === 'cd-frigibax'}
         campfireRegistration={
-          config.id === 'supermega-skarmory' ? SKARMORY_CAMPFIRE_REGISTRATION : undefined
+          config.id === 'supermega-skarmory'
+            ? SKARMORY_CAMPFIRE_REGISTRATION
+            : config.id === 'supermega-raichu'
+              ? RAICHU_CAMPFIRE_REGISTRATION
+              : undefined
         }
+        temporalResearch={config.temporalResearch}
         onClose={() => setPerkDetail(null)}
         onSwitchDetail={setPerkDetail}
       />

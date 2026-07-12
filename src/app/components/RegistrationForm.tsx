@@ -19,10 +19,29 @@ import { AnimatedCounter } from '@/app/components/AnimatedCounter'
 import { SponsorBannerCarousel } from '@/app/components/SponsorBannerCarousel'
 import type { Banner } from '@/hooks/useParticipants'
 import { useWhatsAppFollowers } from '@/app/hooks/useWhatsAppFollowers'
+import { useClientIp } from '@/app/hooks/useClientIp'
 import {
   modalOverlayClass,
   modalSheetClass,
 } from '@/app/layout/mobileShellLayout'
+
+const REGISTER_TIMEOUT_MS = 15000
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms)
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      },
+      (err) => {
+        window.clearTimeout(timer)
+        reject(err)
+      },
+    )
+  })
+}
 
 interface RegistrationFormProps {
   saveRegistration: (username: string, team: string, ip: string, isAdminBypass?: boolean) => Promise<void>
@@ -66,13 +85,6 @@ const teams: {
   },
 ]
 
-function createRegistrationIdentifier() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return `registration-${crypto.randomUUID()}`
-  }
-  return `registration-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
 export function RegistrationForm({
   saveRegistration,
   isAdmin = false,
@@ -89,6 +101,9 @@ export function RegistrationForm({
   const inputRef = useRef<HTMLInputElement>(null)
   const anteriorSectionRef = useRef<HTMLDivElement>(null)
   const whatsappFollowers = useWhatsAppFollowers()
+  const { ip: clientIp, ready: ipReady, failed: ipFailed, retry: retryIp } = useClientIp()
+  const submittingRef = useRef(false)
+  const [retryingIp, setRetryingIp] = useState(false)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -112,44 +127,60 @@ export function RegistrationForm({
     return () => observer.disconnect()
   }, [isAdmin])
 
+  const handleRetryIp = async () => {
+    if (retryingIp) return
+    setError('')
+    setRetryingIp(true)
+    try {
+      await retryIp()
+    } catch {
+      setError('No pudimos verificar tu conexión. Revisa tu red e intenta de nuevo.')
+    } finally {
+      setRetryingIp(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (submittingRef.current) return
     setError('')
     setSuccess(false)
 
-    const trimmedUsername = username.trim()
-    const selectedTeam = team
-
-    if (!trimmedUsername) return setError('Escribe tu nombre de usuario')
-    if (!selectedTeam) return setError('Selecciona un equipo')
-
-    setLoading(true)
+    if (!username.trim()) return setError('Escribe tu nombre de usuario')
+    if (!team) return setError('Selecciona un equipo')
 
     if (!isAdmin) {
-      setSuccess(true)
-      setUsername('')
-      setTeam('')
-      setLoading(false)
-      setTimeout(() => inputRef.current?.focus(), 100)
-
-      void saveRegistration(trimmedUsername, selectedTeam, createRegistrationIdentifier(), false).catch((error) => {
-        console.error('Error al registrar en segundo plano:', error)
-      })
-      return
+      if (ipFailed) {
+        return setError('No pudimos verificar tu conexión. Pulsa "Reintentar conexión".')
+      }
+      if (!clientIp) {
+        return setError('Preparando conexión, intenta de nuevo en un segundo.')
+      }
     }
 
+    submittingRef.current = true
+    setLoading(true)
     try {
-      await saveRegistration(trimmedUsername, selectedTeam, 'admin-ip', true)
+      const save = isAdmin
+        ? saveRegistration(username.trim(), team, 'admin-ip', true)
+        : saveRegistration(username.trim(), team, clientIp!, false)
+
+      await withTimeout(
+        save,
+        REGISTER_TIMEOUT_MS,
+        'La conexión tardó demasiado. Revisa tu red e intenta de nuevo.',
+      )
 
       setSuccess(true)
       setUsername('')
       setTeam('')
       setTimeout(() => inputRef.current?.focus(), 100)
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Error al registrar'
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error al registrar'
       setError(message)
     } finally {
       setLoading(false)
+      submittingRef.current = false
     }
   }
 
@@ -286,11 +317,30 @@ export function RegistrationForm({
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || retryingIp || (!isAdmin && (!ipReady || ipFailed))}
           className="w-full py-4 rounded-xl font-black text-white text-[15px] btn-register-gradient transition-all disabled:opacity-60 disabled:shadow-none"
         >
-          {loading ? 'Registrando...' : isAdmin ? 'Ayudar a registrarse' : 'Registrarse en la Dinámica'}
+          {loading
+            ? 'Registrando...'
+            : !isAdmin && ipFailed
+              ? 'Error de conexión'
+              : !isAdmin && !ipReady
+                ? 'Preparando...'
+                : isAdmin
+                  ? 'Ayudar a registrarse'
+                  : 'Registrarse en la Dinámica'}
         </button>
+
+        {!isAdmin && ipFailed && (
+          <button
+            type="button"
+            onClick={() => void handleRetryIp()}
+            disabled={retryingIp}
+            className="w-full py-3 rounded-xl font-bold text-[#0d3b66] text-sm border border-[#0d3b66]/20 bg-white hover:bg-[#0d3b66]/5 transition-all disabled:opacity-60"
+          >
+            {retryingIp ? 'Reintentando...' : 'Reintentar conexión'}
+          </button>
+        )}
       </form>
 
       {!isAdmin && (

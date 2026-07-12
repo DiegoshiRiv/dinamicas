@@ -1,5 +1,5 @@
-import megaSkarmoryHero from '@/assets/pokemon gif/Mega Skarmory.gif'
 import skarmoryShinyHero from '@/assets/pokemon gif/Mega Skarmory shiny.gif'
+import { CALENDAR_GIFS } from '@/app/utils/driveGifs'
 import megaSkarmoryPng from '@/assets/cabeza pokemon/Mega-Skarmory_icono_LPZA.png'
 import houndoomPng from '@/assets/cabeza pokemon/092_houndoom.png'
 import pasePremiumImg from '@/assets/objetos del juego/pase_premium.png'
@@ -14,7 +14,7 @@ export const SKARMORY_SUPERMEGA_SCHEDULE =
   `Sábado 27 de junio de 2026 · ${SKARMORY_SUPERMEGA_HOURS.event}`
 
 export const SKARMORY_SUPERMEGA_IMAGES = {
-  mega: megaSkarmoryHero,
+  mega: CALENDAR_GIFS.megaSkarmory,
   shiny: skarmoryShinyHero,
   megaIcon: megaSkarmoryPng,
   houndoom: houndoomPng,
