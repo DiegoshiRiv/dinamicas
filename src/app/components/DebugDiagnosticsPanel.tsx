@@ -127,6 +127,18 @@ export function DebugDiagnosticsPanel({
           label="Registro OK"
           value={snap.lastRegisterOk == null ? '—' : snap.lastRegisterOk ? 'sí' : 'no'}
         />
+        <Row
+          label="Consistencia"
+          value={
+            snap.lastConsistencyDiff == null
+              ? '—'
+              : `Δ${snap.lastConsistencyDiff} (L${snap.lastConsistencyLocal}/S${snap.lastConsistencyServer})`
+          }
+        />
+        <Row
+          label="Consist. ms"
+          value={snap.lastConsistencyMs != null ? String(snap.lastConsistencyMs) : '—'}
+        />
         <Row label="Error" value={snap.lastError ?? '—'} />
       </div>
     </div>

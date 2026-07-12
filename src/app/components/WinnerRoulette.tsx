@@ -195,6 +195,7 @@ export function WinnerRoulette({
   const [rotation, setRotation] = useState(0)
   const [isSpinning, setIsSpinning] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [forceSyncStatus, setForceSyncStatus] = useState<string | null>(null)
   const [winner, setWinner] = useState<Participant | null>(null)
   const [clientIp, setClientIp] = useState<string>('')
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
@@ -565,35 +566,67 @@ export function WinnerRoulette({
     return { count: ids.length, key: ids.join('|') }
   }
 
+  const runConsistencySync = async (reason: string) => {
+    if (!syncParticipantsFresh) return participants
+    const localFp = fingerprint(participants)
+    const started = performance.now()
+    let freshList = await syncParticipantsFresh(reason)
+    let serverFp = fingerprint(freshList)
+    let syncMs = Math.round(performance.now() - started)
+
+    telemetry.consistency({
+      localCount: localFp.count,
+      serverCount: serverFp.count,
+      difference: Math.abs(serverFp.count - localFp.count),
+      syncMs,
+      reason,
+    })
+
+    if (localFp.key !== serverFp.key || localFp.count !== serverFp.count) {
+      const started2 = performance.now()
+      freshList = await syncParticipantsFresh(`${reason}_reconcile`)
+      serverFp = fingerprint(freshList)
+      syncMs = Math.round(performance.now() - started2)
+      telemetry.consistency({
+        localCount: localFp.count,
+        serverCount: serverFp.count,
+        difference: Math.abs(serverFp.count - localFp.count),
+        syncMs,
+        reason: `${reason}_reconcile`,
+      })
+    }
+
+    return freshList
+  }
+
+  const forceSyncParticipants = async () => {
+    if (isSpinning || isSyncing || !syncParticipantsFresh) return
+    const localBefore = fingerprint(participants).count
+    setIsSyncing(true)
+    setForceSyncStatus('Sincronizando participantes…')
+    try {
+      const started = performance.now()
+      const fresh = await runConsistencySync('admin_force_sync')
+      const server = fingerprint(fresh).count
+      const ms = Math.round(performance.now() - started)
+      setForceSyncStatus(
+        `Servidor: ${server} · Local antes: ${localBefore} · Actualizado correctamente (${ms} ms)`,
+      )
+    } catch {
+      setForceSyncStatus('No se pudo sincronizar. Revisa la conexión e intenta de nuevo.')
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   const spinRoulette = async () => {
     if (isSpinning || isSpectator || isSyncing) return
 
     setIsSyncing(true)
+    setForceSyncStatus(null)
     let freshList = participants
     try {
-      const localFp = fingerprint(participants)
-
-      if (syncParticipantsFresh) {
-        freshList = await syncParticipantsFresh('before_spin')
-        let serverFp = fingerprint(freshList)
-
-        // Si local ≠ servidor, una segunda sync barata elimina retrasos de realtime.
-        if (localFp.key !== serverFp.key || localFp.count !== serverFp.count) {
-          console.info('[dinamicas:roulette] mismatch local≠server antes de girar', {
-            local: localFp.count,
-            server: serverFp.count,
-          })
-          telemetry.spinReconcile(localFp.count, serverFp.count)
-          freshList = await syncParticipantsFresh('before_spin_reconcile')
-          serverFp = fingerprint(freshList)
-          console.info('[dinamicas:roulette] reconciliado', {
-            count: serverFp.count,
-            matched: localFp.key === serverFp.key,
-          })
-        } else {
-          telemetry.spinReconcile(localFp.count, serverFp.count)
-        }
-      }
+      freshList = await runConsistencySync('before_spin')
     } finally {
       setIsSyncing(false)
     }
@@ -870,25 +903,41 @@ export function WinnerRoulette({
           </div>
 
           {!isSpectator && (
-            <Button 
-              onClick={() => void spinRoulette()} 
-              disabled={isSpinning || isSyncing || (playersWithWeight.length === 0 && !listLoading)} 
-              className={`w-[90%] sm:w-full h-14 sm:h-16 bg-[#0d3b66] hover:bg-[#0a2f52] text-white rounded-2xl text-lg sm:text-xl font-black tracking-wide disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 mx-auto border-2 border-[#0a2f52] ${!isSpinning && !isSyncing && playersWithWeight.length > 0 ? 'roulette-btn-idle' : ''}`}
-            >
-              {isSpinning ? (
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full register-active-spin" />
-                  GIRANDO...
-                </span>
-              ) : isSyncing || listLoading ? (
-                <span className="inline-flex items-center gap-2">
-                  <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full register-active-spin" />
-                  SINCRONIZANDO...
-                </span>
-              ) : (
-                '¡GIRAR RULETA!'
+            <div className="w-[90%] sm:w-full mx-auto space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void forceSyncParticipants()}
+                disabled={isSpinning || isSyncing || !syncParticipantsFresh}
+                className="w-full h-11 rounded-2xl border-[#dce3f6] bg-[#f3f6ff] hover:bg-[#e8eefc] text-[#0d3b66] font-bold text-sm"
+              >
+                {isSyncing ? 'Sincronizando participantes…' : 'Forzar sincronización'}
+              </Button>
+              {forceSyncStatus && (
+                <p className="text-center text-[11px] font-semibold text-[#5b6483] leading-snug px-1">
+                  {forceSyncStatus}
+                </p>
               )}
-            </Button>
+              <Button 
+                onClick={() => void spinRoulette()} 
+                disabled={isSpinning || isSyncing || (playersWithWeight.length === 0 && !listLoading)} 
+                className={`w-full h-14 sm:h-16 bg-[#0d3b66] hover:bg-[#0a2f52] text-white rounded-2xl text-lg sm:text-xl font-black tracking-wide disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 border-2 border-[#0a2f52] ${!isSpinning && !isSyncing && playersWithWeight.length > 0 ? 'roulette-btn-idle' : ''}`}
+              >
+                {isSpinning ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full register-active-spin" />
+                    GIRANDO...
+                  </span>
+                ) : isSyncing || listLoading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full register-active-spin" />
+                    SINCRONIZANDO...
+                  </span>
+                ) : (
+                  '¡GIRAR RULETA!'
+                )}
+              </Button>
+            </div>
           )}
           {(syncError || (!realtimeReady && !isSpectator)) && (
             <p className="text-center text-[11px] font-semibold text-[#5b6483] px-4 mt-2">

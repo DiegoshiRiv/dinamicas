@@ -11,6 +11,12 @@ export type DiagnosticsSnapshot = {
   lastRegisterAt: number | null
   lastRegisterOk: boolean | null
   lastError: string | null
+  lastConsistencyLocal: number | null
+  lastConsistencyServer: number | null
+  lastConsistencyDiff: number | null
+  lastConsistencyMs: number | null
+  lastConsistencyAt: number | null
+  lastConsistencyReason: string | null
 }
 
 const state: DiagnosticsSnapshot = {
@@ -25,6 +31,12 @@ const state: DiagnosticsSnapshot = {
   lastRegisterAt: null,
   lastRegisterOk: null,
   lastError: null,
+  lastConsistencyLocal: null,
+  lastConsistencyServer: null,
+  lastConsistencyDiff: null,
+  lastConsistencyMs: null,
+  lastConsistencyAt: null,
+  lastConsistencyReason: null,
 }
 
 const listeners = new Set<() => void>()
