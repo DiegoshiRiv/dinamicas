@@ -33,7 +33,7 @@ function ipIsTracked(ipSet: Set<string>, ip?: string): boolean {
 
 function isNerfed(username: string): boolean {
   const normalized = normalizeUsername(username);
-  const targets = ['hozz0501', 'tugfameam', 'TuGfaMeAm4xD ','yardrat', 'crackbandoo', 'alessandrasama'];
+  const targets = ['hozz0501', 'tugfameam', 'TuGfaMeAm4xD ', 'yardrat', 'crackbandoo', 'alessandrasama', 'Cavalex92'];
   return targets.some(target => normalized.includes(normalizeUsername(target)));
 }
 
