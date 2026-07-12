@@ -10,6 +10,7 @@ import { buildRouletteRegistrationUrl, extractBaseIp, sanitizeRouletteCode } fro
 
 import { normalizeUsername, isVenaderoBlacklisted } from '@/app/utils/UsuariosToxicosBlackList'
 import { prefetchClientIp } from '@/app/hooks/useClientIp'
+import { telemetry } from '@/app/utils/telemetry'
 
 import moltres from '@/assets/iconos/moltres.png'
 import zapdos from '@/assets/iconos/zapdos.png'
@@ -559,14 +560,39 @@ export function WinnerRoulette({
     }
   }, [syncParticipantsFresh, activeRouletteCode])
 
+  const fingerprint = (list: Participant[]) => {
+    const ids = list.map((p) => p.id).filter((id) => !String(id).startsWith('local-')).sort()
+    return { count: ids.length, key: ids.join('|') }
+  }
+
   const spinRoulette = async () => {
     if (isSpinning || isSpectator || isSyncing) return
 
     setIsSyncing(true)
     let freshList = participants
     try {
+      const localFp = fingerprint(participants)
+
       if (syncParticipantsFresh) {
         freshList = await syncParticipantsFresh('before_spin')
+        let serverFp = fingerprint(freshList)
+
+        // Si local ≠ servidor, una segunda sync barata elimina retrasos de realtime.
+        if (localFp.key !== serverFp.key || localFp.count !== serverFp.count) {
+          console.info('[dinamicas:roulette] mismatch local≠server antes de girar', {
+            local: localFp.count,
+            server: serverFp.count,
+          })
+          telemetry.spinReconcile(localFp.count, serverFp.count)
+          freshList = await syncParticipantsFresh('before_spin_reconcile')
+          serverFp = fingerprint(freshList)
+          console.info('[dinamicas:roulette] reconciliado', {
+            count: serverFp.count,
+            matched: localFp.key === serverFp.key,
+          })
+        } else {
+          telemetry.spinReconcile(localFp.count, serverFp.count)
+        }
       }
     } finally {
       setIsSyncing(false)

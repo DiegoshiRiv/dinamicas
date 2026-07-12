@@ -15,6 +15,7 @@ import {
 import { isValidPublicIp } from '@/app/hooks/useClientIp'
 import { eventLog } from '@/app/utils/eventLog'
 import { diagnostics } from '@/app/utils/runtimeDiagnostics'
+import { telemetry } from '@/app/utils/telemetry'
 import {
   encodeRegistrationToken,
   getOrCreateDeviceToken,
@@ -239,6 +240,7 @@ export function useParticipants(
       setSyncError(null)
       const ms = Math.round(performance.now() - started)
       timer.end({ reason, count: filtered.length, code })
+      telemetry.syncDuration(ms, reason, filtered.length)
       diagnostics.patch({
         lastSyncAt: Date.now(),
         lastSyncReason: reason,
@@ -663,6 +665,9 @@ export function useParticipants(
           finalIp,
           roomTokenPrefix: roomToken.slice(0, 12),
         })
+        telemetry.uniqueConflict(
+          /registration_token/i.test(String(error.details || error.message)) ? 'token' : 'ip',
+        )
         const existing =
           (await loadParticipantByToken(roomToken)) || (await loadParticipantByIp(finalIp))
         if (existing) {

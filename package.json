@@ -6,6 +6,7 @@
   "scripts": {
     "build": "vite build",
     "check:registration-load": "node scripts/load/registration-concurrency-check.mjs",
+    "check:registration-stress": "node scripts/load/registration-stress-check.mjs",
     "dev": "vite"
   },
   "dependencies": {
