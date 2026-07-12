@@ -6,7 +6,7 @@ export const CAMPFIRE_JOIN_LABEL = '¡Únete a la comunidad en Campfire!'
 export const WHATSAPP_CHANNEL_URL =
   'https://www.whatsapp.com/channel/0029VbA3X858Pgs9nkwUSO1L'
 
-export const CAMPFIRE_MEMBER_COUNT = 11735
+export const CAMPFIRE_MEMBER_COUNT = 12157
 
 export const PREVIOUS_MEETUP_TRAINERS = 846
 
