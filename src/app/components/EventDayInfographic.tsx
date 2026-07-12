@@ -989,7 +989,8 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
     config.subtitle?.includes('SelloDex') ||
     config.badge === 'Día de la Comunidad'
   const hasDualHero = Boolean(config.heroImage && config.heroImageSecondary)
-  const photoHero = config.photoHero === true
+  // Wallpaper a pantalla completa (p. ej. MegaRaichu.png): sin tinte de color del accent.
+  const photoHero = config.photoHero === true || config.id === 'supermega-raichu'
   const scheduleColor = config.scheduleColor ?? '#2563eb'
   const hasSellodexPerk = config.perks?.some((p) => p.detail === 'sellodex') ?? false
 
@@ -1035,7 +1036,7 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
           />
         )}
         {photoHero && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent pointer-events-none" />
         )}
         {hasDualHero ? (
           <div className="absolute bottom-0 right-0 z-[5] flex h-full w-[62%] items-end justify-end pointer-events-none pr-0.5">

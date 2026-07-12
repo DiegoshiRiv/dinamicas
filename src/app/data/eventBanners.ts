@@ -119,6 +119,7 @@ import {
   RAICHU_TEMPORAL_RESEARCH_NOTE,
   RAICHU_TEMPORAL_RESEARCH_REWARDS,
 } from '@/app/data/supermegaRaichu'
+import megaRaichuWallpaper from '@/assets/wallpaper/MegaRaichu.png'
 import { CD_FRIGIBAX_HOURS, CD_SOBBLE_HOURS, formatClockLabel, formatTimeRangeLabel } from '@/app/utils/formatTime'
 import { CALENDAR_GIFS } from '@/app/utils/driveGifs'
 
@@ -503,9 +504,7 @@ const GO_BANNERS: Record<string, Omit<EventBannerConfig, 'id' | 'schedule'> & { 
     scheduleColor: '#d97706',
     modalTitle: 'Sábado 18 de julio de 2026',
     description: `${RAICHU_DEBUT_INTRO} ${RAICHU_SHINY_FOOTNOTE}`,
-    banner: RAICHU_SUPERMEGA_IMAGES.banner,
-    heroImage: RAICHU_SUPERMEGA_IMAGES.mega,
-    heroImageSecondary: RAICHU_SUPERMEGA_IMAGES.megaY,
+    banner: megaRaichuWallpaper,
     photoHero: true,
     badge: 'Supermegaincursiones',
     accent: '#f59e0b',
