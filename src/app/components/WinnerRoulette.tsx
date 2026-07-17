@@ -165,32 +165,28 @@ type WheelPlayer = Participant & { weight: number }
 
 const LAST_WIN_TEAM_KEY = (code: string) => `dinamicas:lastWinTeam:${sanitizeRouletteCode(code)}`
 
-/** Orden visual estable: Instinto → Valor → Sabiduría, omitiendo equipos agotados. */
-function alternatePlayersByTeam<T extends Pick<Participant, 'team'>>(players: T[]): T[] {
-  const teamOrder: Participant['team'][] = ['yellow', 'red', 'blue']
-  const queues = new Map<Participant['team'], T[]>(
-    teamOrder.map((team) => [team, players.filter((player) => player.team === team)]),
-  )
-  const arranged: T[] = []
+/** Mezcla visual estable: se ve aleatorio, pero admin y espectadores comparten el mismo orden. */
+function shufflePlayersForWheel<T extends Pick<Participant, 'id'>>(players: T[]): T[] {
+  const arranged = [...players]
+  // Semilla a partir de los ids: misma lista → mismo orden en todos los clientes.
+  let seed = 0
+  for (const player of arranged) {
+    const id = String(player.id)
+    for (let i = 0; i < id.length; i++) seed = (seed * 31 + id.charCodeAt(i)) >>> 0
+  }
+  seed ^= arranged.length * 2654435761
 
-  while (arranged.length < players.length) {
-    let addedInCycle = false
-    for (const team of teamOrder) {
-      const next = queues.get(team)?.shift()
-      if (next) {
-        arranged.push(next)
-        addedInCycle = true
-      }
-    }
-    // Protección para datos futuros con un equipo fuera de los tres conocidos.
-    if (!addedInCycle) break
+  const next = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+    return seed / 0x100000000
   }
 
-  if (arranged.length < players.length) {
-    const arrangedSet = new Set(arranged)
-    arranged.push(...players.filter((player) => !arrangedSet.has(player)))
+  for (let i = arranged.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1))
+    const tmp = arranged[i]
+    arranged[i] = arranged[j]
+    arranged[j] = tmp
   }
-
   return arranged
 }
 
@@ -381,7 +377,7 @@ export function WinnerRoulette({
 
   /** Ruleta visible: todos los activos (incl. venaderos) para que se vean en espectadores */
   const playersForWheel = useMemo((): WheelPlayer[] => {
-    return alternatePlayersByTeam(activePlayers.map((p) => ({ ...p, weight: 1 })))
+    return shufflePlayersForWheel(activePlayers.map((p) => ({ ...p, weight: 1 })))
   }, [activePlayers])
 
   const totalWeight = useMemo(
@@ -589,7 +585,7 @@ export function WinnerRoulette({
 
     const runSpin = (list: Participant[]) => {
       const winningPlayer = resolveWinner()
-      const wheelPlayers = alternatePlayersByTeam(
+      const wheelPlayers = shufflePlayersForWheel(
         list.length > 0
           ? list
           : winningPlayer
@@ -761,7 +757,7 @@ export function WinnerRoulette({
       }
       return { ...p, weight }
     })
-    const wheelPlayers: WheelPlayer[] = alternatePlayersByTeam(
+    const wheelPlayers: WheelPlayer[] = shufflePlayersForWheel(
       freshActive.map((p) => ({ ...p, weight: 1 })),
     )
 
