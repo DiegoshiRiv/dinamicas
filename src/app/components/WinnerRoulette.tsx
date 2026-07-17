@@ -164,6 +164,36 @@ interface WinnerRouletteProps {
 type WheelPlayer = Participant & { weight: number }
 
 const LAST_WIN_TEAM_KEY = (code: string) => `dinamicas:lastWinTeam:${sanitizeRouletteCode(code)}`
+const ASSURED_WINNERS_KEY = 'dinamicas:assuredWinners'
+const ASSURED_COMPLETED_KEY = (code: string) =>
+  `dinamicas:assuredCompleted:${sanitizeRouletteCode(code)}`
+const DEFAULT_ASSURED_WINNER = 'FatedRacketeer3'
+
+function loadAssuredWinners(): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ASSURED_WINNERS_KEY) ?? '[]')
+    const saved = Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : []
+    return [
+      DEFAULT_ASSURED_WINNER,
+      ...saved.filter(
+        (username) => normalizeUsername(username) !== normalizeUsername(DEFAULT_ASSURED_WINNER),
+      ),
+    ]
+  } catch {
+    return [DEFAULT_ASSURED_WINNER]
+  }
+}
+
+function loadAssuredCompleted(code: string): Set<string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ASSURED_COMPLETED_KEY(code)) ?? '[]')
+    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
 
 /** Mezcla visual estable: se ve aleatorio, pero admin y espectadores comparten el mismo orden. */
 function shufflePlayersForWheel<T extends Pick<Participant, 'id'>>(players: T[]): T[] {
@@ -270,6 +300,12 @@ export function WinnerRoulette({
   const [forcedWinnerId, setForcedWinnerId] = useState<string | null>(null)
   const [forcePickerOpen, setForcePickerOpen] = useState(false)
   const [forceSearch, setForceSearch] = useState('')
+  const [assuredWinners, setAssuredWinners] = useState<string[]>(loadAssuredWinners)
+  const [assuredCompleted, setAssuredCompleted] = useState<Set<string>>(
+    () => loadAssuredCompleted(activeRouletteCode),
+  )
+  const [assuredWinnersOpen, setAssuredWinnersOpen] = useState(false)
+  const [assuredWinnerInput, setAssuredWinnerInput] = useState('')
   
   const qrCreateRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -294,7 +330,34 @@ export function WinnerRoulette({
     setForcedWinnerId(null)
     setForcePickerOpen(false)
     setForceSearch('')
+    setAssuredCompleted(loadAssuredCompleted(activeRouletteCode))
   }, [activeRouletteCode])
+
+  const saveAssuredWinners = (next: string[]) => {
+    setAssuredWinners(next)
+    try {
+      localStorage.setItem(ASSURED_WINNERS_KEY, JSON.stringify(next))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const addAssuredWinner = () => {
+    const username = assuredWinnerInput.trim()
+    if (!username) return
+    const normalized = normalizeUsername(username)
+    if (!normalized || assuredWinners.some((value) => normalizeUsername(value) === normalized)) {
+      setAssuredWinnerInput('')
+      return
+    }
+    saveAssuredWinners([...assuredWinners, username])
+    setAssuredWinnerInput('')
+  }
+
+  const removeAssuredWinner = (username: string) => {
+    if (normalizeUsername(username) === normalizeUsername(DEFAULT_ASSURED_WINNER)) return
+    saveAssuredWinners(assuredWinners.filter((value) => value !== username))
+  }
 
   const recentWinnerByUsername = useMemo(() => {
     const map = new Map<string, RecentWinner>()
@@ -799,6 +862,7 @@ export function WinnerRoulette({
 
     let winningPlayer: Participant = weighted[0] ?? freshActive[0]
     let usedForcedWinner = false
+    let usedAssuredWinner = false
 
     if (canForceWinner && forcedWinnerId) {
       const forced = freshActive.find((p) => p.id === forcedWinnerId)
@@ -808,7 +872,24 @@ export function WinnerRoulette({
       }
     }
 
-    if (!usedForcedWinner && secretTotalWeight > 0) {
+    if (!usedForcedWinner && canForceWinner) {
+      const assured = assuredWinners
+        .map((username) =>
+          freshActive.find(
+            (player) =>
+              normalizeUsername(player.username) === normalizeUsername(username) &&
+              !assuredCompleted.has(player.id) &&
+              !cannotWin(player),
+          ),
+        )
+        .find((player): player is Participant => Boolean(player))
+      if (assured) {
+        winningPlayer = assured
+        usedAssuredWinner = true
+      }
+    }
+
+    if (!usedForcedWinner && !usedAssuredWinner && secretTotalWeight > 0) {
       const randomWeightPoint = Math.random() * secretTotalWeight
       let currentWeightSum = 0
       for (const p of secretPlayers) {
@@ -828,6 +909,20 @@ export function WinnerRoulette({
     setForcedWinnerId(null)
     setForcePickerOpen(false)
     setForceSearch('')
+
+    if (usedAssuredWinner) {
+      const nextCompleted = new Set(assuredCompleted)
+      nextCompleted.add(winningPlayer.id)
+      setAssuredCompleted(nextCompleted)
+      try {
+        localStorage.setItem(
+          ASSURED_COMPLETED_KEY(activeRouletteCode),
+          JSON.stringify([...nextCompleted]),
+        )
+      } catch {
+        /* ignore */
+      }
+    }
 
     writeLastWinTeam(activeRouletteCode, winningPlayer.team)
 
@@ -1082,7 +1177,8 @@ export function WinnerRoulette({
           {!isSpectator && (
             <div className="w-[90%] sm:w-full mx-auto space-y-2">
               {canForceWinner && (
-                <div className="rounded-2xl border border-[#dce3f6] bg-[#f8fafc] p-3 space-y-2">
+                <div className="space-y-2">
+                  <div className="rounded-2xl border border-[#dce3f6] bg-[#f8fafc] p-3 space-y-2">
                   <button
                     type="button"
                     onClick={() => setForcePickerOpen((v) => !v)}
@@ -1147,6 +1243,92 @@ export function WinnerRoulette({
                       </p>
                     </div>
                   )}
+                  </div>
+
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setAssuredWinnersOpen((value) => !value)}
+                      disabled={isSpinning || isSyncing}
+                      className="w-full text-left text-[11px] font-bold text-amber-900 flex items-center justify-between"
+                    >
+                      <span>Ganadores asegurados ({assuredWinners.length})</span>
+                      <span className="text-amber-700">{assuredWinnersOpen ? 'Cerrar' : 'Administrar'}</span>
+                    </button>
+
+                    {assuredWinnersOpen && (
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Input
+                            value={assuredWinnerInput}
+                            onChange={(event) => setAssuredWinnerInput(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault()
+                                addAssuredWinner()
+                              }
+                            }}
+                            placeholder="Nombre exacto del usuario"
+                            className="h-10 rounded-xl border-amber-200 bg-white text-sm"
+                            disabled={isSpinning}
+                          />
+                          <Button
+                            type="button"
+                            onClick={addAssuredWinner}
+                            disabled={isSpinning || !assuredWinnerInput.trim()}
+                            className="h-10 rounded-xl bg-amber-500 hover:bg-amber-600 text-white px-3 text-xs font-bold"
+                          >
+                            Añadir
+                          </Button>
+                        </div>
+
+                        <div className="max-h-44 overflow-y-auto rounded-xl border border-amber-100 bg-white divide-y divide-amber-50">
+                          {assuredWinners.map((username) => {
+                            const participant = activePlayers.find(
+                              (player) =>
+                                normalizeUsername(player.username) === normalizeUsername(username),
+                            )
+                            const completed = Boolean(participant && assuredCompleted.has(participant.id))
+                            const isDefault =
+                              normalizeUsername(username) === normalizeUsername(DEFAULT_ASSURED_WINNER)
+                            return (
+                              <div key={normalizeUsername(username)} className="px-3 py-2 flex items-center gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-xs font-bold text-[#4f5674]">{username}</p>
+                                  <p className={`text-[10px] font-semibold ${
+                                    completed
+                                      ? 'text-emerald-600'
+                                      : participant
+                                        ? 'text-amber-700'
+                                        : 'text-[#94a3b8]'
+                                  }`}>
+                                    {completed
+                                      ? 'Ganó en esta ruleta'
+                                      : participant
+                                        ? 'Pendiente: ganará en el próximo giro disponible'
+                                        : 'Esperando a que se registre'}
+                                  </p>
+                                </div>
+                                {!isDefault && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeAssuredWinner(username)}
+                                    disabled={isSpinning}
+                                    className="shrink-0 text-[10px] font-semibold text-red-500 underline"
+                                  >
+                                    Quitar
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <p className="text-[10px] text-amber-800/70 font-medium leading-snug">
+                          Cada persona gana una vez por ruleta. Esta lista solo es visible para Fuecoco.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               <Button 
