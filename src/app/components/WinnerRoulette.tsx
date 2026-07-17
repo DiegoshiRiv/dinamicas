@@ -157,6 +157,8 @@ interface WinnerRouletteProps {
   syncParticipantsFresh?: (reason: string) => Promise<Participant[]>
   realtimeReady?: boolean
   syncError?: string | null
+  /** Solo Fuecoco / super: puede fijar quién gana (animación natural). */
+  canForceWinner?: boolean
 }
 
 type WheelPlayer = Participant & { weight: number }
@@ -225,6 +227,7 @@ export function WinnerRoulette({
   syncParticipantsFresh,
   realtimeReady = false,
   syncError = null,
+  canForceWinner = false,
 }: WinnerRouletteProps) {
   
   const [rotation, setRotation] = useState(0)
@@ -239,6 +242,9 @@ export function WinnerRoulette({
   const [newRouletteName, setNewRouletteName] = useState('')
   const [createRouletteOpen, setCreateRouletteOpen] = useState(false)
   const [createdRouletteCode, setCreatedRouletteCode] = useState<string | null>(null)
+  const [forcedWinnerId, setForcedWinnerId] = useState<string | null>(null)
+  const [forcePickerOpen, setForcePickerOpen] = useState(false)
+  const [forceSearch, setForceSearch] = useState('')
   
   const qrCreateRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -253,6 +259,17 @@ export function WinnerRoulette({
     () => participants.filter((p) => p.status === 'active'),
     [participants],
   )
+
+  const forcedWinner = useMemo(
+    () => (forcedWinnerId ? activePlayers.find((p) => p.id === forcedWinnerId) ?? null : null),
+    [forcedWinnerId, activePlayers],
+  )
+
+  useEffect(() => {
+    setForcedWinnerId(null)
+    setForcePickerOpen(false)
+    setForceSearch('')
+  }, [activeRouletteCode])
 
   const recentWinnerByUsername = useMemo(() => {
     const map = new Map<string, RecentWinner>()
@@ -309,6 +326,13 @@ export function WinnerRoulette({
       isVenaderoBlacklisted(p.username) || ipIsTracked(venaderoIps, p.ip_address),
     [venaderoIps],
   )
+
+  const forceCandidates = useMemo(() => {
+    const q = forceSearch.trim().toLowerCase()
+    // Solo activos en la ruleta (así la animación cae en un segmento real).
+    if (!q) return activePlayers.slice(0, 50)
+    return activePlayers.filter((p) => p.username.toLowerCase().includes(q)).slice(0, 50)
+  }, [activePlayers, forceSearch])
 
   const playersWithWeight = useMemo((): WheelPlayer[] => {
     const now = new Date();
@@ -710,12 +734,18 @@ export function WinnerRoulette({
     const wheelPlayers: WheelPlayer[] = freshActive.map((p) => ({ ...p, weight: 1 }))
 
     if (weighted.length === 0) {
-      console.warn('[dinamicas:roulette] spin aborted: no eligible players after sync', {
-        total: freshList.length,
-        active: freshActive.length,
-        realtimeReady,
-      })
-      return
+      const canForceFromWheel =
+        canForceWinner &&
+        Boolean(forcedWinnerId) &&
+        freshActive.some((p) => p.id === forcedWinnerId)
+      if (!canForceFromWheel) {
+        console.warn('[dinamicas:roulette] spin aborted: no eligible players after sync', {
+          total: freshList.length,
+          active: freshActive.length,
+          realtimeReady,
+        })
+        return
+      }
     }
 
     setIsSpinning(true)
@@ -739,8 +769,18 @@ export function WinnerRoulette({
 
     const secretTotalWeight = secretPlayers.reduce((acc, p) => acc + p.secretWeight, 0)
 
-    let winningPlayer = weighted[0]
-    if (secretTotalWeight > 0) {
+    let winningPlayer: Participant = weighted[0] ?? freshActive[0]
+    let usedForcedWinner = false
+
+    if (canForceWinner && forcedWinnerId) {
+      const forced = freshActive.find((p) => p.id === forcedWinnerId)
+      if (forced) {
+        winningPlayer = forced
+        usedForcedWinner = true
+      }
+    }
+
+    if (!usedForcedWinner && secretTotalWeight > 0) {
       const randomWeightPoint = Math.random() * secretTotalWeight
       let currentWeightSum = 0
       for (const p of secretPlayers) {
@@ -752,18 +792,24 @@ export function WinnerRoulette({
       }
     }
 
-    if (!winningPlayer || cannotWin(winningPlayer)) {
+    if (!winningPlayer || (!usedForcedWinner && cannotWin(winningPlayer))) {
       setIsSpinning(false)
       return
     }
+
+    setForcedWinnerId(null)
+    setForcePickerOpen(false)
+    setForceSearch('')
 
     writeLastWinTeam(activeRouletteCode, winningPlayer.team)
 
     const visualIndex = wheelPlayers.findIndex((p) => p.id === winningPlayer.id)
     const n = wheelPlayers.length || 1
-    let newRotation = rotation + 360 * 5
+    // Variación sutil dentro del segmento para que no siempre caiga en el centro exacto.
     const sliceDeg = 360 / n
-    const sliceCenter = Math.max(0, visualIndex) * sliceDeg + sliceDeg / 2
+    const jitter = (Math.random() - 0.5) * sliceDeg * 0.55
+    let newRotation = rotation + 360 * (5 + Math.floor(Math.random() * 2))
+    const sliceCenter = Math.max(0, visualIndex) * sliceDeg + sliceDeg / 2 + jitter
     const targetMod = (360 - sliceCenter + 360) % 360
     const currentMod = ((rotation % 360) + 360) % 360
     const delta = (targetMod - currentMod + 360) % 360
@@ -779,8 +825,10 @@ export function WinnerRoulette({
     spinTimerRef.current = window.setTimeout(() => {
       setIsSpinning(false)
       setWinner(winningPlayer)
-      if (!cannotWin(winningPlayer) && !String(winningPlayer.id).startsWith('local-')) {
-        void updateStatus(winningPlayer.id, 'winner')
+      if (!String(winningPlayer.id).startsWith('local-')) {
+        if (usedForcedWinner || !cannotWin(winningPlayer)) {
+          void updateStatus(winningPlayer.id, 'winner')
+        }
       }
       fireWinnerConfetti(winningPlayer.team)
     }, SPIN_DURATION_MS)
@@ -1005,9 +1053,77 @@ export function WinnerRoulette({
 
           {!isSpectator && (
             <div className="w-[90%] sm:w-full mx-auto space-y-2">
+              {canForceWinner && (
+                <div className="rounded-2xl border border-[#dce3f6] bg-[#f8fafc] p-3 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setForcePickerOpen((v) => !v)}
+                    disabled={isSpinning || isSyncing}
+                    className="w-full text-left text-[11px] font-bold text-[#5b6483] flex items-center justify-between"
+                  >
+                    <span>
+                      {forcedWinner
+                        ? `Resultado fijado: ${forcedWinner.username}`
+                        : 'Elegir resultado (solo master)'}
+                    </span>
+                    <span className="text-[#3d76e5]">{forcePickerOpen ? 'Cerrar' : 'Abrir'}</span>
+                  </button>
+                  {forcedWinner && (
+                    <button
+                      type="button"
+                      onClick={() => setForcedWinnerId(null)}
+                      disabled={isSpinning}
+                      className="text-[10px] font-semibold text-red-500 underline"
+                    >
+                      Quitar selección (sorteo libre)
+                    </button>
+                  )}
+                  {forcePickerOpen && (
+                    <div className="space-y-2">
+                      <Input
+                        value={forceSearch}
+                        onChange={(e) => setForceSearch(e.target.value)}
+                        placeholder="Buscar usuario en la ruleta…"
+                        className="h-10 rounded-xl border-[#dce3f6] bg-white text-sm"
+                        disabled={isSpinning}
+                      />
+                      <div className="max-h-40 overflow-y-auto rounded-xl border border-[#e8eefc] bg-white divide-y divide-[#eef2fb]">
+                        {forceCandidates.length === 0 ? (
+                          <p className="p-3 text-[11px] text-[#7f879f] font-semibold">
+                            No hay coincidencias en la ruleta.
+                          </p>
+                        ) : (
+                          forceCandidates.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setForcedWinnerId(p.id)
+                                setForcePickerOpen(false)
+                                setForceSearch('')
+                              }}
+                              className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-[#f3f6ff] ${
+                                forcedWinnerId === p.id ? 'bg-[#e8f4fc] text-[#0d3b66]' : 'text-[#4f5674]'
+                              }`}
+                            >
+                              {p.username}
+                              <span className="ml-2 text-[10px] font-semibold text-[#94a3b8] uppercase">
+                                {p.team === 'blue' ? 'Sabiduría' : p.team === 'yellow' ? 'Instinto' : 'Valor'}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                      <p className="text-[10px] text-[#94a3b8] font-medium leading-snug">
+                        Al girar, la ruleta caerá en esa persona de forma natural. Los espectadores no ven esta opción.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
               <Button 
                 onClick={() => void spinRoulette()} 
-                disabled={isSpinning || isSyncing || (playersWithWeight.length === 0 && !listLoading)} 
+                disabled={isSpinning || isSyncing || (playersWithWeight.length === 0 && !listLoading && !forcedWinner)} 
                 className={`w-full h-14 sm:h-16 bg-[#0d3b66] hover:bg-[#0a2f52] text-white rounded-2xl text-lg sm:text-xl font-black tracking-wide disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 border-2 border-[#0a2f52] ${!isSpinning && !isSyncing && playersWithWeight.length > 0 ? 'roulette-btn-idle' : ''}`}
               >
                 {isSpinning ? (

@@ -485,6 +485,7 @@ export default function App() {
             syncParticipantsFresh={syncParticipantsFresh}
             realtimeReady={realtimeReady}
             syncError={syncError}
+            canForceWinner={isSuperAdmin(adminSession)}
           />
           </ErrorBoundary>
         </Suspense>
