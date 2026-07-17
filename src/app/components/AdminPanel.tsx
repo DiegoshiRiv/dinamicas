@@ -135,6 +135,7 @@ export function AdminPanel({
   }
 
   const handlePercentBlur = () => {
+    if (!isSuperAdmin) return
     let val = parseInt(localPercent)
     if (isNaN(val) || val < 1) val = 1
     if (val > 100) val = 100
@@ -143,6 +144,7 @@ export function AdminPanel({
   }
 
   const handleApplySettings = () => {
+    if (!isSuperAdmin) return
     handlePercentBlur()
     setApplySuccess(true)
     setTimeout(() => setApplySuccess(false), 3000)
@@ -433,47 +435,60 @@ export function AdminPanel({
         {/* PESTAÑA GANADORES */}
         <TabsContent value="winners" className="mt-0 outline-none">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-[#e8ecf5] space-y-4">
-            <div className="rounded-xl bg-[#f8faff] border border-[#e7ebf5] p-4">
-              <h3 className="font-black text-[#1f2a44] text-base mb-1 flex items-center gap-2"><Settings2 className="w-4 h-4" /> Ajuste de Probabilidades</h3>
-              <p className="text-xs text-[#6d7696] mb-3">Los ganadores recientes tendrán menor probabilidad para dar oportunidad a más personas.</p>
+            {isSuperAdmin ? (
+              <div className="rounded-xl bg-[#f8faff] border border-[#e7ebf5] p-4">
+                <h3 className="font-black text-[#1f2a44] text-base mb-1 flex items-center gap-2"><Settings2 className="w-4 h-4" /> Ajuste real de probabilidades</h3>
+                <p className="text-xs text-[#6d7696] mb-3">Solo Fuecoco ve y modifica esta reducción. La ruleta pública conserva segmentos visualmente iguales.</p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="text-xs font-bold text-[#2c3a5d] block mb-1">Meses con reducción</label>
-                  <select 
-                    value={penaltyMonths} 
-                    onChange={e => setPenaltyMonths(Number(e.target.value))} 
-                    className="w-full bg-white border border-[#dfe5f2] rounded-lg px-3 font-semibold text-[#2d3552] outline-none focus:ring-2 focus:ring-[#8ab6ff]/40 h-11"
-                  >
-                    {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
-                      <option key={m} value={m}>{m} {m === 1 ? 'mes' : 'meses'}</option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="text-xs font-bold text-[#2c3a5d] block mb-1">Meses con reducción</label>
+                    <select
+                      value={penaltyMonths}
+                      onChange={e => setPenaltyMonths(Number(e.target.value))}
+                      className="w-full bg-white border border-[#dfe5f2] rounded-lg px-3 font-semibold text-[#2d3552] outline-none focus:ring-2 focus:ring-[#8ab6ff]/40 h-11"
+                    >
+                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
+                        <option key={m} value={m}>{m} {m === 1 ? 'mes' : 'meses'}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#2c3a5d] block mb-1">Reducción real (%)</label>
+                    <Input
+                      type="number"
+                      min="1" max="100"
+                      value={localPercent}
+                      onChange={e => setLocalPercent(e.target.value)}
+                      onBlur={handlePercentBlur}
+                      className="bg-white border-[#dfe5f2] font-semibold h-11 text-base w-full"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-[#2c3a5d] block mb-1">Reducción (%)</label>
-                  <Input 
-                    type="number" 
-                    min="1" max="100" 
-                    value={localPercent} 
-                    onChange={e => setLocalPercent(e.target.value)} 
-                    onBlur={handlePercentBlur}
-                    className="bg-white border-[#dfe5f2] font-semibold h-11 text-base w-full" 
-                  />
-                </div>
+
+                <Button
+                  onClick={handleApplySettings}
+                  className={`w-full h-11 font-bold text-sm transition-all ${applySuccess ? 'bg-[#25b87c] hover:bg-[#20a96f] text-white' : 'bg-[#3d76e5] hover:bg-[#3467c8] text-white'}`}
+                >
+                  {applySuccess ? <><Check className="w-5 h-5 mr-2" /> Ajustes Aplicados</> : "Aplicar porcentaje"}
+                </Button>
               </div>
-
-              <Button 
-                onClick={handleApplySettings} 
-                className={`w-full h-11 font-bold text-sm transition-all ${applySuccess ? 'bg-[#25b87c] hover:bg-[#20a96f] text-white' : 'bg-[#3d76e5] hover:bg-[#3467c8] text-white'}`}
-              >
-                {applySuccess ? <><Check className="w-5 h-5 mr-2" /> Ajustes Aplicados a Todos</> : "Aplicar Ajustes a Todos"}
-              </Button>
-            </div>
+            ) : (
+              <div className="rounded-xl bg-[#f8faff] border border-[#e7ebf5] p-4 text-center">
+                <h3 className="font-black text-[#1f2a44] text-base mb-1">Probabilidad de la ruleta</h3>
+                <p className="text-xs text-[#6d7696]">
+                  Vista pública: todos los segmentos se muestran con el mismo tamaño.
+                </p>
+              </div>
+            )}
 
             <div>
               <h3 className="text-lg font-black text-[#1f2a44] mb-1 flex items-center gap-2"><Trophy className="w-5 h-5 text-[#f2b62f]" /> Historial de Ganadores</h3>
-              <p className="text-xs text-[#6d7696]">Aquí puedes revisar y restablecer probabilidades cuando sea necesario.</p>
+              <p className="text-xs text-[#6d7696]">
+                {isSuperAdmin
+                  ? 'Aquí puedes revisar y restablecer probabilidades cuando sea necesario.'
+                  : 'Consulta de personas que ya resultaron ganadoras.'}
+              </p>
             </div>
             
             <div className="flex flex-col gap-3">
@@ -482,7 +497,7 @@ export function AdminPanel({
                 <Input placeholder="Buscar ganador..." value={searchWinnerTerm} onChange={(e) => setSearchWinnerTerm(e.target.value)} className="pl-10 h-10 border border-[#e6eaf4] bg-[#fbfcff]" />
               </div>
 
-              {filteredWinners.length > 0 && (
+              {isSuperAdmin && filteredWinners.length > 0 && (
                 <div className="flex items-center gap-2 px-1">
                   <Checkbox 
                     checked={selectedWinnerIds.size === filteredWinners.length && filteredWinners.length > 0} 
@@ -494,7 +509,7 @@ export function AdminPanel({
               )}
             </div>
 
-            {selectedWinnerIds.size > 0 && (
+            {isSuperAdmin && selectedWinnerIds.size > 0 && (
               <div className="bg-[#edf4ff] p-3 rounded-xl border border-[#d6e4fb] flex flex-col sm:flex-row items-center justify-between gap-2">
                 <span className="text-[#2e5ab6] font-bold flex items-center gap-2 text-sm"><CheckSquare className="w-4 h-4" /> {selectedWinnerIds.size} seleccionados</span>
                 <Button variant="outline" size="sm" onClick={() => { onRemoveMultipleWinners(Array.from(selectedWinnerIds)); setSelectedWinnerIds(new Set()) }} className="font-bold text-blue-700 border-blue-300 hover:bg-blue-100 w-full sm:w-auto">
@@ -511,19 +526,25 @@ export function AdminPanel({
                   {filteredWinners.map(w => (
                     <div key={w.id} className="p-3 sm:p-4 bg-white flex items-center justify-between hover:bg-gray-50 transition-colors gap-2">
                       <div className="flex items-center gap-3 sm:gap-4 overflow-hidden flex-1">
-                        <Checkbox checked={selectedWinnerIds.has(w.id)} onCheckedChange={() => toggleSelectWinner(w.id)} className="w-5 h-5 rounded-md border-gray-300 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white shrink-0" />
+                        {isSuperAdmin && (
+                          <Checkbox checked={selectedWinnerIds.has(w.id)} onCheckedChange={() => toggleSelectWinner(w.id)} className="w-5 h-5 rounded-md border-gray-300 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white shrink-0" />
+                        )}
                         <div className="min-w-0">
                           <span className="font-black text-gray-800 text-sm sm:text-lg block truncate">{w.username}</span>
                           <span className="text-xs sm:text-sm font-bold text-gray-500">{new Date(w.won_at).toLocaleDateString()}</span>
                         </div>
                       </div>
                       
-                      <Button variant="outline" size="sm" onClick={() => onRemoveWinner(w.id)} className="text-blue-600 border-blue-200 hover:bg-blue-50 font-bold shrink-0 hidden sm:flex" title="Eliminar del historial para restablecer su probabilidad">
-                        <RotateCcw className="w-4 h-4 mr-1" /> Restablecer
-                      </Button>
-                      <Button variant="outline" size="icon" onClick={() => onRemoveWinner(w.id)} className="text-blue-600 border-blue-200 hover:bg-blue-50 font-bold shrink-0 sm:hidden h-8 w-8 rounded-lg" title="Restablecer">
-                        <RotateCcw className="w-4 h-4" />
-                      </Button>
+                      {isSuperAdmin && (
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => onRemoveWinner(w.id)} className="text-blue-600 border-blue-200 hover:bg-blue-50 font-bold shrink-0 hidden sm:flex" title="Eliminar del historial para restablecer su probabilidad">
+                            <RotateCcw className="w-4 h-4 mr-1" /> Restablecer
+                          </Button>
+                          <Button variant="outline" size="icon" onClick={() => onRemoveWinner(w.id)} className="text-blue-600 border-blue-200 hover:bg-blue-50 font-bold shrink-0 sm:hidden h-8 w-8 rounded-lg" title="Restablecer">
+                            <RotateCcw className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -111,6 +111,7 @@ export default function App() {
 
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => loadAdminSession())
   const isAdmin = Boolean(adminSession)
+  const canManageProbability = isSuperAdmin(adminSession)
 
   useEffect(() => {
     localStorage.setItem('penaltyMonths', penaltyMonths.toString())
@@ -282,9 +283,12 @@ export default function App() {
   }
 
   const handleStartRoulette = () => {
+    const effectiveConfig = canManageProbability
+      ? { penaltyMonths, penaltyPercent }
+      : rouletteConfig
     setCurrentView('roulette')
     void syncParticipantsFresh('admin_open_roulette')
-    void broadcastView('roulette', { penaltyMonths, penaltyPercent })
+    void broadcastView('roulette', effectiveConfig)
   }
   const handleExitRoulette = () => { setCurrentView('main'); void broadcastView('main') }
 
@@ -473,8 +477,8 @@ export default function App() {
             onBack={isAdmin ? handleExitRoulette : () => setCurrentView('main')} 
             participants={participants} recentWinners={recentWinners} updateStatus={updateStatus} onResetGame={resetGame} 
             isSpectator={!isAdmin} embedded incomingSpin={incomingSpin} broadcastSpin={broadcastSpin} 
-            penaltyMonths={isAdmin ? penaltyMonths : rouletteConfig.penaltyMonths}
-            penaltyPercent={isAdmin ? penaltyPercent : rouletteConfig.penaltyPercent}
+            penaltyMonths={canManageProbability ? penaltyMonths : rouletteConfig.penaltyMonths}
+            penaltyPercent={canManageProbability ? penaltyPercent : rouletteConfig.penaltyPercent}
             rouletteCodes={rouletteCodes}
             activeRouletteCode={activeRouletteCode}
             onChangeRouletteCode={isAdmin ? setActiveRouletteCode : undefined}
@@ -485,7 +489,7 @@ export default function App() {
             syncParticipantsFresh={syncParticipantsFresh}
             realtimeReady={realtimeReady}
             syncError={syncError}
-            canForceWinner={isSuperAdmin(adminSession)}
+            canForceWinner={canManageProbability}
           />
           </ErrorBoundary>
         </Suspense>
@@ -727,14 +731,14 @@ export default function App() {
               onStartRoulette={handleStartRoulette}
               onBanUser={handleBanUser}
               onUnbanUser={unbanUser}
-              isSuperAdmin={isSuperAdmin(adminSession)}
+              isSuperAdmin={canManageProbability}
               adminUsername={adminSession?.username}
               onRemoveWinner={removeRecentWinner}
               onRemoveMultipleWinners={removeMultipleRecentWinners}
-              penaltyMonths={penaltyMonths}
-              setPenaltyMonths={setPenaltyMonths}
-              penaltyPercent={penaltyPercent}
-              setPenaltyPercent={setPenaltyPercent}
+              penaltyMonths={canManageProbability ? penaltyMonths : rouletteConfig.penaltyMonths}
+              setPenaltyMonths={canManageProbability ? setPenaltyMonths : () => {}}
+              penaltyPercent={canManageProbability ? penaltyPercent : rouletteConfig.penaltyPercent}
+              setPenaltyPercent={canManageProbability ? setPenaltyPercent : () => {}}
               rouletteCodes={rouletteCodes}
               activeRouletteCode={activeRouletteCode}
               onChangeRouletteCode={setActiveRouletteCode}
