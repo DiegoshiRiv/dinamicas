@@ -165,6 +165,35 @@ type WheelPlayer = Participant & { weight: number }
 
 const LAST_WIN_TEAM_KEY = (code: string) => `dinamicas:lastWinTeam:${sanitizeRouletteCode(code)}`
 
+/** Orden visual estable: Instinto → Valor → Sabiduría, omitiendo equipos agotados. */
+function alternatePlayersByTeam<T extends Pick<Participant, 'team'>>(players: T[]): T[] {
+  const teamOrder: Participant['team'][] = ['yellow', 'red', 'blue']
+  const queues = new Map<Participant['team'], T[]>(
+    teamOrder.map((team) => [team, players.filter((player) => player.team === team)]),
+  )
+  const arranged: T[] = []
+
+  while (arranged.length < players.length) {
+    let addedInCycle = false
+    for (const team of teamOrder) {
+      const next = queues.get(team)?.shift()
+      if (next) {
+        arranged.push(next)
+        addedInCycle = true
+      }
+    }
+    // Protección para datos futuros con un equipo fuera de los tres conocidos.
+    if (!addedInCycle) break
+  }
+
+  if (arranged.length < players.length) {
+    const arrangedSet = new Set(arranged)
+    arranged.push(...players.filter((player) => !arrangedSet.has(player)))
+  }
+
+  return arranged
+}
+
 function readLastWinTeam(code: string): Participant['team'] | null {
   try {
     const raw = sessionStorage.getItem(LAST_WIN_TEAM_KEY(code))
@@ -352,7 +381,7 @@ export function WinnerRoulette({
 
   /** Ruleta visible: todos los activos (incl. venaderos) para que se vean en espectadores */
   const playersForWheel = useMemo((): WheelPlayer[] => {
-    return activePlayers.map((p) => ({ ...p, weight: 1 }))
+    return alternatePlayersByTeam(activePlayers.map((p) => ({ ...p, weight: 1 })))
   }, [activePlayers])
 
   const totalWeight = useMemo(
@@ -560,12 +589,13 @@ export function WinnerRoulette({
 
     const runSpin = (list: Participant[]) => {
       const winningPlayer = resolveWinner()
-      const wheelPlayers =
+      const wheelPlayers = alternatePlayersByTeam(
         list.length > 0
           ? list
           : winningPlayer
             ? [winningPlayer]
-            : []
+            : [],
+      )
 
       const isOldSpin = Date.now() - incomingSpin.localReceivedAt > 2000
 
@@ -731,7 +761,9 @@ export function WinnerRoulette({
       }
       return { ...p, weight }
     })
-    const wheelPlayers: WheelPlayer[] = freshActive.map((p) => ({ ...p, weight: 1 }))
+    const wheelPlayers: WheelPlayer[] = alternatePlayersByTeam(
+      freshActive.map((p) => ({ ...p, weight: 1 })),
+    )
 
     if (weighted.length === 0) {
       const canForceFromWheel =
