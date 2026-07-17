@@ -18,7 +18,6 @@ import candelaImg from '@/assets/Humanos/candela.png'
 import ponytaCandela from '@/assets/Pokemon/ponytacandela.png'
 
 // —— Comunidad / CD ——
-import cdParqueMorelos from '@/assets/dia de la comunidad frigibax parque morelos.png'
 import frigibaxGif from '@/assets/pokemon gif/Frigibax.gif'
 import frigibaxShinyGif from '@/assets/pokemon gif/Frigibax_Shiny.gif'
 import frigibaxImg from '@/assets/Pokemon/996-frigibax-shiny.png'
@@ -30,7 +29,7 @@ import tiempoLibreFoto from '@/assets/fotos/tiempolibrefoto.png'
 import tiempoLibreLogo from '@/assets/logos/tiempolibre.png'
 
 // —— GO Fest ——
-import logoFest from '@/assets/logos/logofest.png'
+import logoFest from '@/assets/logos/Logo.png'
 import mewtwoImg from '@/assets/Pokemon/mewtwo.png'
 import mewtwoMegaX from '@/assets/Pokemon/150-mewtwo-mega-x.png'
 import mewtwoMegaY from '@/assets/Pokemon/150-mewtwo-mega-y.png'
@@ -372,7 +371,7 @@ const GO_BANNERS: Record<string, Omit<EventBannerConfig, 'id' | 'schedule'> & { 
     modalTitle: 'Sábado 20 de junio de 2026',
     description:
       'Verás más Frigibax salvajes. Con suerte, pueden ser Shiny o traer el fondo especial del Día de la Comunidad.',
-    banner: cdParqueMorelos,
+    banner: FONDO_CD_DYNAMIC,
     heroImage: frigibaxGif,
     heroImageShiny: frigibaxShinyGif,
     badge: 'Día de la Comunidad',
@@ -769,7 +768,7 @@ export function bannerForCommunityEvent(
     duration: schedule,
     schedule,
     description: event.description,
-    banner: isCd ? cdParqueMorelos : tiempoLibreFoto,
+    banner: isCd ? FONDO_CD_DYNAMIC : tiempoLibreFoto,
     heroImage: event.pokemon_image_url || (isCd ? frigibaxGif : comunidadFoto),
     heroImageSecondary: isCd ? frigibaxImg : tiempoLibreLogo,
     badge: isCd ? 'Día de la Comunidad' : 'Comunidad',

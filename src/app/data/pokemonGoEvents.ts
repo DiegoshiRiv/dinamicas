@@ -1,5 +1,5 @@
 import { formatTimeRangeLabel } from '@/app/utils/formatTime'
-import logoFest from '@/assets/logos/logofest.png'
+import logoFest from '@/assets/logos/Logo.png'
 import megaEvIcon from '@/assets/iconos/megaev.png'
 
 /** Eventos oficiales de Pokémon GO (fechas locales, día inclusive). */
