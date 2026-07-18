@@ -119,3 +119,38 @@ body {
     transform: rotate(360deg);
   }
 }
+
+.register-progress-track {
+  overflow: hidden;
+  background: rgba(13, 59, 102, 0.1);
+}
+
+.register-progress-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  transform: scaleX(0.04);
+  background: linear-gradient(90deg, #1fb988, #23c8b6, #3d76e5);
+  animation: register-progress-fill linear forwards;
+  will-change: transform;
+}
+
+@keyframes register-progress-fill {
+  0% {
+    transform: scaleX(0.04);
+  }
+  70% {
+    transform: scaleX(0.82);
+  }
+  100% {
+    transform: scaleX(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .register-progress-fill {
+    animation: none;
+    transform: scaleX(0.55);
+  }
+}

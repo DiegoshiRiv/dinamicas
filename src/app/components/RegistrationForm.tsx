@@ -26,7 +26,8 @@ import {
   modalSheetClass,
 } from '@/app/layout/mobileShellLayout'
 
-const REGISTER_TIMEOUT_MS = 12000
+/** 8s: suficiente en 4G/WiFi de evento; más corto se siente más ágil. */
+const REGISTER_TIMEOUT_MS = 8000
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   let settled = false
@@ -414,6 +415,21 @@ export function RegistrationForm({
                   ? 'Ayudar a registrarse'
                   : 'Registrarse en la Dinámica'}
         </button>
+
+        {loading && (
+          <div className="space-y-1.5" aria-live="polite" aria-busy="true">
+            <div className="register-progress-track h-2.5 w-full rounded-full">
+              <span
+                key={loading ? 'register-progress' : 'idle'}
+                className="register-progress-fill rounded-full"
+                style={{ animationDuration: `${REGISTER_TIMEOUT_MS}ms` }}
+              />
+            </div>
+            <p className="text-center text-[11px] font-semibold text-[#5b6483]">
+              Enviando tu registro… normalmente tarda menos de unos segundos
+            </p>
+          </div>
+        )}
 
         {!isAdmin && ipFailed && (
           <button
