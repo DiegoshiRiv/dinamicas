@@ -211,9 +211,8 @@ export function useParticipants(
       return
     }
     if (rwData) {
-      setRecentWinners(
-        (rwData as RecentWinner[]).filter((w) => belongsToRoomRef.current(w.ip_address)),
-      )
+      // Historial global: sirve para penalizaciones y panel admin (no se acota por sala).
+      setRecentWinners(rwData as RecentWinner[])
     }
   }, [])
 
@@ -321,9 +320,9 @@ export function useParticipants(
     if (!sRes.error && sRes.data) setSponsors(sRes.data as Sponsor[])
 
     if (!rwRes.error && rwRes.data) {
-      setRecentWinners(
-        (rwRes.data as RecentWinner[]).filter((w) => belongsToRoomRef.current(w.ip_address)),
-      )
+      setRecentWinners(rwRes.data as RecentWinner[])
+    } else if (rwRes.error) {
+      eventLog.error('roulette', 'recent_winners fetch failed', { error: rwRes.error.message })
     }
   }, [])
 
@@ -414,9 +413,9 @@ export function useParticipants(
       try {
         if (loadParticipants) {
           setLoading(true)
-          await fetchParticipantsData()
+          await Promise.all([fetchParticipantsData(), fetchRecentWinners()])
         } else {
-          await fetchRegistrationMeta()
+          await Promise.all([fetchRegistrationMeta(), fetchRecentWinners()])
         }
       } catch (error) {
         eventLog.error('boot', 'initial fetch failed', {
@@ -431,7 +430,7 @@ export function useParticipants(
     return () => {
       cancelled = true
     }
-  }, [rouletteCode, loadParticipants, fetchBanners, fetchParticipantsData, fetchRegistrationMeta])
+  }, [rouletteCode, loadParticipants, fetchBanners, fetchParticipantsData, fetchRegistrationMeta, fetchRecentWinners])
 
   // Realtime DB: un solo canal por sala; NO se remonta al flip de loadParticipants.
   useEffect(() => {
@@ -861,8 +860,11 @@ export function useParticipants(
           .select('*')
           .single()
 
-        if (winnerRow && belongsToRoomRef.current(winnerRow.ip_address)) {
+        if (winnerRow) {
           setRecentWinners((prev) => [winnerRow as RecentWinner, ...prev])
+        } else {
+          // Fallback si .single() no devolvió fila: recarga historial completo.
+          void fetchRecentWinners()
         }
       }
     }
