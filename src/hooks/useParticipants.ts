@@ -23,6 +23,11 @@ import {
 } from '@/app/utils/registrationToken'
 import { getDeviceFingerprint } from '@/app/utils/deviceFingerprint'
 
+const PARTICIPANT_COLUMNS =
+  'id,username,team,status,ip_address,registration_token,username_key,device_fingerprint'
+const PARTICIPANT_COLUMNS_LEGACY = 'id,username,team,status,ip_address'
+const UPSERT_BATCH_MS = 200
+
 const IDENTITY_COLUMN_MISSING =
   /registration_token|username_key|device_fingerprint/i
 

@@ -1084,16 +1084,6 @@ export function WinnerRoulette({
                   ? 'Cargando nombres…'
                   : `${activePlayers.length} participante${activePlayers.length === 1 ? '' : 's'}`}
               </p>
-              {syncParticipantsFresh && (
-                <button
-                  type="button"
-                  onClick={() => void forceSyncParticipants()}
-                  disabled={isSpinning || isSyncing}
-                  className="mt-2 text-[11px] font-bold text-[#3d76e5] underline underline-offset-2 disabled:opacity-50"
-                >
-                  {isSyncing ? 'Sincronizando…' : 'Actualizar lista'}
-                </button>
-              )}
             </div>
           )}
 
@@ -1352,7 +1342,7 @@ export function WinnerRoulette({
               </Button>
             </div>
           )}
-          {(syncError || (!realtimeReady && !isSpectator)) && (
+          {!isSpectator && (syncError || !realtimeReady) && (
             <p className="text-center text-[11px] font-semibold text-[#5b6483] px-4 mt-2">
               {syncError
                 ? `Sincronización: ${syncError}. Se conserva la última lista.`
