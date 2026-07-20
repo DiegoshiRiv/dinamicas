@@ -364,6 +364,24 @@ export function WinnerRoulette({
     [isSpectator, activePlayers, activeRouletteCode],
   )
   const selfPlayerId = selfPlayer?.id ?? null
+  const [selfFlashActive, setSelfFlashActive] = useState(false)
+  const selfFlashTimerRef = useRef<number | null>(null)
+
+  const flashSelfSpace = () => {
+    if (!selfPlayerId) return
+    setSelfFlashActive(true)
+    if (selfFlashTimerRef.current) window.clearTimeout(selfFlashTimerRef.current)
+    selfFlashTimerRef.current = window.setTimeout(() => {
+      setSelfFlashActive(false)
+      selfFlashTimerRef.current = null
+    }, 2800)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (selfFlashTimerRef.current) window.clearTimeout(selfFlashTimerRef.current)
+    }
+  }, [])
 
   const forcedWinner = useMemo(
     () => (forcedWinnerId ? activePlayers.find((p) => p.id === forcedWinnerId) ?? null : null),
@@ -611,16 +629,21 @@ export function WinnerRoulette({
           ctx.moveTo(center, center)
           ctx.arc(center, center, radius, currentAngle, endAngle)
           ctx.closePath()
-          const glow = ctx.createRadialGradient(gx, gy, 0, center, center, radius)
-          glow.addColorStop(0, 'rgba(255,255,255,0.45)')
-          glow.addColorStop(0.55, 'rgba(34,197,94,0.38)')
-          glow.addColorStop(1, 'rgba(34,197,94,0.12)')
-          ctx.fillStyle = glow
-          ctx.fill()
+          if (selfFlashActive) {
+            ctx.fillStyle = '#16A34A'
+            ctx.fill()
+          } else {
+            const glow = ctx.createRadialGradient(gx, gy, 0, center, center, radius)
+            glow.addColorStop(0, 'rgba(255,255,255,0.45)')
+            glow.addColorStop(0.55, 'rgba(34,197,94,0.38)')
+            glow.addColorStop(1, 'rgba(34,197,94,0.12)')
+            ctx.fillStyle = glow
+            ctx.fill()
+          }
         }
 
         // Textura solo con pocos segmentos (en móviles con muchos nombres era muy lento).
-        if (showPattern) {
+        if (showPattern && !(isSelf && selfFlashActive)) {
           ctx.save()
           ctx.beginPath()
           ctx.moveTo(center, center)
@@ -644,7 +667,7 @@ export function WinnerRoulette({
         ctx.arc(center, center, radius, currentAngle, endAngle)
         ctx.closePath()
         ctx.lineWidth = isSelf ? (n > 80 ? 2.5 : 3.5) : n > 80 ? 1 : 2
-        ctx.strokeStyle = isSelf ? '#22C55E' : 'rgba(255,255,255,0.85)'
+        ctx.strokeStyle = isSelf ? (selfFlashActive ? '#14532D' : '#22C55E') : 'rgba(255,255,255,0.85)'
         ctx.stroke()
 
         const textAngle = currentAngle + sliceAngle / 2
@@ -653,12 +676,18 @@ export function WinnerRoulette({
         ctx.rotate(textAngle)
         ctx.textAlign = 'right'
         ctx.fillStyle = isSelf
-          ? '#052e16'
+          ? selfFlashActive
+            ? '#ffffff'
+            : '#052e16'
           : player.team === 'yellow'
             ? '#1f2937'
             : '#ffffff'
-        ctx.shadowColor = isSelf ? 'rgba(34,197,94,0.95)' : 'rgba(0,0,0,0.35)'
-        ctx.shadowBlur = isSelf ? 8 : n > 80 ? 2 : 4
+        ctx.shadowColor = isSelf
+          ? selfFlashActive
+            ? 'rgba(0,0,0,0.45)'
+            : 'rgba(34,197,94,0.95)'
+          : 'rgba(0,0,0,0.35)'
+        ctx.shadowBlur = isSelf ? (selfFlashActive ? 4 : 8) : n > 80 ? 2 : 4
         const selfFont = Math.min(22, fontSize + (n > 50 ? 2 : 4))
         ctx.font = `bold ${isSelf ? selfFont : fontSize}px sans-serif`
         const rawLabel =
@@ -673,18 +702,18 @@ export function WinnerRoulette({
         currentAngle = endAngle
       })
 
-      // Contorno dorado del segmento propio (gira con la ruleta).
+      // Contorno del segmento propio (gira con la ruleta).
       if (!Number.isNaN(selfArcStart) && !Number.isNaN(selfArcEnd)) {
         ctx.beginPath()
         ctx.arc(center, center, radius + 6, selfArcStart, selfArcEnd)
-        ctx.strokeStyle = '#22C55E'
-        ctx.lineWidth = Math.max(5, 10 - Math.min(n, 40) * 0.1)
+        ctx.strokeStyle = selfFlashActive ? '#15803D' : '#22C55E'
+        ctx.lineWidth = Math.max(5, 10 - Math.min(n, 40) * 0.1) + (selfFlashActive ? 3 : 0)
         ctx.lineCap = 'round'
         ctx.stroke()
         ctx.beginPath()
         ctx.arc(center, center, radius - 2, selfArcStart, selfArcEnd)
-        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-        ctx.lineWidth = 2
+        ctx.strokeStyle = selfFlashActive ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.95)'
+        ctx.lineWidth = selfFlashActive ? 3 : 2
         ctx.stroke()
       }
 
@@ -711,7 +740,7 @@ export function WinnerRoulette({
     return () => {
       if (drawTimerRef.current) window.clearTimeout(drawTimerRef.current)
     }
-  }, [playersForWheel, totalWeight, isSpinning, wheelAssetsReady, listLoading, isSyncing, selfPlayerId])
+  }, [playersForWheel, totalWeight, isSpinning, wheelAssetsReady, listLoading, isSyncing, selfPlayerId, selfFlashActive])
 
   useEffect(() => {
     if (!isSpectator || !incomingSpin) return
@@ -1170,10 +1199,21 @@ export function WinnerRoulette({
                   : `${activePlayers.length} participante${activePlayers.length === 1 ? '' : 's'}`}
               </p>
               {selfPlayer && (
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black text-emerald-800 border border-emerald-400">
+                <button
+                  type="button"
+                  onClick={flashSelfSpace}
+                  className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black border transition-colors active:scale-95 ${
+                    selfFlashActive
+                      ? 'bg-[#16A34A] text-white border-[#14532D] shadow-md'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-400 hover:bg-emerald-200'
+                  }`}
+                  aria-label="Resaltar tu espacio en la ruleta"
+                >
                   <span aria-hidden>★</span>
-                  Tu espacio: {selfPlayer.username}
-                </p>
+                  {selfFlashActive
+                    ? `¡Tu espacio se resalta! · ${selfPlayer.username}`
+                    : `Tu espacio ahora se resalta · ${selfPlayer.username}`}
+                </button>
               )}
             </div>
           )}
