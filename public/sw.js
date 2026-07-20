@@ -1,5 +1,5 @@
-/* PWA SW v7: HTML siempre fresco; limpia caches viejos al activar. */
-const SW_VERSION = 'dinamicas-sw-v7'
+/* PWA SW v8: HTML siempre fresco; limpia caches viejos al activar. */
+const SW_VERSION = 'dinamicas-sw-v8'
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()

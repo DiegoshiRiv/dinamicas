@@ -21,6 +21,7 @@ import {
   type AdminSession,
 } from '@/app/config/admins'
 import { ErrorBoundary } from '@/app/components/ErrorBoundary'
+import { DebugDiagnosticsPanel } from '@/app/components/DebugDiagnosticsPanel'
 import { prefetchClientIp } from '@/app/hooks/useClientIp'
 import { hydrateDeviceToken } from '@/app/utils/registrationToken'
 import {
@@ -55,11 +56,6 @@ const EventsBoard = lazy(() =>
 const EventAnnouncementOverlay = lazy(() =>
   import('@/app/components/EventAnnouncementOverlay').then((m) => ({
     default: m.EventAnnouncementOverlay,
-  })),
-)
-const DebugDiagnosticsPanel = lazy(() =>
-  import('@/app/components/DebugDiagnosticsPanel').then((m) => ({
-    default: m.DebugDiagnosticsPanel,
   })),
 )
 
@@ -141,6 +137,8 @@ export default function App() {
 
   const [announcementDismissed, setAnnouncementDismissed] = useState(false)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
+  /** Evita tapar el primer paint con el anuncio lazy. */
+  const [announcementReady, setAnnouncementReady] = useState(false)
 
   const { tournaments } = useTournaments(isAdmin || activeTab === 'tournaments')
   const { polls } = usePolls(isAdmin || activeTab === 'polls')
@@ -158,6 +156,8 @@ export default function App() {
   useEffect(() => {
     void prefetchClientIp()
     void hydrateDeviceToken()
+    const t = window.setTimeout(() => setAnnouncementReady(true), 600)
+    return () => window.clearTimeout(t)
   }, [])
 
   // Al limpiar ruleta (nueva ronda): anuncio otra vez + permitir registro.
@@ -185,7 +185,7 @@ export default function App() {
   }, [isAdmin, activeRouletteCode, roundVersion])
 
   const announcementOpen =
-    !isAdmin && showWaitingAnnouncement && !announcementDismissed
+    announcementReady && !isAdmin && showWaitingAnnouncement && !announcementDismissed
 
   useEffect(() => {
     saveAdminSession(adminSession)
@@ -783,14 +783,6 @@ export default function App() {
 
   return (
     <>
-      {announcementOpen && (
-        <Suspense fallback={null}>
-          <EventAnnouncementOverlay
-            open={announcementOpen}
-            onDismiss={() => setAnnouncementDismissed(true)}
-          />
-        </Suspense>
-      )}
       <MobileShell
         activeTab={activeTab}
         onTabChange={handleTabChange}
@@ -807,13 +799,22 @@ export default function App() {
         {renderMainContent()}
       </MobileShell>
 
-      <Suspense fallback={null}>
-        <DebugDiagnosticsPanel
-          participantCount={participants.length}
-          realtimeReady={realtimeReady}
-          syncError={syncError}
-        />
-      </Suspense>
+      {announcementOpen && (
+        <Suspense fallback={null}>
+          <ErrorBoundary label="announcement">
+            <EventAnnouncementOverlay
+              open={announcementOpen}
+              onDismiss={() => setAnnouncementDismissed(true)}
+            />
+          </ErrorBoundary>
+        </Suspense>
+      )}
+
+      <DebugDiagnosticsPanel
+        participantCount={participants.length}
+        realtimeReady={realtimeReady}
+        syncError={syncError}
+      />
 
       {showLogin && (
         <div className={modalOverlayCenterClass} onClick={() => setShowLogin(false)}>

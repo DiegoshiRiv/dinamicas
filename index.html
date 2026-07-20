@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.json?v=7" />
+    <link rel="manifest" href="/manifest.json?v=8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0661C6" />
     <meta name="application-name" content="POGOGDL" />
@@ -14,6 +14,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap"
+    />
     <title>POGOGDL</title>
     <style>
       html, body { margin: 0; background: #e8f4fc; }
@@ -66,7 +70,7 @@
 
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', function () {
-            navigator.serviceWorker.register('/sw.js?v=7').catch(function () {})
+            navigator.serviceWorker.register('/sw.js?v=8').catch(function () {})
           })
         }
       })()

@@ -1,2 +1,1 @@
-/* Carga no bloqueante: el texto usa system-ui hasta que llegue Montserrat. */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap');
+/* Montserrat se carga desde index.html (no-bloqueante). */
