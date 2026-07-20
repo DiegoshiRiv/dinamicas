@@ -7,8 +7,8 @@ const TARGET_H = 800
 const ASSETS = path.resolve('src/assets')
 
 const JOBS = [
-  { file: 'Fondo1.png', focalY: 0.55 },
-  { file: 'Fondo2.png', focalY: 0.5 },
+  { file: 'Fondo1.jpg', focalY: 0.55 },
+  { file: 'Fondo2.jpg', focalY: 0.5 },
 ]
 
 async function cropToLandscape(file, focalY) {

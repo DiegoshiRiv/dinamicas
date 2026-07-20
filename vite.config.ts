@@ -19,6 +19,10 @@ export default defineConfig({
     port: 5173,
   },
   build: {
+    target: 'es2020',
+    cssCodeSplit: true,
+    modulePreload: { polyfill: false },
+    assetsInlineLimit: 2048,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -30,6 +34,7 @@ export default defineConfig({
           if (id.includes('recharts')) return 'vendor-charts'
           if (id.includes('motion')) return 'vendor-motion'
           if (id.includes('lucide-react')) return 'vendor-icons'
+          if (id.includes('react-dom') || id.includes('/react/')) return 'vendor-react'
           return 'vendor'
         },
       },

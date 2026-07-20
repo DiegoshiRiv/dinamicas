@@ -15,6 +15,15 @@ if (!rootEl) {
   )
 }
 
+// Quita splash en cuanto React montó (o a los 2.5s máximo).
+const hideSplash = () => {
+  const splash = document.getElementById('boot-splash')
+  if (!splash || splash.hasAttribute('hidden')) return
+  splash.setAttribute('hidden', '')
+}
+requestAnimationFrame(() => requestAnimationFrame(hideSplash))
+window.setTimeout(hideSplash, 2500)
+
 // Errores async no capturados por React (promesas / chunks).
 window.addEventListener('unhandledrejection', (event) => {
   console.error('[dinamicas:unhandledrejection]', event.reason)

@@ -382,8 +382,8 @@ export function useParticipants(
       setRealtimeReady(status === 'SUBSCRIBED')
       diagnostics.patch({ realtimeStatus: String(status) })
       eventLog.info('roulette', 'sync channel', { status, code: rouletteCode })
-      // Precarga lista al conectar: el espectador no espera a abrir la ruleta.
-      if (status === 'SUBSCRIBED') {
+      // No precargar toda la lista en espectadores de registro (acelera el arranque en 3G).
+      if (status === 'SUBSCRIBED' && loadParticipantsRef.current) {
         void syncParticipantsFresh('channel_subscribed')
       }
     })
@@ -415,7 +415,8 @@ export function useParticipants(
           setLoading(true)
           await Promise.all([fetchParticipantsData(), fetchRecentWinners()])
         } else {
-          await Promise.all([fetchRegistrationMeta(), fetchRecentWinners()])
+          // Registro: solo meta ligera. Ganadores/lista completa al abrir ruleta o admin.
+          await fetchRegistrationMeta()
         }
       } catch (error) {
         eventLog.error('boot', 'initial fetch failed', {

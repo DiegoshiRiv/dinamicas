@@ -5,8 +5,6 @@ import moltres from '@/assets/iconos/moltres.png'
 import zapdos from '@/assets/iconos/zapdos.png'
 import articuno from '@/assets/iconos/articuno.png'
 import pokebolaImg from '@/assets/iconos/Pokebola.png'
-import pogoImg from '@/assets/capturas de pantalla/Pogo.jpg'
-import camfImg from '@/assets/capturas de pantalla/Camf.jpg'
 import campfireIcon from '@/assets/recursos/campfire.png'
 import wpIcon from '@/assets/iconos/w.png'
 import {
@@ -118,6 +116,7 @@ export function RegistrationForm({
   const [loading, setLoading] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
   const [anteriorGifUrl, setAnteriorGifUrl] = useState<string | null>(null)
+  const [exampleShotUrls, setExampleShotUrls] = useState<{ pogo?: string; camf?: string }>({})
 
   const inputRef = useRef<HTMLInputElement>(null)
   const anteriorSectionRef = useRef<HTMLDivElement>(null)
@@ -147,6 +146,22 @@ export function RegistrationForm({
     observer.observe(el)
     return () => observer.disconnect()
   }, [isAdmin])
+
+  useEffect(() => {
+    if (!showExamples) return
+    let cancelled = false
+    void Promise.all([
+      import('@/assets/capturas de pantalla/Pogo.jpg'),
+      import('@/assets/capturas de pantalla/Camf.jpg'),
+    ]).then(([pogo, camf]) => {
+      if (!cancelled) {
+        setExampleShotUrls({ pogo: pogo.default, camf: camf.default })
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [showExamples])
 
   const handleRetryIp = async () => {
     if (retryingIp) return
@@ -526,13 +541,25 @@ export function RegistrationForm({
 
             <div className="overflow-y-auto grid grid-cols-2 gap-3 flex-1">
               <div className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
-                <img src={pogoImg} alt="Pokémon GO" className="w-full h-auto object-contain" />
+                <div className="min-h-[140px] flex items-center justify-center p-1">
+                  {exampleShotUrls.pogo ? (
+                    <img src={exampleShotUrls.pogo} alt="Pokémon GO" className="w-full h-auto object-contain" loading="lazy" />
+                  ) : (
+                    <span className="text-[11px] font-semibold text-gray-400">Cargando…</span>
+                  )}
+                </div>
                 <span className="block py-2 text-center text-[10px] font-bold text-gray-500 uppercase">
                   Pokémon GO
                 </span>
               </div>
               <div className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
-                <img src={camfImg} alt="Campfire" className="w-full h-auto object-contain" />
+                <div className="min-h-[140px] flex items-center justify-center p-1">
+                  {exampleShotUrls.camf ? (
+                    <img src={exampleShotUrls.camf} alt="Campfire" className="w-full h-auto object-contain" loading="lazy" />
+                  ) : (
+                    <span className="text-[11px] font-semibold text-gray-400">Cargando…</span>
+                  )}
+                </div>
                 <span className="block py-2 text-center text-[10px] font-bold text-gray-500 uppercase">
                   Campfire
                 </span>

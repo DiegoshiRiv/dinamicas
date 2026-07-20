@@ -1,4 +1,4 @@
-import anuncioImg from '@/assets/anuncio.png'
+import anuncioImg from '@/assets/anuncio.jpg'
 import { X } from 'lucide-react'
 
 type Props = {

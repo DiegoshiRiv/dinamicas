@@ -1,5 +1,5 @@
-/* PWA SW v5: HTML siempre fresco; assets hasheados cache-first (mejor en red lenta). */
-const SW_VERSION = 'dinamicas-sw-v5'
+/* PWA SW v6: HTML siempre fresco; assets hasheados cache-first (mejor en red lenta). */
+const SW_VERSION = 'dinamicas-sw-v6'
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()

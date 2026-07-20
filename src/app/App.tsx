@@ -21,8 +21,6 @@ import {
   type AdminSession,
 } from '@/app/config/admins'
 import { ErrorBoundary } from '@/app/components/ErrorBoundary'
-import { DebugDiagnosticsPanel } from '@/app/components/DebugDiagnosticsPanel'
-import { EventAnnouncementOverlay } from '@/app/components/EventAnnouncementOverlay'
 import { prefetchClientIp } from '@/app/hooks/useClientIp'
 import { hydrateDeviceToken } from '@/app/utils/registrationToken'
 import {
@@ -53,6 +51,16 @@ const MeetingMaps = lazy(() =>
 )
 const EventsBoard = lazy(() =>
   import('@/app/components/EventsBoard').then((m) => ({ default: m.EventsBoard })),
+)
+const EventAnnouncementOverlay = lazy(() =>
+  import('@/app/components/EventAnnouncementOverlay').then((m) => ({
+    default: m.EventAnnouncementOverlay,
+  })),
+)
+const DebugDiagnosticsPanel = lazy(() =>
+  import('@/app/components/DebugDiagnosticsPanel').then((m) => ({
+    default: m.DebugDiagnosticsPanel,
+  })),
 )
 
 type View = 'main' | 'roulette'
@@ -775,10 +783,14 @@ export default function App() {
 
   return (
     <>
-      <EventAnnouncementOverlay
-        open={announcementOpen}
-        onDismiss={() => setAnnouncementDismissed(true)}
-      />
+      {announcementOpen && (
+        <Suspense fallback={null}>
+          <EventAnnouncementOverlay
+            open={announcementOpen}
+            onDismiss={() => setAnnouncementDismissed(true)}
+          />
+        </Suspense>
+      )}
       <MobileShell
         activeTab={activeTab}
         onTabChange={handleTabChange}
@@ -795,11 +807,13 @@ export default function App() {
         {renderMainContent()}
       </MobileShell>
 
-      <DebugDiagnosticsPanel
-        participantCount={participants.length}
-        realtimeReady={realtimeReady}
-        syncError={syncError}
-      />
+      <Suspense fallback={null}>
+        <DebugDiagnosticsPanel
+          participantCount={participants.length}
+          realtimeReady={realtimeReady}
+          syncError={syncError}
+        />
+      </Suspense>
 
       {showLogin && (
         <div className={modalOverlayCenterClass} onClick={() => setShowLogin(false)}>
