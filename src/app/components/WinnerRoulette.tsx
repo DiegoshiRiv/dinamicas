@@ -6,11 +6,16 @@ import { Input } from '@/app/components/ui/input'
 import type { Participant, RecentWinner, IncomingSpin } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 import { QRCodeCanvas } from 'qrcode.react'
-import { buildRouletteRegistrationUrl, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
+import { buildRouletteRegistrationUrl, encodeIpForRoulette, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 
 import { normalizeUsername, isVenaderoBlacklisted } from '@/app/utils/UsuariosToxicosBlackList'
 import { prefetchClientIp } from '@/app/hooks/useClientIp'
 import { telemetry } from '@/app/utils/telemetry'
+import {
+  encodeRegistrationToken,
+  getOrCreateDeviceToken,
+} from '@/app/utils/registrationToken'
+import { getDeviceFingerprint } from '@/app/utils/deviceFingerprint'
 
 import moltres from '@/assets/iconos/moltres.png'
 import zapdos from '@/assets/iconos/zapdos.png'
@@ -39,6 +44,39 @@ function isNerfed(username: string): boolean {
 
 const SPIN_DURATION_MS = 6000
 const SPIN_EASING = 'cubic-bezier(0.12, 0.85, 0.15, 1)'
+
+function readCachedPublicIp(): string | null {
+  try {
+    const cached = sessionStorage.getItem('client-public-ip')?.trim()
+    return cached || null
+  } catch {
+    return null
+  }
+}
+
+/** Localiza al espectador en la lista (token → huella → IP). */
+function findSelfParticipant(
+  players: Participant[],
+  rouletteCode: string,
+): Participant | null {
+  if (players.length === 0) return null
+  const code = sanitizeRouletteCode(rouletteCode)
+  const roomToken = encodeRegistrationToken(getOrCreateDeviceToken(), code)
+  const byToken = players.find((player) => player.registration_token === roomToken)
+  if (byToken) return byToken
+
+  const fingerprint = encodeIpForRoulette(getDeviceFingerprint(), code)
+  const byFingerprint = players.find((player) => player.device_fingerprint === fingerprint)
+  if (byFingerprint) return byFingerprint
+
+  const ip = readCachedPublicIp()
+  if (ip) {
+    const finalIp = encodeIpForRoulette(ip, code)
+    const byIp = players.find((player) => player.ip_address === finalIp)
+    if (byIp) return byIp
+  }
+  return null
+}
 
 function shadeColor(hex: string, amount: number): string {
   const num = parseInt(hex.replace('#', ''), 16)
@@ -321,6 +359,12 @@ export function WinnerRoulette({
     [participants],
   )
 
+  const selfPlayer = useMemo(
+    () => (isSpectator ? findSelfParticipant(activePlayers, activeRouletteCode) : null),
+    [isSpectator, activePlayers, activeRouletteCode],
+  )
+  const selfPlayerId = selfPlayer?.id ?? null
+
   const forcedWinner = useMemo(
     () => (forcedWinnerId ? activePlayers.find((p) => p.id === forcedWinnerId) ?? null : null),
     [forcedWinnerId, activePlayers],
@@ -532,13 +576,18 @@ export function WinnerRoulette({
       const fontSize = n > 120 ? 7 : n > 80 ? 8 : n > 50 ? 10 : n > 20 ? 12 : 16
       const maxChars = n > 120 ? 8 : n > 80 ? 10 : 15
       let currentAngle = -Math.PI / 2
+      let selfArcStart = Number.NaN
+      let selfArcEnd = Number.NaN
 
       playersForWheel.forEach((player, idx) => {
         const sliceAngle = totalWeight > 0 ? (player.weight / totalWeight) * (2 * Math.PI) : 0
         if (sliceAngle === 0) return
         const endAngle = currentAngle + sliceAngle
+        const isSelf = Boolean(selfPlayerId && player.id === selfPlayerId)
         const base = teamBaseColor(player.team)
-        const altShade = idx % 2 === 0 ? 0 : -18
+        let altShade = idx % 2 === 0 ? 0 : -18
+        if (selfPlayerId && !isSelf) altShade -= 28
+        if (isSelf) altShade += 28
 
         ctx.beginPath()
         ctx.moveTo(center, center)
@@ -549,11 +598,26 @@ export function WinnerRoulette({
         const gx = center + Math.cos(midAngle) * radius * 0.35
         const gy = center + Math.sin(midAngle) * radius * 0.35
         const sliceGrad = ctx.createRadialGradient(gx, gy, 0, center, center, radius)
-        sliceGrad.addColorStop(0, shadeColor(base, 35 + altShade))
+        sliceGrad.addColorStop(0, shadeColor(base, (isSelf ? 55 : 35) + altShade))
         sliceGrad.addColorStop(0.65, shadeColor(base, altShade))
-        sliceGrad.addColorStop(1, shadeColor(base, -35 + altShade))
+        sliceGrad.addColorStop(1, shadeColor(base, (isSelf ? -18 : -35) + altShade))
         ctx.fillStyle = sliceGrad
         ctx.fill()
+
+        if (isSelf) {
+          selfArcStart = currentAngle
+          selfArcEnd = endAngle
+          ctx.beginPath()
+          ctx.moveTo(center, center)
+          ctx.arc(center, center, radius, currentAngle, endAngle)
+          ctx.closePath()
+          const glow = ctx.createRadialGradient(gx, gy, 0, center, center, radius)
+          glow.addColorStop(0, 'rgba(255,255,255,0.42)')
+          glow.addColorStop(0.55, 'rgba(250,204,21,0.28)')
+          glow.addColorStop(1, 'rgba(250,204,21,0.08)')
+          ctx.fillStyle = glow
+          ctx.fill()
+        }
 
         // Textura solo con pocos segmentos (en móviles con muchos nombres era muy lento).
         if (showPattern) {
@@ -564,7 +628,7 @@ export function WinnerRoulette({
           ctx.closePath()
           ctx.clip()
           const patternStep = 14
-          ctx.strokeStyle = 'rgba(255,255,255,0.08)'
+          ctx.strokeStyle = isSelf ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.08)'
           ctx.lineWidth = 1
           for (let px = center - radius; px < center + radius; px += patternStep) {
             ctx.beginPath()
@@ -579,8 +643,8 @@ export function WinnerRoulette({
         ctx.moveTo(center, center)
         ctx.arc(center, center, radius, currentAngle, endAngle)
         ctx.closePath()
-        ctx.lineWidth = n > 80 ? 1 : 2
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)'
+        ctx.lineWidth = isSelf ? (n > 80 ? 2.5 : 3.5) : n > 80 ? 1 : 2
+        ctx.strokeStyle = isSelf ? '#FACC15' : 'rgba(255,255,255,0.85)'
         ctx.stroke()
 
         const textAngle = currentAngle + sliceAngle / 2
@@ -588,20 +652,41 @@ export function WinnerRoulette({
         ctx.translate(center, center)
         ctx.rotate(textAngle)
         ctx.textAlign = 'right'
-        ctx.fillStyle = player.team === 'yellow' ? '#1f2937' : '#ffffff'
-        ctx.shadowColor = 'rgba(0,0,0,0.35)'
-        ctx.shadowBlur = n > 80 ? 2 : 4
-        ctx.font = `bold ${fontSize}px sans-serif`
-        const label =
+        ctx.fillStyle = isSelf
+          ? '#111827'
+          : player.team === 'yellow'
+            ? '#1f2937'
+            : '#ffffff'
+        ctx.shadowColor = isSelf ? 'rgba(250,204,21,0.85)' : 'rgba(0,0,0,0.35)'
+        ctx.shadowBlur = isSelf ? 8 : n > 80 ? 2 : 4
+        const selfFont = Math.min(22, fontSize + (n > 50 ? 2 : 4))
+        ctx.font = `bold ${isSelf ? selfFont : fontSize}px sans-serif`
+        const rawLabel =
           player.username.length > maxChars
             ? `${player.username.substring(0, maxChars)}…`
             : player.username
+        const label = isSelf ? `★ ${rawLabel}` : rawLabel
         ctx.fillText(label, radius - 14, 3)
         ctx.shadowBlur = 0
         ctx.restore()
 
         currentAngle = endAngle
       })
+
+      // Contorno dorado del segmento propio (gira con la ruleta).
+      if (!Number.isNaN(selfArcStart) && !Number.isNaN(selfArcEnd)) {
+        ctx.beginPath()
+        ctx.arc(center, center, radius + 6, selfArcStart, selfArcEnd)
+        ctx.strokeStyle = '#FACC15'
+        ctx.lineWidth = Math.max(5, 10 - Math.min(n, 40) * 0.1)
+        ctx.lineCap = 'round'
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.arc(center, center, radius - 2, selfArcStart, selfArcEnd)
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+        ctx.lineWidth = 2
+        ctx.stroke()
+      }
 
       // Centro: Poké Ball
       const hubSize = radius * 0.22
@@ -626,7 +711,7 @@ export function WinnerRoulette({
     return () => {
       if (drawTimerRef.current) window.clearTimeout(drawTimerRef.current)
     }
-  }, [playersForWheel, totalWeight, isSpinning, wheelAssetsReady, listLoading, isSyncing])
+  }, [playersForWheel, totalWeight, isSpinning, wheelAssetsReady, listLoading, isSyncing, selfPlayerId])
 
   useEffect(() => {
     if (!isSpectator || !incomingSpin) return
@@ -1084,6 +1169,12 @@ export function WinnerRoulette({
                   ? 'Cargando nombres…'
                   : `${activePlayers.length} participante${activePlayers.length === 1 ? '' : 's'}`}
               </p>
+              {selfPlayer && (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-800 border border-amber-300">
+                  <span aria-hidden>★</span>
+                  Tu espacio: {selfPlayer.username}
+                </p>
+              )}
             </div>
           )}
 
