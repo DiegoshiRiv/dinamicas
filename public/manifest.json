@@ -1,20 +1,31 @@
 {
-  "name": "Copa Pawmistica",
-  "short_name": "Torneo",
+  "name": "POGOGDL",
+  "short_name": "POGOGDL",
+  "description": "Dinámicas Pokémon GO Guadalajara",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0661C6",
   "theme_color": "#0661C6",
   "icons": [
     {
-      "src": "/icono-v2.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/icono-v2.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
