@@ -18,12 +18,17 @@ import { diagnostics } from '@/app/utils/runtimeDiagnostics'
 import { telemetry } from '@/app/utils/telemetry'
 import {
   encodeRegistrationToken,
+  encodeUsernameKey,
   getOrCreateDeviceToken,
 } from '@/app/utils/registrationToken'
+import { getDeviceFingerprint } from '@/app/utils/deviceFingerprint'
 
-const PARTICIPANT_COLUMNS = 'id,username,team,status,ip_address,registration_token'
-const PARTICIPANT_COLUMNS_LEGACY = 'id,username,team,status,ip_address'
-const UPSERT_BATCH_MS = 200
+const IDENTITY_COLUMN_MISSING =
+  /registration_token|username_key|device_fingerprint/i
+
+function encodeDeviceFingerprint(rouletteCode: string): string {
+  return encodeIpForRoulette(getDeviceFingerprint(), sanitizeRouletteCode(rouletteCode))
+}
 
 export interface Participant {
   id: string
@@ -32,6 +37,8 @@ export interface Participant {
   status: 'active' | 'winner' | 'discarded'
   ip_address?: string
   registration_token?: string | null
+  username_key?: string | null
+  device_fingerprint?: string | null
   created_at?: string
 }
 export interface BannedUser {
@@ -221,7 +228,7 @@ export function useParticipants(
         .select(PARTICIPANT_COLUMNS)
         .order('created_at', { ascending: true })
 
-      if (error && /registration_token/i.test(error.message)) {
+      if (error && IDENTITY_COLUMN_MISSING.test(error.message)) {
         const legacy = await supabase
           .from('participants')
           .select(PARTICIPANT_COLUMNS_LEGACY)
@@ -276,7 +283,7 @@ export function useParticipants(
     ])
 
     let pRes = pResRaw
-    if (pRes.error && /registration_token/i.test(pRes.error.message)) {
+    if (pRes.error && IDENTITY_COLUMN_MISSING.test(pRes.error.message)) {
       pRes = await supabase
         .from('participants')
         .select(PARTICIPANT_COLUMNS_LEGACY)
@@ -543,7 +550,7 @@ export function useParticipants(
       ? await builder.maybeSingle()
       : await builder
 
-    if (result.error && /registration_token/i.test(result.error.message)) {
+    if (result.error && IDENTITY_COLUMN_MISSING.test(result.error.message)) {
       let legacy = supabase.from('participants').select(PARTICIPANT_COLUMNS_LEGACY)
       if (query.eq) legacy = legacy.eq(query.eq.col, query.eq.val)
       if (query.orderAsc) legacy = legacy.order('created_at', { ascending: true })
@@ -573,18 +580,47 @@ export function useParticipants(
     return (data as Participant | null) ?? null
   }
 
+  const loadParticipantByUsernameKey = async (usernameKey: string): Promise<Participant | null> => {
+    const { data, error } = await selectParticipants({
+      eq: { col: 'username_key', val: usernameKey },
+      single: true,
+    })
+    if (error) return null
+    return (data as Participant | null) ?? null
+  }
+
+  const loadParticipantByFingerprint = async (fingerprint: string): Promise<Participant | null> => {
+    const { data, error } = await selectParticipants({
+      eq: { col: 'device_fingerprint', val: fingerprint },
+      orderDesc: true,
+      limit: 1,
+      single: true,
+    })
+    if (error) return null
+    return (data as Participant | null) ?? null
+  }
+
   /**
-   * Tras un timeout de UI: confirma si el INSERT tardío ya quedó (token primero, luego IP).
+   * Tras un timeout de UI: confirma si el INSERT tardío ya quedó
+   * (token → fingerprint → IP).
    */
   const verifyParticipantRegistered = async (ip: string): Promise<boolean> => {
     const finalIp = encodeIpForRoulette(ip, rouletteCode)
     const roomToken = encodeRegistrationToken(getOrCreateDeviceToken(), rouletteCode)
+    const fingerprint = encodeDeviceFingerprint(rouletteCode)
     try {
       const byToken = await loadParticipantByToken(roomToken)
       if (byToken && belongsToRoomRef.current(byToken.ip_address)) {
         upsertParticipant(byToken, true)
         diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
         eventLog.info('register', 'verify ok by token', { id: byToken.id })
+        return true
+      }
+      const byFp = await loadParticipantByFingerprint(fingerprint)
+      if (byFp && belongsToRoomRef.current(byFp.ip_address)) {
+        upsertParticipant(byFp, true)
+        diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
+        eventLog.info('register', 'verify ok by fingerprint', { id: byFp.id })
         return true
       }
       const byIp = await loadParticipantByIp(finalIp)
@@ -610,6 +646,10 @@ export function useParticipants(
     const roomToken = isAdminBypass
       ? encodeRegistrationToken(`admin-${Date.now()}`, rouletteCode)
       : encodeRegistrationToken(getOrCreateDeviceToken(), rouletteCode)
+    const usernameKey = encodeUsernameKey(username, rouletteCode)
+    const fingerprint = isAdminBypass
+      ? encodeIpForRoulette(`admin-fp-${Date.now()}`, rouletteCode)
+      : encodeDeviceFingerprint(rouletteCode)
 
     const finishOk = (row: Participant, extra?: Record<string, unknown>) => {
       upsertParticipant(row, true)
@@ -642,10 +682,22 @@ export function useParticipants(
       const alreadyLocal = participantsRef.current.find(
         (row) =>
           row.registration_token === roomToken ||
+          row.username_key === usernameKey ||
+          row.device_fingerprint === fingerprint ||
           row.ip_address === finalIp ||
           (extractBaseIp(row.ip_address) === ip && belongsToRoomRef.current(row.ip_address)),
       )
       if (alreadyLocal) {
+        if (
+          alreadyLocal.device_fingerprint === fingerprint &&
+          alreadyLocal.username_key &&
+          alreadyLocal.username_key !== usernameKey
+        ) {
+          timer.fail(new Error('fingerprint username mismatch'))
+          throw new Error(
+            'Este dispositivo ya tiene un registro en la ruleta. Si eres otra persona, pide ayuda a un organizador.',
+          )
+        }
         finishOk(alreadyLocal, { idempotent: 'local' })
         return
       }
@@ -656,6 +708,25 @@ export function useParticipants(
         return
       }
 
+      const byUsername = await loadParticipantByUsernameKey(usernameKey)
+      if (byUsername) {
+        finishOk(byUsername, { idempotent: 'username-precheck' })
+        return
+      }
+
+      const byFingerprint = await loadParticipantByFingerprint(fingerprint)
+      if (byFingerprint) {
+        if (byFingerprint.username_key && byFingerprint.username_key !== usernameKey) {
+          timer.fail(new Error('fingerprint username mismatch'))
+          telemetry.uniqueConflict('unknown')
+          throw new Error(
+            'Este dispositivo ya tiene un registro en la ruleta. Si eres otra persona, pide ayuda a un organizador.',
+          )
+        }
+        finishOk(byFingerprint, { idempotent: 'fingerprint-precheck' })
+        return
+      }
+
       const existingRow = await loadParticipantByIp(finalIp)
       if (existingRow) {
         finishOk(existingRow, { idempotent: 'ip-precheck' })
@@ -663,31 +734,39 @@ export function useParticipants(
       }
     }
 
-    // INSERT: IP ya es por sala ({ip}::r:{code}). Token = identidad de dispositivo+sala.
+    // INSERT: IP/token/username/fingerprint todos acotados a la sala.
     const payload: Record<string, string> = {
       username,
       team,
       status: 'active',
       ip_address: finalIp,
       registration_token: roomToken,
+      username_key: usernameKey,
+      device_fingerprint: fingerprint,
     }
 
     let { error } = await supabase.from('participants').insert([payload])
 
-    // Si la columna aún no existe en Supabase, reintenta sin token (compat).
-    if (error && /registration_token/i.test(error.message)) {
-      eventLog.warn('register', 'registration_token column missing; fallback insert', {
+    // Compat: si faltan columnas nuevas, reintenta con el subconjunto soportado.
+    if (error && IDENTITY_COLUMN_MISSING.test(error.message)) {
+      eventLog.warn('register', 'identity columns missing; fallback insert', {
         message: error.message,
       })
-      const fallback = await supabase.from('participants').insert([
-        { username, team, status: 'active', ip_address: finalIp },
-      ])
+      const fallbackPayload: Record<string, string> = {
+        username,
+        team,
+        status: 'active',
+        ip_address: finalIp,
+      }
+      if (!/registration_token/i.test(error.message)) {
+        fallbackPayload.registration_token = roomToken
+      }
+      const fallback = await supabase.from('participants').insert([fallbackPayload])
       error = fallback.error
     }
 
     if (error) {
       if (error.code === '23505') {
-        // Log explícito: en eventos reales debe ser reintento, no colisión rara.
         eventLog.warn('register', '23505 unique conflict (likely retry)', {
           code: error.code,
           details: error.details,
@@ -695,11 +774,21 @@ export function useParticipants(
           finalIp,
           roomTokenPrefix: roomToken.slice(0, 12),
         })
+        const detail = String(error.details || error.message)
         telemetry.uniqueConflict(
-          /registration_token/i.test(String(error.details || error.message)) ? 'token' : 'ip',
+          /registration_token/i.test(detail)
+            ? 'token'
+            : /username_key/i.test(detail)
+              ? 'unknown'
+              : /ip_address/i.test(detail)
+                ? 'ip'
+                : 'unknown',
         )
         const existing =
-          (await loadParticipantByToken(roomToken)) || (await loadParticipantByIp(finalIp))
+          (await loadParticipantByToken(roomToken)) ||
+          (await loadParticipantByUsernameKey(usernameKey)) ||
+          (await loadParticipantByFingerprint(fingerprint)) ||
+          (await loadParticipantByIp(finalIp))
         if (existing) {
           finishOk(existing, { idempotent: '23505' })
           return
@@ -717,7 +806,9 @@ export function useParticipants(
     }
 
     const inserted =
-      (await loadParticipantByToken(roomToken)) || (await loadParticipantByIp(finalIp))
+      (await loadParticipantByToken(roomToken)) ||
+      (await loadParticipantByUsernameKey(usernameKey)) ||
+      (await loadParticipantByIp(finalIp))
     const row: Participant = inserted ?? {
       id: makeTempId(),
       username,
@@ -725,6 +816,8 @@ export function useParticipants(
       status: 'active',
       ip_address: finalIp,
       registration_token: roomToken,
+      username_key: usernameKey,
+      device_fingerprint: fingerprint,
     }
 
     finishOk(row, { optimistic: !inserted })

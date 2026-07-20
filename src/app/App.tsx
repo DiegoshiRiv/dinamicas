@@ -24,7 +24,7 @@ import { ErrorBoundary } from '@/app/components/ErrorBoundary'
 import { DebugDiagnosticsPanel } from '@/app/components/DebugDiagnosticsPanel'
 import { EventAnnouncementOverlay } from '@/app/components/EventAnnouncementOverlay'
 import { prefetchClientIp } from '@/app/hooks/useClientIp'
-import { getOrCreateDeviceToken } from '@/app/utils/registrationToken'
+import { hydrateDeviceToken } from '@/app/utils/registrationToken'
 import {
   modalDialogSmClass,
   modalOverlayCenterClass,
@@ -149,7 +149,7 @@ export default function App() {
 
   useEffect(() => {
     void prefetchClientIp()
-    getOrCreateDeviceToken()
+    void hydrateDeviceToken()
   }, [])
 
   // Al limpiar ruleta (nueva ronda): anuncio otra vez + permitir registro.

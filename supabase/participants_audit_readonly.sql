@@ -57,6 +57,6 @@ WHERE schemaname = 'public'
 ORDER BY tablename, policyname;
 
 -- Esperado:
--- - Index Scan / Index Only Scan en lookups por ip_address y registration_token
--- - UNIQUE presentes (participants_ip_address_unique, participants_registration_token_unique)
+-- - Index Scan / Index Only Scan en lookups por ip_address, registration_token, username_key
+-- - UNIQUE presentes (participants_ip_address_unique, participants_registration_token_unique, participants_username_key_unique)
 -- - RLS permisiva de SELECT/INSERT para anon si el registro público lo requiere
