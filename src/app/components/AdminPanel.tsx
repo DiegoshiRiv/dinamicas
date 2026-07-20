@@ -435,7 +435,7 @@ export function AdminPanel({
         {/* PESTAÑA GANADORES */}
         <TabsContent value="winners" className="mt-0 outline-none">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-[#e8ecf5] space-y-4">
-            {isSuperAdmin ? (
+            {isSuperAdmin && (
               <div className="rounded-xl bg-[#f8faff] border border-[#e7ebf5] p-4">
                 <h3 className="font-black text-[#1f2a44] text-base mb-1 flex items-center gap-2"><Settings2 className="w-4 h-4" /> Ajuste real de probabilidades</h3>
                 <p className="text-xs text-[#6d7696] mb-3">Solo Fuecoco ve y modifica esta reducción. La ruleta pública conserva segmentos visualmente iguales.</p>
@@ -472,13 +472,6 @@ export function AdminPanel({
                 >
                   {applySuccess ? <><Check className="w-5 h-5 mr-2" /> Ajustes Aplicados</> : "Aplicar porcentaje"}
                 </Button>
-              </div>
-            ) : (
-              <div className="rounded-xl bg-[#f8faff] border border-[#e7ebf5] p-4 text-center">
-                <h3 className="font-black text-[#1f2a44] text-base mb-1">Probabilidad de la ruleta</h3>
-                <p className="text-xs text-[#6d7696]">
-                  Vista pública: todos los segmentos se muestran con el mismo tamaño.
-                </p>
               </div>
             )}
 
