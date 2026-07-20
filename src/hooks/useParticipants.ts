@@ -185,6 +185,21 @@ export function useParticipants(
     }
   }, [])
 
+  const fetchSponsors = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sponsors')
+        .select('*')
+        .order('order_index', { ascending: true })
+      if (error) throw error
+      setSponsors((data as Sponsor[]) ?? [])
+    } catch (error) {
+      eventLog.error('sponsors', 'fetch failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }, [])
+
   const fetchRegistrationMeta = useCallback(async () => {
     const { data: bData, error } = await supabase
       .from('banned_ips')
@@ -407,6 +422,7 @@ export function useParticipants(
     const cached = loadCachedSponsorBanners()
     if (cached.length > 0) preloadSponsorBannerImages(cached)
     void fetchBanners()
+    void fetchSponsors()
 
     let cancelled = false
     const boot = async () => {
@@ -415,7 +431,7 @@ export function useParticipants(
           setLoading(true)
           await Promise.all([fetchParticipantsData(), fetchRecentWinners()])
         } else {
-          // Registro: solo meta ligera. Ganadores/lista completa al abrir ruleta o admin.
+          // Registro: meta ligera + sponsors (pestaña pública). Lista completa al abrir ruleta/admin.
           await fetchRegistrationMeta()
         }
       } catch (error) {
@@ -431,7 +447,7 @@ export function useParticipants(
     return () => {
       cancelled = true
     }
-  }, [rouletteCode, loadParticipants, fetchBanners, fetchParticipantsData, fetchRegistrationMeta, fetchRecentWinners])
+  }, [rouletteCode, loadParticipants, fetchBanners, fetchSponsors, fetchParticipantsData, fetchRegistrationMeta, fetchRecentWinners])
 
   // Realtime DB: un solo canal por sala; NO se remonta al flip de loadParticipants.
   useEffect(() => {
@@ -479,6 +495,9 @@ export function useParticipants(
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_banners' }, () => {
         void fetchBanners()
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsors' }, () => {
+        void fetchSponsors()
+      })
       .subscribe((status) => {
         eventLog.info('realtime', 'db channel', { status, code: rouletteCode })
       })
@@ -490,6 +509,7 @@ export function useParticipants(
   }, [
     rouletteCode,
     fetchBanners,
+    fetchSponsors,
     fetchRegistrationMeta,
     fetchRecentWinners,
     scheduleParticipantsRefetch,
@@ -938,16 +958,16 @@ export function useParticipants(
     const image_url = customImageUrl || `https://unavatar.io/instagram/${username}`
     const nextOrder = sponsors.length > 0 ? Math.max(...sponsors.map((s) => s.order_index || 0)) + 1 : 0
     await supabase.from('sponsors').insert([{ name: username, url: finalUrl, image_url, order_index: nextOrder }])
-    await fetchParticipantsData()
+    await fetchSponsors()
   }
 
   const deleteSponsor = async (id: string) => {
     await supabase.from('sponsors').delete().eq('id', id)
-    await fetchParticipantsData()
+    await fetchSponsors()
   }
   const deleteMultipleSponsors = async (ids: string[]) => {
     await supabase.from('sponsors').delete().in('id', ids)
-    await fetchParticipantsData()
+    await fetchSponsors()
   }
   const updateSponsorsOrder = async (reorderedList: Sponsor[]) => {
     setSponsors(reorderedList)
@@ -962,7 +982,7 @@ export function useParticipants(
   }
   const updateSponsorDetails = async (id: string, image_url: string, url: string) => {
     await supabase.from('sponsors').update({ image_url, url }).eq('id', id)
-    await fetchParticipantsData()
+    await fetchSponsors()
   }
 
   const addBanner = async (image_url: string, link_url: string = '') => {

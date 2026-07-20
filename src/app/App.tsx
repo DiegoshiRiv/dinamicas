@@ -703,7 +703,9 @@ export default function App() {
             <p className="text-sm text-gray-500 text-center mb-6">Toca su foto para visitar su Instagram.</p>
             <SponsorBannerCarousel banners={banners} />
             {sponsors.length === 0 ? (
-              <p className="text-center py-8 text-gray-400">Reuniendo patrocinadores...</p>
+              <p className="text-center py-8 text-gray-400">
+                {loading ? 'Reuniendo patrocinadores...' : 'Aún no hay patrocinadores.'}
+              </p>
             ) : (
               <div className="grid grid-cols-3 gap-3">
                 {sponsors.map((sponsor) => (
