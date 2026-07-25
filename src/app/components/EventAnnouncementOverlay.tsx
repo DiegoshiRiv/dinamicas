@@ -1,5 +1,12 @@
+import { useState } from 'react'
 import anuncioImg from '@/assets/anuncio.jpg'
+import barbatacoAnuncioImg from '@/assets/barbatacoanuncio.png'
 import { X } from 'lucide-react'
+
+const ANNOUNCEMENT_IMAGES = [
+  { src: anuncioImg, alt: 'Anuncio Super Megaincursiones' },
+  { src: barbatacoAnuncioImg, alt: 'Anuncio Barbataco Parque Morelos' },
+] as const
 
 type Props = {
   open: boolean
@@ -8,6 +15,10 @@ type Props = {
 
 /** Anuncio a pantalla completa durante la espera de registros. */
 export function EventAnnouncementOverlay({ open, onDismiss }: Props) {
+  const [announcement] = useState(
+    () => ANNOUNCEMENT_IMAGES[Math.floor(Math.random() * ANNOUNCEMENT_IMAGES.length)]!,
+  )
+
   if (!open) return null
 
   return (
@@ -27,8 +38,8 @@ export function EventAnnouncementOverlay({ open, onDismiss }: Props) {
           <X className="h-5 w-5" strokeWidth={2.75} />
         </button>
         <img
-          src={anuncioImg}
-          alt="Anuncio Super Megaincursiones"
+          src={announcement.src}
+          alt={announcement.alt}
           className="w-full max-h-[92dvh] object-contain rounded-2xl shadow-2xl select-none"
           draggable={false}
         />
