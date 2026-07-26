@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs'
-import { Trash2, AlertTriangle, Search, Ban, CheckSquare, ShieldCheck, Trophy, Settings2, RotateCcw, Check, MoreVertical, Users } from 'lucide-react'
+import { Trash2, AlertTriangle, Search, Ban, CheckSquare, ShieldCheck, Trophy, Settings2, RotateCcw, Check, MoreVertical, Users, Gift } from 'lucide-react'
 import { Input } from '@/app/components/ui/input'
 import { Checkbox } from '@/app/components/ui/checkbox'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
 import { Label } from '@/app/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/app/components/ui/dropdown-menu'
-import type { Participant, BannedUser, RecentWinner } from '@/hooks/useParticipants'
+import type { Participant, BannedUser, RecentWinner, WinnerPrizeCode } from '@/hooks/useParticipants'
 import pokebolaImg from '@/assets/iconos/Pokebola.png'
 
 const PARTICIPANT_ROW_HEIGHT = 56
@@ -23,10 +23,31 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   return debounced
 }
 
+function makePrizeCodeId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `code-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function parsePrizeCodeInput(value: string): string[] {
+  const seen = new Set<string>()
+  const codes: string[] = []
+  for (const raw of value.split(/[\n,]+/)) {
+    const code = raw.trim()
+    if (!code || seen.has(code)) continue
+    seen.add(code)
+    codes.push(code)
+    if (codes.length === 10) break
+  }
+  return codes
+}
+
 interface AdminPanelProps {
   participants: Participant[]; 
   bannedUsers: BannedUser[];
   recentWinners: RecentWinner[];
+  winnerPrizeCodes: WinnerPrizeCode[];
   onDelete: (id: string) => void; 
   onDeleteMultiple: (ids: string[]) => void; 
   onClearAll: () => void; 
@@ -35,6 +56,7 @@ interface AdminPanelProps {
   onUnbanUser: (id: string) => void
   onRemoveWinner: (id: string) => void; 
   onRemoveMultipleWinners: (ids: string[]) => void;
+  onSaveWinnerPrizeCodes: (codes: WinnerPrizeCode[]) => Promise<void>;
   penaltyMonths: number;
   setPenaltyMonths: (m: number) => void;
   penaltyPercent: number;
@@ -48,7 +70,8 @@ interface AdminPanelProps {
 
 export function AdminPanel({ 
   participants, bannedUsers, recentWinners, onDelete, onDeleteMultiple, onClearAll, onStartRoulette, onBanUser, onUnbanUser,
-  onRemoveWinner, onRemoveMultipleWinners, penaltyMonths, setPenaltyMonths, penaltyPercent, setPenaltyPercent,
+  winnerPrizeCodes, onRemoveWinner, onRemoveMultipleWinners, onSaveWinnerPrizeCodes,
+  penaltyMonths, setPenaltyMonths, penaltyPercent, setPenaltyPercent,
   rouletteCodes, activeRouletteCode, onChangeRouletteCode,
   isSuperAdmin = false, adminUsername = '',
 }: AdminPanelProps) {
@@ -69,9 +92,16 @@ export function AdminPanel({
   const [selectedWinnerIds, setSelectedWinnerIds] = useState<Set<string>>(new Set())
   const [localPercent, setLocalPercent] = useState(penaltyPercent.toString())
   const [applySuccess, setApplySuccess] = useState(false)
+  const [prizeCodeInput, setPrizeCodeInput] = useState('')
+  const [savingPrizeCodes, setSavingPrizeCodes] = useState(false)
+  const [prizeCodeMessage, setPrizeCodeMessage] = useState<string | null>(null)
 
   // Sincronizar porcentaje local si cambia externamente
   useEffect(() => { setLocalPercent(penaltyPercent.toString()) }, [penaltyPercent])
+
+  useEffect(() => {
+    setPrizeCodeInput(winnerPrizeCodes.map((entry) => entry.code).join('\n'))
+  }, [winnerPrizeCodes])
 
   // Filtrado
   const filteredParticipants = useMemo(() => {
@@ -105,6 +135,11 @@ export function AdminPanel({
       w.username.toLowerCase().includes(searchWinnerTerm.toLowerCase()),
     ),
     [recentWinners, searchWinnerTerm],
+  )
+
+  const assignedPrizeCodeCount = useMemo(
+    () => winnerPrizeCodes.filter((entry) => Boolean(entry.assigned_to_participant_id)).length,
+    [winnerPrizeCodes],
   )
 
   const toggleSelect = (id: string) => {
@@ -148,6 +183,33 @@ export function AdminPanel({
     handlePercentBlur()
     setApplySuccess(true)
     setTimeout(() => setApplySuccess(false), 3000)
+  }
+
+  const handleSavePrizeCodes = async () => {
+    const codes = parsePrizeCodeInput(prizeCodeInput)
+    const existingByCode = new Map(winnerPrizeCodes.map((entry) => [entry.code, entry]))
+    const nextCodes = codes.map((code) => {
+      const existing = existingByCode.get(code)
+      return existing ?? {
+        id: makePrizeCodeId(),
+        code,
+        assigned_to_participant_id: null,
+        assigned_to_username: null,
+        assigned_at: null,
+      }
+    })
+
+    setSavingPrizeCodes(true)
+    setPrizeCodeMessage(null)
+    try {
+      await onSaveWinnerPrizeCodes(nextCodes)
+      setPrizeCodeInput(codes.join('\n'))
+      setPrizeCodeMessage(`Guardados ${codes.length} código${codes.length === 1 ? '' : 's'}.`)
+    } catch {
+      setPrizeCodeMessage('No se pudieron guardar los códigos. Intenta de nuevo.')
+    } finally {
+      setSavingPrizeCodes(false)
+    }
   }
 
   return (
@@ -474,6 +536,72 @@ export function AdminPanel({
                 </Button>
               </div>
             )}
+
+            <div className="rounded-xl bg-emerald-50/70 border border-emerald-200 p-4 space-y-3">
+              <div>
+                <h3 className="font-black text-emerald-900 text-base mb-1 flex items-center gap-2">
+                  <Gift className="w-4 h-4" />
+                  Códigos para ganadores
+                </h3>
+                <p className="text-xs text-emerald-800/80 font-semibold leading-relaxed">
+                  Pega hasta 10 códigos, uno por línea. Al salir un ganador se asigna el primer código libre y solo ese ganador verá el botón para copiarlo.
+                </p>
+              </div>
+
+              <textarea
+                value={prizeCodeInput}
+                onChange={(event) => setPrizeCodeInput(event.target.value)}
+                placeholder={'CODIGO-1\nCODIGO-2\nCODIGO-3'}
+                className="min-h-32 w-full rounded-xl border border-emerald-200 bg-white px-3 py-3 text-sm font-bold text-[#1f2a44] outline-none focus:ring-2 focus:ring-emerald-400/40"
+                disabled={savingPrizeCodes}
+              />
+
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+                <p className="text-xs font-bold text-emerald-900">
+                  {winnerPrizeCodes.length}/10 cargados · {assignedPrizeCodeCount} asignados · {Math.max(0, winnerPrizeCodes.length - assignedPrizeCodeCount)} libres
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => void handleSavePrizeCodes()}
+                  disabled={savingPrizeCodes}
+                  className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black"
+                >
+                  {savingPrizeCodes ? 'Guardando...' : 'Guardar códigos'}
+                </Button>
+              </div>
+
+              {prizeCodeMessage && (
+                <p className={`text-xs font-bold ${prizeCodeMessage.startsWith('No ') ? 'text-red-600' : 'text-emerald-700'}`}>
+                  {prizeCodeMessage}
+                </p>
+              )}
+
+              {winnerPrizeCodes.length > 0 && (
+                <div className="rounded-xl border border-emerald-100 bg-white divide-y divide-emerald-50 overflow-hidden">
+                  {winnerPrizeCodes.map((entry, index) => (
+                    <div key={entry.id} className="px-3 py-2 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-[#1f2a44] truncate">
+                          {index + 1}. {entry.code}
+                        </p>
+                        <p className="text-[11px] font-semibold text-[#7f879f] truncate">
+                          {entry.assigned_to_username
+                            ? `Asignado a ${entry.assigned_to_username}`
+                            : 'Libre para el próximo ganador'}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${
+                        entry.assigned_to_participant_id
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-emerald-100 text-emerald-700'
+                      }`}>
+                        {entry.assigned_to_participant_id ? 'ASIGNADO' : 'LIBRE'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div>
               <h3 className="text-lg font-black text-[#1f2a44] mb-1 flex items-center gap-2"><Trophy className="w-5 h-5 text-[#f2b62f]" /> Historial de Ganadores</h3>

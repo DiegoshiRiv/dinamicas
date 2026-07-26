@@ -123,16 +123,18 @@ export default function App() {
   }, [penaltyMonths, penaltyPercent])
 
   const {
-    participants, bannedUsers, recentWinners, sponsors, banners, loading,
+    participants, bannedUsers, recentWinners, winnerPrizeCodes, sponsors, banners, loading,
     syncError, realtimeReady, syncParticipantsFresh, verifyParticipantRegistered,
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner, removeRecentWinner, removeMultipleRecentWinners,
+    saveWinnerPrizeCodes, assignWinnerPrizeCode,
     deleteRouletteData, spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig,
     roundVersion, showWaitingAnnouncement,
   } = useParticipants(activeRouletteCode, {
     // Solo admin/ruleta hacen fetch inicial completo; realtime INSERT siempre está activo.
     loadParticipants: isAdmin || currentView === 'roulette' || activeTab === 'ruleta',
+    loadWinnerPrizeCodes: isAdmin,
   })
 
   const [announcementDismissed, setAnnouncementDismissed] = useState(false)
@@ -485,6 +487,7 @@ export default function App() {
             onBack={isAdmin ? handleExitRoulette : () => setCurrentView('main')} 
             participants={participants} recentWinners={recentWinners} updateStatus={updateStatus} onResetGame={resetGame} 
             isSpectator={!isAdmin} embedded incomingSpin={incomingSpin} broadcastSpin={broadcastSpin} 
+            assignWinnerPrizeCode={assignWinnerPrizeCode}
             penaltyMonths={canManageProbability ? penaltyMonths : rouletteConfig.penaltyMonths}
             penaltyPercent={canManageProbability ? penaltyPercent : rouletteConfig.penaltyPercent}
             rouletteCodes={rouletteCodes}
@@ -735,6 +738,7 @@ export default function App() {
               participants={participants}
               bannedUsers={visibleBannedUsers}
               recentWinners={recentWinners}
+              winnerPrizeCodes={winnerPrizeCodes}
               onDelete={deleteParticipant}
               onDeleteMultiple={deleteMultiple}
               onClearAll={clearAll}
@@ -745,6 +749,7 @@ export default function App() {
               adminUsername={adminSession?.username}
               onRemoveWinner={removeRecentWinner}
               onRemoveMultipleWinners={removeMultipleRecentWinners}
+              onSaveWinnerPrizeCodes={saveWinnerPrizeCodes}
               penaltyMonths={canManageProbability ? penaltyMonths : rouletteConfig.penaltyMonths}
               setPenaltyMonths={canManageProbability ? setPenaltyMonths : () => {}}
               penaltyPercent={canManageProbability ? penaltyPercent : rouletteConfig.penaltyPercent}
