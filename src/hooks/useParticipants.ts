@@ -136,9 +136,10 @@ function normalizeWinnerPrizeCodes(raw: unknown): WinnerPrizeCode[] {
 
 export function useParticipants(
   activeRouletteCode: string = DEFAULT_ROULETTE_CODE,
-  options: { loadParticipants?: boolean } = {},
+  options: { loadParticipants?: boolean; loadWinnerPrizeCodes?: boolean } = {},
 ) {
   const loadParticipants = options.loadParticipants ?? true
+  const loadWinnerPrizeCodes = options.loadWinnerPrizeCodes ?? loadParticipants
   const rouletteCode = sanitizeRouletteCode(activeRouletteCode)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([])
@@ -160,6 +161,7 @@ export function useParticipants(
   const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 70 })
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const refetchTimerRef = useRef<number | null>(null)
+  const loadWinnerPrizeCodesRef = useRef(loadWinnerPrizeCodes)
   const participantsRef = useRef(participants)
   const bannedUsersRef = useRef(bannedUsers)
   const winnerPrizeCodesRef = useRef(winnerPrizeCodes)
@@ -185,6 +187,10 @@ export function useParticipants(
   useEffect(() => {
     winnerPrizeCodesRef.current = winnerPrizeCodes
   }, [winnerPrizeCodes])
+
+  useEffect(() => {
+    loadWinnerPrizeCodesRef.current = loadWinnerPrizeCodes
+  }, [loadWinnerPrizeCodes])
 
   useEffect(() => {
     rouletteCodeRef.current = rouletteCode
@@ -303,6 +309,11 @@ export function useParticipants(
   }, [])
 
   const fetchWinnerPrizeCodes = useCallback(async () => {
+    if (!loadWinnerPrizeCodesRef.current) {
+      setWinnerPrizeCodes([])
+      winnerPrizeCodesRef.current = []
+      return
+    }
     const gen = ++prizeCodeFetchGenRef.current
     const code = rouletteCodeRef.current
     try {
@@ -578,7 +589,11 @@ export function useParticipants(
     if (cached.length > 0) preloadSponsorBannerImages(cached)
     void fetchBanners()
     void fetchSponsors()
-    void fetchWinnerPrizeCodes()
+    if (loadWinnerPrizeCodes) void fetchWinnerPrizeCodes()
+    else {
+      setWinnerPrizeCodes([])
+      winnerPrizeCodesRef.current = []
+    }
 
     let cancelled = false
     const boot = async () => {
@@ -603,7 +618,7 @@ export function useParticipants(
     return () => {
       cancelled = true
     }
-  }, [rouletteCode, loadParticipants, fetchBanners, fetchSponsors, fetchParticipantsData, fetchRegistrationMeta, fetchRecentWinners, fetchWinnerPrizeCodes])
+  }, [rouletteCode, loadParticipants, loadWinnerPrizeCodes, fetchBanners, fetchSponsors, fetchParticipantsData, fetchRegistrationMeta, fetchRecentWinners, fetchWinnerPrizeCodes])
 
   // Realtime DB: un solo canal por sala; NO se remonta al flip de loadParticipants.
   useEffect(() => {
@@ -656,7 +671,7 @@ export function useParticipants(
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
         const row = (payload.new || payload.old) as { key?: string }
-        if (row.key === WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current)) {
+        if (loadWinnerPrizeCodesRef.current && row.key === WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current)) {
           void fetchWinnerPrizeCodes()
         }
       })

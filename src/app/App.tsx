@@ -134,6 +134,7 @@ export default function App() {
   } = useParticipants(activeRouletteCode, {
     // Solo admin/ruleta hacen fetch inicial completo; realtime INSERT siempre está activo.
     loadParticipants: isAdmin || currentView === 'roulette' || activeTab === 'ruleta',
+    loadWinnerPrizeCodes: isAdmin,
   })
 
   const [announcementDismissed, setAnnouncementDismissed] = useState(false)
