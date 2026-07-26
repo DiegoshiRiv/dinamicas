@@ -19,3 +19,7 @@ create policy "app_settings_upsert" on public.app_settings
 drop policy if exists "app_settings_update" on public.app_settings;
 create policy "app_settings_update" on public.app_settings
   for update using (true);
+
+drop policy if exists "app_settings_delete" on public.app_settings;
+create policy "app_settings_delete" on public.app_settings
+  for delete using (true);
