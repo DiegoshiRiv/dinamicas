@@ -1334,6 +1334,20 @@ export function WinnerRoulette({
                   ? 'Cargando nombres…'
                   : `${activePlayers.length} participante${activePlayers.length === 1 ? '' : 's'}`}
               </p>
+              <button
+                type="button"
+                onClick={() => void forceSyncParticipants()}
+                disabled={isSpinning || isSyncing || !syncParticipantsFresh}
+                className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-full border border-[#23c8b6] bg-[#e6fffb] px-3 py-1.5 text-[11px] font-black text-[#0f766e] shadow-sm disabled:opacity-60"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Actualizando…' : 'Actualizar ruleta'}
+              </button>
+              {forceSyncStatus && (
+                <p className="mt-1 text-[10px] font-semibold text-[#5b6483] leading-snug px-2">
+                  {forceSyncStatus}
+                </p>
+              )}
               {selfPlayer && (
                 <button
                   type="button"
@@ -1430,6 +1444,39 @@ export function WinnerRoulette({
               </svg>
             </div>
           </div>
+
+          {isSpectator && activePlayers.length > 0 && (
+            <div className="w-full -mt-4 mb-5 rounded-2xl border border-[#dce3f6] bg-[#f8fafc] p-3 text-left">
+              <p className="text-[11px] font-black uppercase tracking-wide text-[#0d3b66] text-center">
+                Lista cargada desde Supabase
+              </p>
+              <p className="mt-1 text-center text-[10px] font-semibold text-[#667091]">
+                Si la ruleta no se ve completa en tu celular, estos son los nombres activos.
+              </p>
+              <div className="mt-2 max-h-28 overflow-y-auto rounded-xl bg-white border border-[#e8eefc] px-2 py-1">
+                {activePlayers.slice(0, 120).map((player) => (
+                  <div
+                    key={player.id}
+                    className={`flex items-center justify-between gap-2 border-b border-[#f1f5fb] py-1.5 last:border-b-0 ${
+                      player.id === selfPlayerId ? 'text-emerald-700' : 'text-[#4f5674]'
+                    }`}
+                  >
+                    <span className="truncate text-xs font-bold">
+                      {player.id === selfPlayerId ? '★ ' : ''}{player.username}
+                    </span>
+                    <span className="shrink-0 text-[9px] font-black uppercase text-[#94a3b8]">
+                      {player.team === 'blue' ? 'Sab' : player.team === 'yellow' ? 'Ins' : 'Val'}
+                    </span>
+                  </div>
+                ))}
+                {activePlayers.length > 120 && (
+                  <p className="py-1.5 text-center text-[10px] font-semibold text-[#94a3b8]">
+                    +{activePlayers.length - 120} participantes más
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {!isSpectator && (
             <div className="w-[90%] sm:w-full mx-auto space-y-2">
