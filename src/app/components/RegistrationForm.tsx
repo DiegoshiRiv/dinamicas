@@ -245,14 +245,6 @@ export function RegistrationForm({
         }
       }
 
-      // Idempotencia: si el UNIQUE ya tenía el registro, el hook lo trata como OK;
-      // si llega mensaje legacy, también mostrar éxito.
-      if (/ya registrado|un registro por persona/i.test(message) && !isAdmin) {
-        timer.end({ ok: true, idempotentMessage: true })
-        markSuccess()
-        return
-      }
-
       timer.fail(err)
       setError(message)
     } finally {
