@@ -65,6 +65,19 @@ export interface WinnerPrizeCode {
   assigned_at?: string | null
 }
 
+function participantHasStrongIdentity(row: Participant): boolean {
+  return Boolean(row.registration_token || row.device_fingerprint)
+}
+
+function participantUsernameMatches(
+  row: Participant,
+  usernameKey: string,
+  rouletteCode: string,
+): boolean {
+  const rowUsernameKey = row.username_key || encodeUsernameKey(row.username, rouletteCode)
+  return rowUsernameKey === usernameKey
+}
+
 export type IncomingSpin = {
   rotation: number
   winnerId: string
@@ -829,6 +842,12 @@ export function useParticipants(
       }
       const byIp = await loadParticipantByIp(finalIp)
       if (!byIp) return false
+      if (participantHasStrongIdentity(byIp)) {
+        eventLog.warn('register', 'verify by ip ignored; participant has strong identity', {
+          id: byIp.id,
+        })
+        return false
+      }
       if (belongsToRoomRef.current(byIp.ip_address)) upsertParticipant(byIp, true)
       diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
       eventLog.info('register', 'verify ok by ip', { id: byIp.id })
@@ -865,6 +884,56 @@ export function useParticipants(
       })
     }
 
+    const sameLegacyIp = (row: Participant) =>
+      row.ip_address === finalIp ||
+      (extractBaseIp(row.ip_address) === ip && belongsToRoomRef.current(row.ip_address))
+
+    const isCurrentIdentity = (row: Participant) =>
+      row.registration_token === roomToken ||
+      row.device_fingerprint === fingerprint ||
+      (!participantHasStrongIdentity(row) && sameLegacyIp(row))
+
+    const finishOwnedRegistration = (row: Participant, extra?: Record<string, unknown>) => {
+      if (!participantUsernameMatches(row, usernameKey, rouletteCode)) {
+        timer.fail(new Error('identity username mismatch'), {
+          existingId: row.id,
+          existingUsername: row.username,
+          ...extra,
+        })
+        diagnostics.patch({ lastRegisterOk: false, lastError: 'identity username mismatch' })
+        throw new Error(
+          `Este dispositivo ya tiene un registro en la ruleta con "${row.username}". Usa ese nombre o pide ayuda a un organizador.`,
+        )
+      }
+      finishOk(row, extra)
+    }
+
+    const rejectUsernameTaken = (row: Participant, extra?: Record<string, unknown>) => {
+      timer.fail(new Error('username already registered on another identity'), {
+        existingId: row.id,
+        existingUsername: row.username,
+        ...extra,
+      })
+      telemetry.uniqueConflict('unknown')
+      diagnostics.patch({ lastRegisterOk: false, lastError: 'username already registered' })
+      throw new Error(
+        `El usuario "${row.username}" ya quedó registrado en esta ruleta desde otro dispositivo. Abre la ruleta desde ese dispositivo o pide ayuda a un organizador.`,
+      )
+    }
+
+    const rejectConnectionTaken = (row: Participant, extra?: Record<string, unknown>) => {
+      timer.fail(new Error('connection already registered on another identity'), {
+        existingId: row.id,
+        existingUsername: row.username,
+        ...extra,
+      })
+      telemetry.uniqueConflict('ip')
+      diagnostics.patch({ lastRegisterOk: false, lastError: 'connection already registered' })
+      throw new Error(
+        `Esta conexión ya tiene un registro en la ruleta con "${row.username}". Usa el dispositivo original o pide ayuda a un organizador.`,
+      )
+    }
+
     if (!isAdminBypass) {
       if (!isValidPublicIp(ip)) {
         timer.fail(new Error('invalid ip'))
@@ -883,58 +952,67 @@ export function useParticipants(
         return
       }
 
-      const alreadyLocal = participantsRef.current.find(
-        (row) =>
-          row.registration_token === roomToken ||
-          row.username_key === usernameKey ||
-          row.device_fingerprint === fingerprint ||
-          row.ip_address === finalIp ||
-          (extractBaseIp(row.ip_address) === ip && belongsToRoomRef.current(row.ip_address)),
-      )
-      if (alreadyLocal) {
-        if (
-          alreadyLocal.device_fingerprint === fingerprint &&
-          alreadyLocal.username_key &&
-          alreadyLocal.username_key !== usernameKey
-        ) {
-          timer.fail(new Error('fingerprint username mismatch'))
-          throw new Error(
-            'Este dispositivo ya tiene un registro en la ruleta. Si eres otra persona, pide ayuda a un organizador.',
-          )
-        }
-        finishOk(alreadyLocal, { idempotent: 'local' })
+      const localRows = participantsRef.current
+      const localByToken = localRows.find((row) => row.registration_token === roomToken)
+      if (localByToken) {
+        finishOwnedRegistration(localByToken, { idempotent: 'local-token' })
         return
+      }
+
+      const localByFingerprint = localRows.find((row) => row.device_fingerprint === fingerprint)
+      if (localByFingerprint) {
+        finishOwnedRegistration(localByFingerprint, { idempotent: 'local-fingerprint' })
+        return
+      }
+
+      const localByIp = localRows.find((row) => sameLegacyIp(row))
+      if (localByIp) {
+        if (isCurrentIdentity(localByIp)) {
+          finishOwnedRegistration(localByIp, { idempotent: 'local-ip' })
+          return
+        }
+        rejectConnectionTaken(localByIp, { source: 'local-ip' })
+      }
+
+      const localByUsername = localRows.find((row) =>
+        participantUsernameMatches(row, usernameKey, rouletteCode),
+      )
+      if (localByUsername) {
+        if (isCurrentIdentity(localByUsername)) {
+          finishOwnedRegistration(localByUsername, { idempotent: 'local-username' })
+          return
+        }
+        rejectUsernameTaken(localByUsername, { source: 'local-username' })
       }
 
       const byToken = await loadParticipantByToken(roomToken)
       if (byToken) {
-        finishOk(byToken, { idempotent: 'token-precheck' })
-        return
-      }
-
-      const byUsername = await loadParticipantByUsernameKey(usernameKey)
-      if (byUsername) {
-        finishOk(byUsername, { idempotent: 'username-precheck' })
+        finishOwnedRegistration(byToken, { idempotent: 'token-precheck' })
         return
       }
 
       const byFingerprint = await loadParticipantByFingerprint(fingerprint)
       if (byFingerprint) {
-        if (byFingerprint.username_key && byFingerprint.username_key !== usernameKey) {
-          timer.fail(new Error('fingerprint username mismatch'))
-          telemetry.uniqueConflict('unknown')
-          throw new Error(
-            'Este dispositivo ya tiene un registro en la ruleta. Si eres otra persona, pide ayuda a un organizador.',
-          )
-        }
-        finishOk(byFingerprint, { idempotent: 'fingerprint-precheck' })
+        finishOwnedRegistration(byFingerprint, { idempotent: 'fingerprint-precheck' })
         return
       }
 
       const existingRow = await loadParticipantByIp(finalIp)
       if (existingRow) {
-        finishOk(existingRow, { idempotent: 'ip-precheck' })
-        return
+        if (isCurrentIdentity(existingRow)) {
+          finishOwnedRegistration(existingRow, { idempotent: 'ip-precheck' })
+          return
+        }
+        rejectConnectionTaken(existingRow, { source: 'ip-precheck' })
+      }
+
+      const byUsername = await loadParticipantByUsernameKey(usernameKey)
+      if (byUsername) {
+        if (isCurrentIdentity(byUsername)) {
+          finishOwnedRegistration(byUsername, { idempotent: 'username-precheck' })
+          return
+        }
+        rejectUsernameTaken(byUsername, { source: 'username-precheck' })
       }
     }
 
@@ -990,16 +1068,33 @@ export function useParticipants(
         )
         const existing =
           (await loadParticipantByToken(roomToken)) ||
-          (await loadParticipantByUsernameKey(usernameKey)) ||
-          (await loadParticipantByFingerprint(fingerprint)) ||
-          (await loadParticipantByIp(finalIp))
+          (await loadParticipantByFingerprint(fingerprint))
         if (existing) {
-          finishOk(existing, { idempotent: '23505' })
+          finishOwnedRegistration(existing, { idempotent: '23505-identity' })
           return
         }
+
+        const existingByIp = await loadParticipantByIp(finalIp)
+        if (existingByIp) {
+          if (isCurrentIdentity(existingByIp)) {
+            finishOwnedRegistration(existingByIp, { idempotent: '23505-ip' })
+            return
+          }
+          rejectConnectionTaken(existingByIp, { source: '23505-ip' })
+        }
+
+        const existingByUsername = await loadParticipantByUsernameKey(usernameKey)
+        if (existingByUsername) {
+          if (isCurrentIdentity(existingByUsername)) {
+            finishOwnedRegistration(existingByUsername, { idempotent: '23505-username' })
+            return
+          }
+          rejectUsernameTaken(existingByUsername, { source: '23505-username' })
+        }
+
         timer.fail(error, { code: '23505' })
         diagnostics.patch({ lastRegisterOk: false, lastError: '23505' })
-        throw new Error('Usuario ya registrado.')
+        throw new Error('No pudimos confirmar el registro. Intenta de nuevo en unos segundos.')
       }
       timer.fail(error)
       diagnostics.patch({

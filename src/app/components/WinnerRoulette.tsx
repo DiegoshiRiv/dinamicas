@@ -9,7 +9,6 @@ import { QRCodeCanvas } from 'qrcode.react'
 import { buildRouletteRegistrationUrl, encodeIpForRoulette, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 
 import { normalizeUsername, isVenaderoBlacklisted } from '@/app/utils/UsuariosToxicosBlackList'
-import { prefetchClientIp } from '@/app/hooks/useClientIp'
 import { telemetry } from '@/app/utils/telemetry'
 import {
   encodeRegistrationToken,
@@ -72,7 +71,12 @@ function findSelfParticipant(
   const ip = readCachedPublicIp()
   if (ip) {
     const finalIp = encodeIpForRoulette(ip, code)
-    const byIp = players.find((player) => player.ip_address === finalIp)
+    const byIp = players.find(
+      (player) =>
+        player.ip_address === finalIp &&
+        !player.registration_token &&
+        !player.device_fingerprint,
+    )
     if (byIp) return byIp
   }
   return null
@@ -400,7 +404,6 @@ export function WinnerRoulette({
   const [winner, setWinner] = useState<Participant | null>(null)
   const [winnerPrizeCode, setWinnerPrizeCode] = useState<string | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
-  const [clientIp, setClientIp] = useState<string>('')
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
   const [confirmDeleteRouletteOpen, setConfirmDeleteRouletteOpen] = useState(false)
   const [createRouletteFormOpen, setCreateRouletteFormOpen] = useState(false)
@@ -550,18 +553,6 @@ export function WinnerRoulette({
       if (isNerfed(p.username)) trackIp(nerfedIpsRef.current, p.ip_address)
     })
   }, [eligiblePlayers])
-
-  useEffect(() => {
-    let cancelled = false
-    void prefetchClientIp()
-      .then((ip) => {
-        if (!cancelled) setClientIp(ip)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     const img = new Image()
@@ -1224,10 +1215,7 @@ export function WinnerRoulette({
   const isMe =
     winner &&
     !isVenaderoBlacklisted(winner.username) &&
-    (
-      selfParticipant?.id === winner.id ||
-      Boolean(clientIp && winner.ip_address && extractBaseIp(winner.ip_address) === clientIp)
-    )
+    selfParticipant?.id === winner.id
 
   const copyWinnerPrizeCode = async () => {
     if (!winnerPrizeCode) return
