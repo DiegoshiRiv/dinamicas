@@ -18,6 +18,9 @@ import {
   encodeRegistrationToken,
   encodeUsernameKey,
   getOrCreateDeviceToken,
+  normalizeRegistrationUsername,
+  readLastRegistrationToken,
+  saveLastRegistrationToken,
 } from '@/app/utils/registrationToken'
 import { getDeviceFingerprint } from '@/app/utils/deviceFingerprint'
 
@@ -836,10 +839,12 @@ export function useParticipants(
    * (token → fingerprint).
    */
   const verifyParticipantRegistered = async (): Promise<boolean> => {
-    const roomToken = encodeRegistrationToken(getOrCreateDeviceToken(), rouletteCode)
+    const lastRegistrationToken = readLastRegistrationToken(rouletteCode)
     const fingerprint = encodeDeviceFingerprint(rouletteCode)
     try {
-      const byToken = await loadParticipantByToken(roomToken)
+      const byToken = lastRegistrationToken
+        ? await loadParticipantByToken(lastRegistrationToken)
+        : null
       if (byToken && belongsToRoomRef.current(byToken.ip_address)) {
         upsertParticipant(byToken, true)
         diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
@@ -867,18 +872,21 @@ export function useParticipants(
   ) => {
     const timer = eventLog.timed('register', 'addParticipant')
     const deviceToken = isAdminBypass ? `admin-${Date.now()}` : getOrCreateDeviceToken()
+    const normalizedUsername = normalizeRegistrationUsername(username)
+    const identitySeed = `${deviceToken}:${normalizedUsername}`
     const rawIp = isAdminBypass
       ? `admin-bypass-${Date.now()}`
-      : `${DEVICE_IP_FALLBACK_PREFIX}${deviceToken}`
+      : `${DEVICE_IP_FALLBACK_PREFIX}${identitySeed}`
     const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
-    const roomToken = encodeRegistrationToken(deviceToken, rouletteCode)
+    const roomToken = encodeRegistrationToken(identitySeed, rouletteCode)
     const usernameKey = encodeUsernameKey(username, rouletteCode)
     const fingerprint = isAdminBypass
       ? encodeIpForRoulette(`admin-fp-${Date.now()}`, rouletteCode)
-      : encodeDeviceFingerprint(rouletteCode)
+      : encodeIpForRoulette(`${getDeviceFingerprint()}:${normalizedUsername}`, rouletteCode)
 
     const finishOk = (row: Participant, extra?: Record<string, unknown>) => {
       upsertParticipant(row, true)
+      if (!isAdminBypass) saveLastRegistrationToken(rouletteCode, row.registration_token || roomToken)
       timer.end({ id: row.id, username, ...extra })
       diagnostics.patch({
         lastRegisterAt: Date.now(),

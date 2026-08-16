@@ -13,6 +13,7 @@ import { telemetry } from '@/app/utils/telemetry'
 import {
   encodeRegistrationToken,
   getOrCreateDeviceToken,
+  readLastRegistrationToken,
 } from '@/app/utils/registrationToken'
 import { getDeviceFingerprint } from '@/app/utils/deviceFingerprint'
 
@@ -51,6 +52,12 @@ function findSelfParticipant(
 ): Participant | null {
   if (players.length === 0) return null
   const code = sanitizeRouletteCode(rouletteCode)
+  const lastRegistrationToken = readLastRegistrationToken(code)
+  if (lastRegistrationToken) {
+    const byLastToken = players.find((player) => player.registration_token === lastRegistrationToken)
+    if (byLastToken) return byLastToken
+  }
+
   const roomToken = encodeRegistrationToken(getOrCreateDeviceToken(), code)
   const byToken = players.find((player) => player.registration_token === roomToken)
   if (byToken) return byToken
