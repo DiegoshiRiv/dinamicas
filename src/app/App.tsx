@@ -22,7 +22,6 @@ import {
 } from '@/app/config/admins'
 import { ErrorBoundary } from '@/app/components/ErrorBoundary'
 import { DebugDiagnosticsPanel } from '@/app/components/DebugDiagnosticsPanel'
-import { prefetchClientIp } from '@/app/hooks/useClientIp'
 import { hydrateDeviceToken } from '@/app/utils/registrationToken'
 import {
   modalDialogSmClass,
@@ -156,7 +155,6 @@ export default function App() {
   const registrationUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
   useEffect(() => {
-    void prefetchClientIp()
     void hydrateDeviceToken()
     const t = window.setTimeout(() => setAnnouncementReady(true), 600)
     return () => window.clearTimeout(t)
@@ -174,15 +172,7 @@ export default function App() {
     const check = async () => {
       try {
         await hydrateDeviceToken()
-        let ok = await verifyParticipantRegistered()
-        if (!ok) {
-          try {
-            const ip = await prefetchClientIp()
-            ok = await verifyParticipantRegistered(ip)
-          } catch {
-            // La IP es solo respaldo; token/huella son la identidad principal.
-          }
-        }
+        const ok = await verifyParticipantRegistered()
         if (!cancelled) setAlreadyRegistered(ok)
       } catch {
         if (!cancelled) setAlreadyRegistered(false)

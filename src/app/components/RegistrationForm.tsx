@@ -17,7 +17,6 @@ import { AnimatedCounter } from '@/app/components/AnimatedCounter'
 import { SponsorBannerCarousel } from '@/app/components/SponsorBannerCarousel'
 import type { Banner } from '@/hooks/useParticipants'
 import { useWhatsAppFollowers } from '@/app/hooks/useWhatsAppFollowers'
-import { useClientIp } from '@/app/hooks/useClientIp'
 import { eventLog } from '@/app/utils/eventLog'
 import {
   modalOverlayClass,
@@ -55,7 +54,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 interface RegistrationFormProps {
   saveRegistration: (username: string, team: string, ip?: string, isAdminBypass?: boolean) => Promise<void>
   /** Tras timeout: comprueba si el INSERT tardío sí quedó. */
-  verifyRegistration?: (ip?: string) => Promise<boolean>
+  verifyRegistration?: () => Promise<boolean>
   isAdmin?: boolean
   sponsorBanners?: Banner[]
   /** Usuario ya tiene registro activo en esta ronda. */
@@ -121,9 +120,7 @@ export function RegistrationForm({
   const inputRef = useRef<HTMLInputElement>(null)
   const anteriorSectionRef = useRef<HTMLDivElement>(null)
   const whatsappFollowers = useWhatsAppFollowers()
-  const { ip: clientIp, failed: ipFailed, retry: retryIp } = useClientIp()
   const submittingRef = useRef(false)
-  const [retryingIp, setRetryingIp] = useState(false)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -163,19 +160,6 @@ export function RegistrationForm({
     }
   }, [showExamples])
 
-  const handleRetryIp = async () => {
-    if (retryingIp) return
-    setError('')
-    setRetryingIp(true)
-    try {
-      await retryIp()
-    } catch {
-      setError('No pudimos verificar tu conexión. Revisa tu red e intenta de nuevo.')
-    } finally {
-      setRetryingIp(false)
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (submittingRef.current) return
@@ -208,7 +192,7 @@ export function RegistrationForm({
     try {
       const save = isAdmin
         ? saveRegistration(username.trim(), team, 'admin-ip', true)
-        : saveRegistration(username.trim(), team, clientIp ?? undefined, false)
+        : saveRegistration(username.trim(), team, undefined, false)
 
       await withTimeout(
         save,
@@ -222,11 +206,10 @@ export function RegistrationForm({
       const message = err instanceof Error ? err.message : 'Error al registrar'
       const isTimeout = /tardó demasiado/i.test(message)
 
-      // Timeout ≠ fallo seguro: el INSERT pudo completar después. Verifica por token/huella,
-      // y por IP si ya estaba disponible.
+      // Timeout ≠ fallo seguro: el INSERT pudo completar después. Verifica por token/huella.
       if (isTimeout && !isAdmin && verifyRegistration) {
         try {
-          const confirmed = await verifyRegistration(clientIp ?? undefined)
+          const confirmed = await verifyRegistration()
           if (confirmed) {
             timer.end({ ok: true, recoveredAfterTimeout: true })
             markSuccess()
@@ -401,7 +384,7 @@ export function RegistrationForm({
 
         <button
           type="submit"
-          disabled={loading || retryingIp}
+          disabled={loading}
           className="w-full py-4 rounded-xl font-black text-white text-[15px] btn-register-gradient transition-all disabled:opacity-60 disabled:shadow-none"
         >
           {loading
@@ -426,16 +409,6 @@ export function RegistrationForm({
           </div>
         )}
 
-        {!isAdmin && ipFailed && (
-          <button
-            type="button"
-            onClick={() => void handleRetryIp()}
-            disabled={retryingIp}
-            className="w-full py-3 rounded-xl font-bold text-[#0d3b66] text-sm border border-[#0d3b66]/20 bg-white hover:bg-[#0d3b66]/5 transition-all disabled:opacity-60"
-          >
-            {retryingIp ? 'Reintentando...' : 'Reintentar conexión'}
-          </button>
-        )}
       </form>
 
       {!isAdmin && (

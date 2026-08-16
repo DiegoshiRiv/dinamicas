@@ -8,11 +8,9 @@ import {
 import {
   DEFAULT_ROULETTE_CODE,
   encodeIpForRoulette,
-  extractBaseIp,
   extractRouletteCodeFromIp,
   sanitizeRouletteCode,
 } from '@/app/utils/rouletteCode'
-import { isValidPublicIp } from '@/app/hooks/useClientIp'
 import { eventLog } from '@/app/utils/eventLog'
 import { diagnostics } from '@/app/utils/runtimeDiagnostics'
 import { telemetry } from '@/app/utils/telemetry'
@@ -835,10 +833,9 @@ export function useParticipants(
 
   /**
    * Tras un timeout de UI: confirma si el INSERT tardío ya quedó
-   * (token → fingerprint → IP).
+   * (token → fingerprint).
    */
-  const verifyParticipantRegistered = async (ip?: string): Promise<boolean> => {
-    const finalIp = ip && isValidPublicIp(ip) ? encodeIpForRoulette(ip, rouletteCode) : null
+  const verifyParticipantRegistered = async (): Promise<boolean> => {
     const roomToken = encodeRegistrationToken(getOrCreateDeviceToken(), rouletteCode)
     const fingerprint = encodeDeviceFingerprint(rouletteCode)
     try {
@@ -856,19 +853,7 @@ export function useParticipants(
         eventLog.info('register', 'verify ok by fingerprint', { id: byFp.id })
         return true
       }
-      if (!finalIp) return false
-      const byIp = await loadParticipantByIp(finalIp)
-      if (!byIp) return false
-      if (participantHasStrongIdentity(byIp)) {
-        eventLog.warn('register', 'verify by ip ignored; participant has strong identity', {
-          id: byIp.id,
-        })
-        return false
-      }
-      if (belongsToRoomRef.current(byIp.ip_address)) upsertParticipant(byIp, true)
-      diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
-      eventLog.info('register', 'verify ok by ip', { id: byIp.id })
-      return true
+      return false
     } catch {
       return false
     }
@@ -877,17 +862,14 @@ export function useParticipants(
   const addParticipant = async (
     username: string,
     team: string,
-    ip: string = '',
+    _ip: string = '',
     isAdminBypass: boolean = false,
   ) => {
     const timer = eventLog.timed('register', 'addParticipant')
     const deviceToken = isAdminBypass ? `admin-${Date.now()}` : getOrCreateDeviceToken()
-    const hasPublicIp = !isAdminBypass && isValidPublicIp(ip)
     const rawIp = isAdminBypass
       ? `admin-bypass-${Date.now()}`
-      : hasPublicIp
-        ? ip
-        : `${DEVICE_IP_FALLBACK_PREFIX}${deviceToken}`
+      : `${DEVICE_IP_FALLBACK_PREFIX}${deviceToken}`
     const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
     const roomToken = encodeRegistrationToken(deviceToken, rouletteCode)
     const usernameKey = encodeUsernameKey(username, rouletteCode)
@@ -905,14 +887,12 @@ export function useParticipants(
       })
     }
 
-    const sameLegacyIp = (row: Participant) =>
-      row.ip_address === finalIp ||
-      (hasPublicIp && extractBaseIp(row.ip_address) === ip && belongsToRoomRef.current(row.ip_address))
+    const sameIdentityIp = (row: Participant) => row.ip_address === finalIp
 
     const isCurrentIdentity = (row: Participant) =>
       row.registration_token === roomToken ||
       row.device_fingerprint === fingerprint ||
-      (!participantHasStrongIdentity(row) && sameLegacyIp(row))
+      (!participantHasStrongIdentity(row) && sameIdentityIp(row))
 
     const finishOwnedRegistration = (row: Participant, extra?: Record<string, unknown>) => {
       if (!participantUsernameMatches(row, usernameKey, rouletteCode)) {
@@ -980,7 +960,7 @@ export function useParticipants(
         return
       }
 
-      const localByIp = localRows.find((row) => sameLegacyIp(row))
+      const localByIp = localRows.find((row) => sameIdentityIp(row))
       if (localByIp) {
         if (isCurrentIdentity(localByIp)) {
           finishOwnedRegistration(localByIp, { idempotent: 'local-ip' })
