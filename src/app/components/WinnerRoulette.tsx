@@ -6,7 +6,7 @@ import { Input } from '@/app/components/ui/input'
 import type { Participant, RecentWinner, IncomingSpin, WinnerPrizeCode } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 import { QRCodeCanvas } from 'qrcode.react'
-import { buildRouletteRegistrationUrl, encodeIpForRoulette, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
+import { buildRouletteRegistrationUrl, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 
 import { normalizeUsername, isVenaderoBlacklisted } from '@/app/utils/UsuariosToxicosBlackList'
 import { telemetry } from '@/app/utils/telemetry'
@@ -44,16 +44,7 @@ function isNerfed(username: string): boolean {
 const SPIN_DURATION_MS = 6000
 const SPIN_EASING = 'cubic-bezier(0.12, 0.85, 0.15, 1)'
 
-function readCachedPublicIp(): string | null {
-  try {
-    const cached = sessionStorage.getItem('client-public-ip')?.trim()
-    return cached || null
-  } catch {
-    return null
-  }
-}
-
-/** Localiza al espectador en la lista (token → huella → IP). */
+/** Localiza al espectador en la lista (token → huella). */
 function findSelfParticipant(
   players: Participant[],
   rouletteCode: string,
@@ -67,18 +58,6 @@ function findSelfParticipant(
   const fingerprint = encodeIpForRoulette(getDeviceFingerprint(), code)
   const byFingerprint = players.find((player) => player.device_fingerprint === fingerprint)
   if (byFingerprint) return byFingerprint
-
-  const ip = readCachedPublicIp()
-  if (ip) {
-    const finalIp = encodeIpForRoulette(ip, code)
-    const byIp = players.find(
-      (player) =>
-        player.ip_address === finalIp &&
-        !player.registration_token &&
-        !player.device_fingerprint,
-    )
-    if (byIp) return byIp
-  }
   return null
 }
 
