@@ -2,6 +2,7 @@ import { encodeIpForRoulette, sanitizeRouletteCode } from '@/app/utils/rouletteC
 
 const STORAGE_KEY = 'dinamicas-registration-token-v1'
 const COOKIE_KEY = 'dinamicas_reg'
+const LAST_REGISTRATION_TOKEN_PREFIX = 'dinamicas-last-registration-token-v1'
 const IDB_NAME = 'dinamicas-identity'
 const IDB_STORE = 'keys'
 const IDB_KEY = 'registration-token'
@@ -185,6 +186,26 @@ export async function hydrateDeviceToken(): Promise<string> {
  */
 export function encodeRegistrationToken(deviceToken: string, rouletteCode: string): string {
   return encodeIpForRoulette(deviceToken, sanitizeRouletteCode(rouletteCode))
+}
+
+function lastRegistrationTokenKey(rouletteCode: string): string {
+  return `${LAST_REGISTRATION_TOKEN_PREFIX}:${sanitizeRouletteCode(rouletteCode)}`
+}
+
+export function saveLastRegistrationToken(rouletteCode: string, registrationToken: string) {
+  try {
+    localStorage.setItem(lastRegistrationTokenKey(rouletteCode), registrationToken)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readLastRegistrationToken(rouletteCode: string): string | null {
+  try {
+    return localStorage.getItem(lastRegistrationTokenKey(rouletteCode))?.trim() || null
+  } catch {
+    return null
+  }
 }
 
 /** Clave estable del username de Pokémon GO dentro de la sala. */
