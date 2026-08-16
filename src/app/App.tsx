@@ -173,8 +173,16 @@ export default function App() {
     let cancelled = false
     const check = async () => {
       try {
-        const ip = await prefetchClientIp()
-        const ok = await verifyParticipantRegistered(ip)
+        await hydrateDeviceToken()
+        let ok = await verifyParticipantRegistered()
+        if (!ok) {
+          try {
+            const ip = await prefetchClientIp()
+            ok = await verifyParticipantRegistered(ip)
+          } catch {
+            // La IP es solo respaldo; token/huella son la identidad principal.
+          }
+        }
         if (!cancelled) setAlreadyRegistered(ok)
       } catch {
         if (!cancelled) setAlreadyRegistered(false)

@@ -53,9 +53,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 interface RegistrationFormProps {
-  saveRegistration: (username: string, team: string, ip: string, isAdminBypass?: boolean) => Promise<void>
+  saveRegistration: (username: string, team: string, ip?: string, isAdminBypass?: boolean) => Promise<void>
   /** Tras timeout: comprueba si el INSERT tardío sí quedó. */
-  verifyRegistration?: (ip: string) => Promise<boolean>
+  verifyRegistration?: (ip?: string) => Promise<boolean>
   isAdmin?: boolean
   sponsorBanners?: Banner[]
   /** Usuario ya tiene registro activo en esta ronda. */
@@ -121,7 +121,7 @@ export function RegistrationForm({
   const inputRef = useRef<HTMLInputElement>(null)
   const anteriorSectionRef = useRef<HTMLDivElement>(null)
   const whatsappFollowers = useWhatsAppFollowers()
-  const { ip: clientIp, ready: ipReady, failed: ipFailed, retry: retryIp } = useClientIp()
+  const { ip: clientIp, failed: ipFailed, retry: retryIp } = useClientIp()
   const submittingRef = useRef(false)
   const [retryingIp, setRetryingIp] = useState(false)
 
@@ -185,15 +185,6 @@ export function RegistrationForm({
     if (!username.trim()) return setError('Escribe tu nombre de usuario')
     if (!team) return setError('Selecciona un equipo')
 
-    if (!isAdmin) {
-      if (ipFailed) {
-        return setError('No pudimos verificar tu conexión. Pulsa "Reintentar conexión".')
-      }
-      if (!clientIp) {
-        return setError('Preparando conexión, intenta de nuevo en un segundo.')
-      }
-    }
-
     submittingRef.current = true
     setLoading(true)
     const timer = eventLog.timed('register', 'submit')
@@ -217,7 +208,7 @@ export function RegistrationForm({
     try {
       const save = isAdmin
         ? saveRegistration(username.trim(), team, 'admin-ip', true)
-        : saveRegistration(username.trim(), team, clientIp!, false)
+        : saveRegistration(username.trim(), team, clientIp ?? undefined, false)
 
       await withTimeout(
         save,
@@ -231,10 +222,11 @@ export function RegistrationForm({
       const message = err instanceof Error ? err.message : 'Error al registrar'
       const isTimeout = /tardó demasiado/i.test(message)
 
-      // Timeout ≠ fallo seguro: el INSERT pudo completar después. Verifica por IP.
-      if (isTimeout && !isAdmin && clientIp && verifyRegistration) {
+      // Timeout ≠ fallo seguro: el INSERT pudo completar después. Verifica por token/huella,
+      // y por IP si ya estaba disponible.
+      if (isTimeout && !isAdmin && verifyRegistration) {
         try {
-          const confirmed = await verifyRegistration(clientIp)
+          const confirmed = await verifyRegistration(clientIp ?? undefined)
           if (confirmed) {
             timer.end({ ok: true, recoveredAfterTimeout: true })
             markSuccess()
@@ -409,18 +401,14 @@ export function RegistrationForm({
 
         <button
           type="submit"
-          disabled={loading || retryingIp || (!isAdmin && (!ipReady || ipFailed))}
+          disabled={loading || retryingIp}
           className="w-full py-4 rounded-xl font-black text-white text-[15px] btn-register-gradient transition-all disabled:opacity-60 disabled:shadow-none"
         >
           {loading
             ? 'Registrando...'
-            : !isAdmin && ipFailed
-              ? 'Error de conexión'
-              : !isAdmin && !ipReady
-                ? 'Preparando...'
-                : isAdmin
-                  ? 'Ayudar a registrarse'
-                  : 'Registrarse en la Dinámica'}
+            : isAdmin
+              ? 'Ayudar a registrarse'
+              : 'Registrarse en la Dinámica'}
         </button>
 
         {loading && (

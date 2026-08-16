@@ -30,6 +30,7 @@ const UPSERT_BATCH_MS = 200
 
 const IDENTITY_COLUMN_MISSING =
   /registration_token|username_key|device_fingerprint/i
+const DEVICE_IP_FALLBACK_PREFIX = 'device-token-'
 
 function encodeDeviceFingerprint(rouletteCode: string): string {
   return encodeIpForRoulette(getDeviceFingerprint(), sanitizeRouletteCode(rouletteCode))
@@ -418,16 +419,22 @@ export function useParticipants(
     const timer = eventLog.timed('roulette', 'syncParticipantsFresh')
 
     try {
-      let { data, error } = await supabase
+      let participantQuery = supabase
         .from('participants')
         .select(PARTICIPANT_COLUMNS)
-        .order('created_at', { ascending: true })
+      if (code !== DEFAULT_ROULETTE_CODE) {
+        participantQuery = participantQuery.like('ip_address', `%::r:${code}`)
+      }
+      let { data, error } = await participantQuery.order('created_at', { ascending: true })
 
       if (error && IDENTITY_COLUMN_MISSING.test(error.message)) {
-        const legacy = await supabase
+        let legacyQuery = supabase
           .from('participants')
           .select(PARTICIPANT_COLUMNS_LEGACY)
-          .order('created_at', { ascending: true })
+        if (code !== DEFAULT_ROULETTE_CODE) {
+          legacyQuery = legacyQuery.like('ip_address', `%::r:${code}`)
+        }
+        const legacy = await legacyQuery.order('created_at', { ascending: true })
         data = legacy.data
         error = legacy.error
       }
@@ -469,9 +476,15 @@ export function useParticipants(
     const gen = ++fetchGenRef.current
     const code = rouletteCodeRef.current
     const timer = eventLog.timed('roulette', 'fetchParticipantsData')
+    let participantQuery = supabase
+      .from('participants')
+      .select(PARTICIPANT_COLUMNS)
+    if (code !== DEFAULT_ROULETTE_CODE) {
+      participantQuery = participantQuery.like('ip_address', `%::r:${code}`)
+    }
 
     const [pResRaw, bRes, sRes, rwRes] = await Promise.all([
-      supabase.from('participants').select(PARTICIPANT_COLUMNS).order('created_at', { ascending: true }),
+      participantQuery.order('created_at', { ascending: true }),
       supabase.from('banned_ips').select('*').order('created_at', { ascending: false }),
       supabase.from('sponsors').select('*').order('order_index', { ascending: true }),
       supabase.from('recent_winners').select('*').order('won_at', { ascending: false }),
@@ -479,10 +492,13 @@ export function useParticipants(
 
     let pRes = pResRaw
     if (pRes.error && IDENTITY_COLUMN_MISSING.test(pRes.error.message)) {
-      pRes = await supabase
+      let legacyQuery = supabase
         .from('participants')
         .select(PARTICIPANT_COLUMNS_LEGACY)
-        .order('created_at', { ascending: true })
+      if (code !== DEFAULT_ROULETTE_CODE) {
+        legacyQuery = legacyQuery.like('ip_address', `%::r:${code}`)
+      }
+      pRes = await legacyQuery.order('created_at', { ascending: true })
     }
 
     if (gen !== fetchGenRef.current) {
@@ -821,8 +837,8 @@ export function useParticipants(
    * Tras un timeout de UI: confirma si el INSERT tardío ya quedó
    * (token → fingerprint → IP).
    */
-  const verifyParticipantRegistered = async (ip: string): Promise<boolean> => {
-    const finalIp = encodeIpForRoulette(ip, rouletteCode)
+  const verifyParticipantRegistered = async (ip?: string): Promise<boolean> => {
+    const finalIp = ip && isValidPublicIp(ip) ? encodeIpForRoulette(ip, rouletteCode) : null
     const roomToken = encodeRegistrationToken(getOrCreateDeviceToken(), rouletteCode)
     const fingerprint = encodeDeviceFingerprint(rouletteCode)
     try {
@@ -840,6 +856,7 @@ export function useParticipants(
         eventLog.info('register', 'verify ok by fingerprint', { id: byFp.id })
         return true
       }
+      if (!finalIp) return false
       const byIp = await loadParticipantByIp(finalIp)
       if (!byIp) return false
       if (participantHasStrongIdentity(byIp)) {
@@ -860,15 +877,19 @@ export function useParticipants(
   const addParticipant = async (
     username: string,
     team: string,
-    ip: string,
+    ip: string = '',
     isAdminBypass: boolean = false,
   ) => {
     const timer = eventLog.timed('register', 'addParticipant')
-    const rawIp = isAdminBypass ? `admin-bypass-${Date.now()}` : ip
+    const deviceToken = isAdminBypass ? `admin-${Date.now()}` : getOrCreateDeviceToken()
+    const hasPublicIp = !isAdminBypass && isValidPublicIp(ip)
+    const rawIp = isAdminBypass
+      ? `admin-bypass-${Date.now()}`
+      : hasPublicIp
+        ? ip
+        : `${DEVICE_IP_FALLBACK_PREFIX}${deviceToken}`
     const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
-    const roomToken = isAdminBypass
-      ? encodeRegistrationToken(`admin-${Date.now()}`, rouletteCode)
-      : encodeRegistrationToken(getOrCreateDeviceToken(), rouletteCode)
+    const roomToken = encodeRegistrationToken(deviceToken, rouletteCode)
     const usernameKey = encodeUsernameKey(username, rouletteCode)
     const fingerprint = isAdminBypass
       ? encodeIpForRoulette(`admin-fp-${Date.now()}`, rouletteCode)
@@ -886,7 +907,7 @@ export function useParticipants(
 
     const sameLegacyIp = (row: Participant) =>
       row.ip_address === finalIp ||
-      (extractBaseIp(row.ip_address) === ip && belongsToRoomRef.current(row.ip_address))
+      (hasPublicIp && extractBaseIp(row.ip_address) === ip && belongsToRoomRef.current(row.ip_address))
 
     const isCurrentIdentity = (row: Participant) =>
       row.registration_token === roomToken ||
@@ -935,12 +956,6 @@ export function useParticipants(
     }
 
     if (!isAdminBypass) {
-      if (!isValidPublicIp(ip)) {
-        timer.fail(new Error('invalid ip'))
-        diagnostics.patch({ lastRegisterOk: false, lastError: 'invalid ip' })
-        throw new Error('No pudimos verificar tu conexión. Reintenta en un momento.')
-      }
-
       const now = new Date()
       const banned = bannedUsersRef.current.find(
         (ban) => ban.ip_address === finalIp && new Date(ban.expires_at) > now,
@@ -985,35 +1000,8 @@ export function useParticipants(
         rejectUsernameTaken(localByUsername, { source: 'local-username' })
       }
 
-      const byToken = await loadParticipantByToken(roomToken)
-      if (byToken) {
-        finishOwnedRegistration(byToken, { idempotent: 'token-precheck' })
-        return
-      }
-
-      const byFingerprint = await loadParticipantByFingerprint(fingerprint)
-      if (byFingerprint) {
-        finishOwnedRegistration(byFingerprint, { idempotent: 'fingerprint-precheck' })
-        return
-      }
-
-      const existingRow = await loadParticipantByIp(finalIp)
-      if (existingRow) {
-        if (isCurrentIdentity(existingRow)) {
-          finishOwnedRegistration(existingRow, { idempotent: 'ip-precheck' })
-          return
-        }
-        rejectConnectionTaken(existingRow, { source: 'ip-precheck' })
-      }
-
-      const byUsername = await loadParticipantByUsernameKey(usernameKey)
-      if (byUsername) {
-        if (isCurrentIdentity(byUsername)) {
-          finishOwnedRegistration(byUsername, { idempotent: 'username-precheck' })
-          return
-        }
-        rejectUsernameTaken(byUsername, { source: 'username-precheck' })
-      }
+      // Registro normal: escribe primero en Supabase. Los UNIQUE de token/username/IP
+      // resuelven duplicados sin bloquear el alta con varias lecturas previas.
     }
 
     // INSERT: IP/token/username/fingerprint todos acotados a la sala.
