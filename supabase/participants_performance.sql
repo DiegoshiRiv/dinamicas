@@ -3,19 +3,22 @@
 --
 -- MODELO DE UNICIDAD
 -- -----------------
--- 1) ip_address ya incluye la sala: "{ip}::r:{rouletteCode}"
---    → UNIQUE(ip_address) ≈ UNIQUE(evento/sala, IP).
--- 2) registration_token = "{uuid-dispositivo}::r:{rouletteCode}"
---    → identidad principal del celular (resiste Wi‑Fi ↔datos y limpiezas parciales).
+-- 1) ip_address ya incluye la sala: "{identidad-generada}::r:{rouletteCode}"
+--    → UNIQUE(ip_address) se conserva por compatibilidad con la tabla.
+--      El frontend actual genera este valor por dispositivo+username+sala,
+--      no por IP pública, para evitar conflictos de red compartida.
+-- 2) registration_token = "{uuid-dispositivo}:{username-normalizado}::r:{rouletteCode}"
+--    → identidad principal del registro. Permite varios usuarios desde el
+--      mismo celular si cada nombre de entrenador es distinto.
 -- 3) username_key = "{username-normalizado}::r:{rouletteCode}"
 --    → un mismo nombre de entrenador no puede entrar dos veces en la misma ruleta
 --      aunque cambie de navegador / IP / borre datos.
--- 4) device_fingerprint = huella suave del navegador (índice no único; se valida en app).
+-- 4) device_fingerprint = huella suave del navegador + username normalizado
+--    (índice no único; sirve para recuperar el registro reciente).
 --
--- Tras desplegar el front con token, puedes soltar el UNIQUE de IP si
--- quieres permitir varios registros desde el mismo hotspot:
---   DROP INDEX IF EXISTS participants_ip_address_unique;
--- (mantén el índice no-único de abajo para búsquedas / verify post-timeout).
+-- El registro público ya no depende de IP pública. No soltar
+-- participants_ip_address_unique sin revisar el frontend: hoy se usa como
+-- segunda barrera de unicidad con una identidad generada.
 
 ALTER TABLE public.participants
   ADD COLUMN IF NOT EXISTS registration_token text;
@@ -26,7 +29,7 @@ ALTER TABLE public.participants
 ALTER TABLE public.participants
   ADD COLUMN IF NOT EXISTS device_fingerprint text;
 
--- Un registro por dispositivo+sala (identidad principal).
+-- Un registro por dispositivo+username+sala (identidad principal).
 CREATE UNIQUE INDEX IF NOT EXISTS participants_registration_token_unique
   ON public.participants (registration_token)
   WHERE registration_token IS NOT NULL;
@@ -36,8 +39,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS participants_username_key_unique
   ON public.participants (username_key)
   WHERE username_key IS NOT NULL;
 
--- Un registro por IP+sala (defensa de reintentos / abuso).
--- Nota: el valor ya lleva ::r:{code}, no es IP global.
+-- Un registro por identidad generada+sala (no IP pública).
+-- Nota: el valor ya lleva ::r:{code}.
 CREATE UNIQUE INDEX IF NOT EXISTS participants_ip_address_unique
   ON public.participants (ip_address);
 
