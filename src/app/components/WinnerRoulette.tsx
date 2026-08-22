@@ -1,21 +1,19 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Button } from '@/app/components/ui/button'
-import { Check, Copy, Gift, RotateCcw, RefreshCw } from 'lucide-react'
+import { RotateCcw, RefreshCw } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
 import { Input } from '@/app/components/ui/input'
-import type { Participant, RecentWinner, IncomingSpin, WinnerPrizeCode } from '@/hooks/useParticipants'
+import type { Participant, RecentWinner, IncomingSpin } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 import { QRCodeCanvas } from 'qrcode.react'
-import { buildRouletteRegistrationUrl, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
+import { buildRouletteRegistrationUrl, encodeIpForRoulette, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 
 import { normalizeUsername, isVenaderoBlacklisted } from '@/app/utils/UsuariosToxicosBlackList'
 import { telemetry } from '@/app/utils/telemetry'
 import {
   encodeRegistrationToken,
   getOrCreateDeviceToken,
-  readLastRegistrationToken,
 } from '@/app/utils/registrationToken'
-import { getDeviceFingerprint } from '@/app/utils/deviceFingerprint'
 
 import moltres from '@/assets/iconos/moltres.png'
 import zapdos from '@/assets/iconos/zapdos.png'
@@ -45,27 +43,15 @@ function isNerfed(username: string): boolean {
 const SPIN_DURATION_MS = 6000
 const SPIN_EASING = 'cubic-bezier(0.12, 0.85, 0.15, 1)'
 
-/** Localiza al espectador en la lista (token → huella). */
+/** Localiza al espectador en la lista solo por token de dispositivo. */
 function findSelfParticipant(
   players: Participant[],
   rouletteCode: string,
 ): Participant | null {
   if (players.length === 0) return null
   const code = sanitizeRouletteCode(rouletteCode)
-  const lastRegistrationToken = readLastRegistrationToken(code)
-  if (lastRegistrationToken) {
-    const byLastToken = players.find((player) => player.registration_token === lastRegistrationToken)
-    if (byLastToken) return byLastToken
-  }
-
   const roomToken = encodeRegistrationToken(getOrCreateDeviceToken(), code)
-  const byToken = players.find((player) => player.registration_token === roomToken)
-  if (byToken) return byToken
-
-  const fingerprint = encodeIpForRoulette(getDeviceFingerprint(), code)
-  const byFingerprint = players.find((player) => player.device_fingerprint === fingerprint)
-  if (byFingerprint) return byFingerprint
-  return null
+  return players.find((player) => player.registration_token === roomToken) ?? null
 }
 
 function shadeColor(hex: string, amount: number): string {
@@ -170,8 +156,7 @@ interface WinnerRouletteProps {
   isSpectator?: boolean
   embedded?: boolean
   incomingSpin?: IncomingSpin | null
-  broadcastSpin?: (rotation: number, winnerId: string, winnerUsername?: string, winnerTeam?: Participant['team'], winnerPrizeCode?: string | null) => void
-  assignWinnerPrizeCode?: (winner: Participant) => Promise<WinnerPrizeCode | null>
+  broadcastSpin?: (rotation: number, winnerId: string, winnerUsername?: string, winnerTeam?: Participant['team']) => void
   penaltyMonths: number
   penaltyPercent: number
   rouletteCodes?: string[]
@@ -372,7 +357,6 @@ function rotationForEqualWheel(
 export function WinnerRoulette({ 
   onBack: _onBack, participants, recentWinners, updateStatus, onResetGame, 
   isSpectator = false, embedded = false, incomingSpin, broadcastSpin,
-  assignWinnerPrizeCode,
   penaltyMonths, penaltyPercent,
   rouletteCodes = [], activeRouletteCode = 'general', onChangeRouletteCode,
   onCreateRouletteCode, onDeleteRouletteCode, registrationBaseUrl = '',
@@ -388,8 +372,6 @@ export function WinnerRoulette({
   const [isSyncing, setIsSyncing] = useState(false)
   const [forceSyncStatus, setForceSyncStatus] = useState<string | null>(null)
   const [winner, setWinner] = useState<Participant | null>(null)
-  const [winnerPrizeCode, setWinnerPrizeCode] = useState<string | null>(null)
-  const [codeCopied, setCodeCopied] = useState(false)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
   const [confirmDeleteRouletteOpen, setConfirmDeleteRouletteOpen] = useState(false)
   const [createRouletteFormOpen, setCreateRouletteFormOpen] = useState(false)
@@ -426,11 +408,10 @@ export function WinnerRoulette({
     [participants],
   )
 
-  const selfParticipant = useMemo(
-    () => (isSpectator ? findSelfParticipant(participants, activeRouletteCode) : null),
-    [isSpectator, participants, activeRouletteCode],
+  const selfPlayer = useMemo(
+    () => (isSpectator ? findSelfParticipant(activePlayers, activeRouletteCode) : null),
+    [isSpectator, activePlayers, activeRouletteCode],
   )
-  const selfPlayer = selfParticipant?.status === 'active' ? selfParticipant : null
   const selfPlayerId = selfPlayer?.id ?? null
   const [selfFlashActive, setSelfFlashActive] = useState(false)
   const selfFlashTimerRef = useRef<number | null>(null)
@@ -857,20 +838,12 @@ export function WinnerRoulette({
           0,
         )
         setRotation(finalRotation)
-        if (winningPlayer) {
-          setWinner(winningPlayer)
-          setWinnerPrizeCode(
-            selfParticipant?.id === winningPlayer.id
-              ? incomingSpin.winnerPrizeCode ?? null
-              : null,
-          )
-        }
+        if (winningPlayer) setWinner(winningPlayer)
         return
       }
 
       setIsSpinning(true)
       setWinner(null)
-      setWinnerPrizeCode(null)
 
       setRotation((prev) =>
         rotationForEqualWheel(wheelPlayers, incomingSpin.winnerId, prev),
@@ -881,11 +854,6 @@ export function WinnerRoulette({
         setIsSpinning(false)
         if (winningPlayer) {
           setWinner(winningPlayer)
-          setWinnerPrizeCode(
-            selfParticipant?.id === winningPlayer.id
-              ? incomingSpin.winnerPrizeCode ?? null
-              : null,
-          )
           fireWinnerConfetti(winningPlayer.team)
         }
       }, SPIN_DURATION_MS)
@@ -915,10 +883,6 @@ export function WinnerRoulette({
   useEffect(() => () => {
     if (spinTimerRef.current) window.clearTimeout(spinTimerRef.current)
   }, [])
-
-  useEffect(() => {
-    setCodeCopied(false)
-  }, [winner?.id, winnerPrizeCode])
 
   useEffect(() => {
     let cancelled = false
@@ -1050,7 +1014,6 @@ export function WinnerRoulette({
 
     setIsSpinning(true)
     setWinner(null)
-    setWinnerPrizeCode(null)
 
     weighted.forEach((p) => {
       if (isNerfed(p.username)) trackIp(nerfedIpsRef.current, p.ip_address)
@@ -1122,10 +1085,6 @@ export function WinnerRoulette({
       return
     }
 
-    const assignedPrizeCode = assignWinnerPrizeCode
-      ? await assignWinnerPrizeCode(winningPlayer)
-      : null
-
     if (canForceWinner) {
       const nextSpin = assuredSpinCount + 1
       setAssuredSpinCount(nextSpin)
@@ -1167,13 +1126,7 @@ export function WinnerRoulette({
     setRotation(newRotation)
 
     if (broadcastSpin) {
-      broadcastSpin(
-        newRotation,
-        winningPlayer.id,
-        winningPlayer.username,
-        winningPlayer.team,
-        assignedPrizeCode?.code ?? null,
-      )
+      broadcastSpin(newRotation, winningPlayer.id, winningPlayer.username, winningPlayer.team)
     }
 
     if (spinTimerRef.current) window.clearTimeout(spinTimerRef.current)
@@ -1198,29 +1151,12 @@ export function WinnerRoulette({
     }
   }
 
-  const isMe =
+  const isMe = Boolean(
     winner &&
-    !isVenaderoBlacklisted(winner.username) &&
-    selfParticipant?.id === winner.id
-
-  const copyWinnerPrizeCode = async () => {
-    if (!winnerPrizeCode) return
-    try {
-      await navigator.clipboard.writeText(winnerPrizeCode)
-    } catch {
-      const textarea = document.createElement('textarea')
-      textarea.value = winnerPrizeCode
-      textarea.setAttribute('readonly', 'true')
-      textarea.style.position = 'fixed'
-      textarea.style.left = '-9999px'
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-    }
-    setCodeCopied(true)
-    window.setTimeout(() => setCodeCopied(false), 1800)
-  }
+      selfPlayer &&
+      winner.id === selfPlayer.id &&
+      !isVenaderoBlacklisted(winner.username),
+  )
 
   const createdRouletteUrl = createdRouletteCode
     ? buildRouletteRegistrationUrl(
@@ -1334,20 +1270,6 @@ export function WinnerRoulette({
                   ? 'Cargando nombres…'
                   : `${activePlayers.length} participante${activePlayers.length === 1 ? '' : 's'}`}
               </p>
-              <button
-                type="button"
-                onClick={() => void forceSyncParticipants()}
-                disabled={isSpinning || isSyncing || !syncParticipantsFresh}
-                className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-full border border-[#23c8b6] bg-[#e6fffb] px-3 py-1.5 text-[11px] font-black text-[#0f766e] shadow-sm disabled:opacity-60"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                {isSyncing ? 'Actualizando…' : 'Actualizar ruleta'}
-              </button>
-              {forceSyncStatus && (
-                <p className="mt-1 text-[10px] font-semibold text-[#5b6483] leading-snug px-2">
-                  {forceSyncStatus}
-                </p>
-              )}
               {selfPlayer && (
                 <button
                   type="button"
@@ -1444,39 +1366,6 @@ export function WinnerRoulette({
               </svg>
             </div>
           </div>
-
-          {isSpectator && activePlayers.length > 0 && (
-            <div className="w-full -mt-4 mb-5 rounded-2xl border border-[#dce3f6] bg-[#f8fafc] p-3 text-left">
-              <p className="text-[11px] font-black uppercase tracking-wide text-[#0d3b66] text-center">
-                Lista cargada desde Supabase
-              </p>
-              <p className="mt-1 text-center text-[10px] font-semibold text-[#667091]">
-                Si la ruleta no se ve completa en tu celular, estos son los nombres activos.
-              </p>
-              <div className="mt-2 max-h-28 overflow-y-auto rounded-xl bg-white border border-[#e8eefc] px-2 py-1">
-                {activePlayers.slice(0, 120).map((player) => (
-                  <div
-                    key={player.id}
-                    className={`flex items-center justify-between gap-2 border-b border-[#f1f5fb] py-1.5 last:border-b-0 ${
-                      player.id === selfPlayerId ? 'text-emerald-700' : 'text-[#4f5674]'
-                    }`}
-                  >
-                    <span className="truncate text-xs font-bold">
-                      {player.id === selfPlayerId ? '★ ' : ''}{player.username}
-                    </span>
-                    <span className="shrink-0 text-[9px] font-black uppercase text-[#94a3b8]">
-                      {player.team === 'blue' ? 'Sab' : player.team === 'yellow' ? 'Ins' : 'Val'}
-                    </span>
-                  </div>
-                ))}
-                {activePlayers.length > 120 && (
-                  <p className="py-1.5 text-center text-[10px] font-semibold text-[#94a3b8]">
-                    +{activePlayers.length - 120} participantes más
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
 
           {!isSpectator && (
             <div className="w-[90%] sm:w-full mx-auto space-y-2">
@@ -1785,37 +1674,6 @@ export function WinnerRoulette({
               <p className="text-4xl font-black mb-8 break-words leading-tight text-[#0d3b66] winner-name-shine">
                 {winner.username}
               </p>
-              {isSpectator && isMe && winnerPrizeCode && (
-                <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left">
-                  <div className="flex items-center gap-2 text-emerald-800 font-black text-sm mb-2">
-                    <Gift className="w-4 h-4" />
-                    Código exclusivo del ganador
-                  </div>
-                  <p className="text-xs font-semibold text-emerald-700 mb-3">
-                    Solo tú puedes copiar este código desde tu dispositivo.
-                  </p>
-                  <div className="rounded-xl bg-white border border-emerald-200 px-3 py-3 text-center font-black tracking-widest text-lg text-[#0d3b66] break-all">
-                    {winnerPrizeCode}
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={() => void copyWinnerPrizeCode()}
-                    className="mt-3 w-full py-5 rounded-xl font-black bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    {codeCopied ? (
-                      <>
-                        <Check className="w-4 h-4 mr-2" />
-                        Copiado
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 mr-2" />
-                        Copiar código
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
               {!isSpectator && (
                 <Button
                   onClick={() => setWinner(null)}

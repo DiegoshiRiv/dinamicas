@@ -23,8 +23,8 @@ import {
   modalSheetClass,
 } from '@/app/layout/mobileShellLayout'
 
-/** 8s: suficiente en 4G/WiFi de evento; más corto se siente más ágil. */
-const REGISTER_TIMEOUT_MS = 8000
+/** Timeout corto: el INSERT es un solo round-trip. */
+const REGISTER_TIMEOUT_MS = 6000
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   let settled = false
@@ -52,8 +52,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 interface RegistrationFormProps {
-  saveRegistration: (username: string, team: string, ip?: string, isAdminBypass?: boolean) => Promise<void>
-  /** Tras timeout: comprueba si el INSERT tardío sí quedó. */
+  saveRegistration: (username: string, team: string, ip: string, isAdminBypass?: boolean) => Promise<void>
+  /** Tras timeout: confirma por token de dispositivo. */
   verifyRegistration?: () => Promise<boolean>
   isAdmin?: boolean
   sponsorBanners?: Banner[]
@@ -121,6 +121,7 @@ export function RegistrationForm({
   const anteriorSectionRef = useRef<HTMLDivElement>(null)
   const whatsappFollowers = useWhatsAppFollowers()
   const submittingRef = useRef(false)
+  const [registeredAs, setRegisteredAs] = useState('')
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -169,6 +170,7 @@ export function RegistrationForm({
     if (!username.trim()) return setError('Escribe tu nombre de usuario')
     if (!team) return setError('Selecciona un equipo')
 
+    const typedUsername = username.trim()
     submittingRef.current = true
     setLoading(true)
     const timer = eventLog.timed('register', 'submit')
@@ -182,6 +184,7 @@ export function RegistrationForm({
     }, REGISTER_TIMEOUT_MS + 1500)
 
     const markSuccess = () => {
+      setRegisteredAs(typedUsername)
       setSuccess(true)
       setUsername('')
       setTeam('')
@@ -191,8 +194,8 @@ export function RegistrationForm({
 
     try {
       const save = isAdmin
-        ? saveRegistration(username.trim(), team, 'admin-ip', true)
-        : saveRegistration(username.trim(), team, undefined, false)
+        ? saveRegistration(typedUsername, team, 'admin', true)
+        : saveRegistration(typedUsername, team, '', false)
 
       await withTimeout(
         save,
@@ -206,7 +209,6 @@ export function RegistrationForm({
       const message = err instanceof Error ? err.message : 'Error al registrar'
       const isTimeout = /tardó demasiado/i.test(message)
 
-      // Timeout ≠ fallo seguro: el INSERT pudo completar después. Verifica por token/huella.
       if (isTimeout && !isAdmin && verifyRegistration) {
         try {
           const confirmed = await verifyRegistration()
@@ -218,6 +220,18 @@ export function RegistrationForm({
         } catch {
           // sigue al error visible
         }
+      }
+
+      if (/ya está registrado|ya registrado|un registro por persona/i.test(message) && !isAdmin) {
+        // Nombre tomado → mostrar error claro; no fingir éxito.
+        if (/nombre de entrenador/i.test(message)) {
+          timer.fail(err)
+          setError(message)
+          return
+        }
+        timer.end({ ok: true, idempotentMessage: true })
+        markSuccess()
+        return
       }
 
       timer.fail(err)
@@ -378,7 +392,9 @@ export function RegistrationForm({
         {success && (
           <div className="flex items-center gap-2 p-3 rounded-xl bg-green-50 text-green-800 text-sm font-bold">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
-            ¡Registro completado, buena suerte!
+            {registeredAs
+              ? `¡Registrado como ${registeredAs}! Buena suerte.`
+              : '¡Registro completado, buena suerte!'}
           </div>
         )}
 
@@ -404,11 +420,10 @@ export function RegistrationForm({
               />
             </div>
             <p className="text-center text-[11px] font-semibold text-[#5b6483]">
-              Enviando tu registro… normalmente tarda menos de unos segundos
+              Enviando tu registro…
             </p>
           </div>
         )}
-
       </form>
 
       {!isAdmin && (

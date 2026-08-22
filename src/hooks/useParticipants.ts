@@ -8,6 +8,7 @@ import {
 import {
   DEFAULT_ROULETTE_CODE,
   encodeIpForRoulette,
+  extractBaseIp,
   extractRouletteCodeFromIp,
   sanitizeRouletteCode,
 } from '@/app/utils/rouletteCode'
@@ -18,11 +19,7 @@ import {
   encodeRegistrationToken,
   encodeUsernameKey,
   getOrCreateDeviceToken,
-  normalizeRegistrationUsername,
-  readLastRegistrationToken,
-  saveLastRegistrationToken,
 } from '@/app/utils/registrationToken'
-import { getDeviceFingerprint } from '@/app/utils/deviceFingerprint'
 
 const PARTICIPANT_COLUMNS =
   'id,username,team,status,ip_address,registration_token,username_key,device_fingerprint'
@@ -31,10 +28,10 @@ const UPSERT_BATCH_MS = 200
 
 const IDENTITY_COLUMN_MISSING =
   /registration_token|username_key|device_fingerprint/i
-const DEVICE_IP_FALLBACK_PREFIX = 'device-token-'
 
-function encodeDeviceFingerprint(rouletteCode: string): string {
-  return encodeIpForRoulette(getDeviceFingerprint(), sanitizeRouletteCode(rouletteCode))
+/** Valor de sala sin IP pública: identity = token de dispositivo. */
+function encodeDeviceRoomKey(deviceToken: string, rouletteCode: string): string {
+  return encodeIpForRoulette(`d:${deviceToken}`, sanitizeRouletteCode(rouletteCode))
 }
 
 export interface Participant {
@@ -59,33 +56,12 @@ export interface BannedUser {
 export interface RecentWinner { id: string; username: string; ip_address: string; won_at: string }
 export interface Sponsor { id: string; name: string; url: string; image_url: string; order_index: number }
 export interface Banner { id: string; image_url: string; link_url?: string }
-export interface WinnerPrizeCode {
-  id: string
-  code: string
-  assigned_to_participant_id?: string | null
-  assigned_to_username?: string | null
-  assigned_at?: string | null
-}
-
-function participantHasStrongIdentity(row: Participant): boolean {
-  return Boolean(row.registration_token || row.device_fingerprint)
-}
-
-function participantUsernameMatches(
-  row: Participant,
-  usernameKey: string,
-  rouletteCode: string,
-): boolean {
-  const rowUsernameKey = row.username_key || encodeUsernameKey(row.username, rouletteCode)
-  return rowUsernameKey === usernameKey
-}
 
 export type IncomingSpin = {
   rotation: number
   winnerId: string
   winnerUsername?: string
   winnerTeam?: Participant['team']
-  winnerPrizeCode?: string | null
   localReceivedAt: number
 }
 
@@ -93,73 +69,15 @@ function makeTempId() {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function makePrizeCodeId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  return `code-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
-
-const WINNER_PRIZE_CODES_KEY = (code: string) =>
-  `winner_prize_codes:${sanitizeRouletteCode(code)}`
-
-function normalizeWinnerPrizeCodes(raw: unknown): WinnerPrizeCode[] {
-  if (!Array.isArray(raw)) return []
-  const seen = new Set<string>()
-  const codes: WinnerPrizeCode[] = []
-
-  for (const item of raw) {
-    const source =
-      typeof item === 'string'
-        ? { code: item }
-        : item && typeof item === 'object'
-          ? (item as Record<string, unknown>)
-          : null
-    if (!source) continue
-
-    const code = typeof source.code === 'string' ? source.code.trim() : ''
-    if (!code || seen.has(code)) continue
-    seen.add(code)
-
-    const id = typeof source.id === 'string' && source.id.trim()
-      ? source.id.trim()
-      : makePrizeCodeId()
-    const assignedToParticipantId =
-      typeof source.assigned_to_participant_id === 'string'
-        ? source.assigned_to_participant_id
-        : null
-    const assignedToUsername =
-      typeof source.assigned_to_username === 'string'
-        ? source.assigned_to_username
-        : null
-    const assignedAt =
-      typeof source.assigned_at === 'string'
-        ? source.assigned_at
-        : null
-
-    codes.push({
-      id,
-      code,
-      assigned_to_participant_id: assignedToParticipantId,
-      assigned_to_username: assignedToUsername,
-      assigned_at: assignedAt,
-    })
-  }
-
-  return codes.slice(0, 10)
-}
-
 export function useParticipants(
   activeRouletteCode: string = DEFAULT_ROULETTE_CODE,
-  options: { loadParticipants?: boolean; loadWinnerPrizeCodes?: boolean } = {},
+  options: { loadParticipants?: boolean } = {},
 ) {
   const loadParticipants = options.loadParticipants ?? true
-  const loadWinnerPrizeCodes = options.loadWinnerPrizeCodes ?? loadParticipants
   const rouletteCode = sanitizeRouletteCode(activeRouletteCode)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([])
   const [recentWinners, setRecentWinners] = useState<RecentWinner[]>([])
-  const [winnerPrizeCodes, setWinnerPrizeCodes] = useState<WinnerPrizeCode[]>([])
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
   const [banners, setBanners] = useState<Banner[]>(() => loadCachedSponsorBanners())
   const [loading, setLoading] = useState(true)
@@ -176,15 +94,12 @@ export function useParticipants(
   const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 70 })
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const refetchTimerRef = useRef<number | null>(null)
-  const loadWinnerPrizeCodesRef = useRef(loadWinnerPrizeCodes)
   const participantsRef = useRef(participants)
   const bannedUsersRef = useRef(bannedUsers)
-  const winnerPrizeCodesRef = useRef(winnerPrizeCodes)
   const participantsByIdRef = useRef<Map<string, Participant>>(new Map())
   const pendingUpsertsRef = useRef<Map<string, Participant>>(new Map())
   const upsertFlushTimerRef = useRef<number | null>(null)
   const fetchGenRef = useRef(0)
-  const prizeCodeFetchGenRef = useRef(0)
   const rouletteCodeRef = useRef(rouletteCode)
   const belongsToRoomRef = useRef((ip?: string) => extractRouletteCodeFromIp(ip) === rouletteCode)
 
@@ -198,14 +113,6 @@ export function useParticipants(
   useEffect(() => {
     bannedUsersRef.current = bannedUsers
   }, [bannedUsers])
-
-  useEffect(() => {
-    winnerPrizeCodesRef.current = winnerPrizeCodes
-  }, [winnerPrizeCodes])
-
-  useEffect(() => {
-    loadWinnerPrizeCodesRef.current = loadWinnerPrizeCodes
-  }, [loadWinnerPrizeCodes])
 
   useEffect(() => {
     rouletteCodeRef.current = rouletteCode
@@ -223,7 +130,18 @@ export function useParticipants(
     pendingUpsertsRef.current.clear()
 
     setParticipants((prev) => {
-      const next = [...prev]
+      let next = [...prev]
+      // Quita filas temporales del mismo token (evita duplicados tras INSERT+realtime).
+      const tokens = new Set(
+        [...batch.values()]
+          .map((row) => row.registration_token)
+          .filter((token): token is string => Boolean(token)),
+      )
+      if (tokens.size > 0) {
+        next = next.filter(
+          (row) => !(row.id.startsWith('local-') && row.registration_token && tokens.has(row.registration_token)),
+        )
+      }
       const indexById = new Map(next.map((p, i) => [p.id, i]))
       for (const row of batch.values()) {
         const idx = indexById.get(row.id)
@@ -323,92 +241,6 @@ export function useParticipants(
     }
   }, [])
 
-  const fetchWinnerPrizeCodes = useCallback(async () => {
-    if (!loadWinnerPrizeCodesRef.current) {
-      setWinnerPrizeCodes([])
-      winnerPrizeCodesRef.current = []
-      return
-    }
-    const gen = ++prizeCodeFetchGenRef.current
-    const code = rouletteCodeRef.current
-    try {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('value')
-        .eq('key', WINNER_PRIZE_CODES_KEY(code))
-        .maybeSingle()
-      if (gen !== prizeCodeFetchGenRef.current) return
-      if (error) throw error
-      const parsed = normalizeWinnerPrizeCodes(data?.value)
-      setWinnerPrizeCodes(parsed)
-      winnerPrizeCodesRef.current = parsed
-    } catch (error) {
-      eventLog.error('winner_codes', 'fetch failed', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-      if (gen === prizeCodeFetchGenRef.current) {
-        setWinnerPrizeCodes([])
-        winnerPrizeCodesRef.current = []
-      }
-    }
-  }, [])
-
-  const persistWinnerPrizeCodes = useCallback(async (codes: WinnerPrizeCode[]) => {
-    const normalized = normalizeWinnerPrizeCodes(codes)
-    const key = WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current)
-    const { error } = await supabase
-      .from('app_settings')
-      .upsert(
-        { key, value: normalized, updated_at: new Date().toISOString() },
-        { onConflict: 'key' },
-      )
-    if (error) throw error
-  }, [])
-
-  const saveWinnerPrizeCodes = useCallback(async (codes: WinnerPrizeCode[]) => {
-    const normalized = normalizeWinnerPrizeCodes(codes)
-    setWinnerPrizeCodes(normalized)
-    winnerPrizeCodesRef.current = normalized
-    try {
-      await persistWinnerPrizeCodes(normalized)
-    } catch (error) {
-      eventLog.error('winner_codes', 'save failed', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-      throw error
-    }
-  }, [persistWinnerPrizeCodes])
-
-  const assignWinnerPrizeCode = useCallback(async (winner: Participant): Promise<WinnerPrizeCode | null> => {
-    const current = winnerPrizeCodesRef.current
-    const existing = current.find((entry) => entry.assigned_to_participant_id === winner.id)
-    if (existing) return existing
-
-    const available = current.find((entry) => !entry.assigned_to_participant_id)
-    if (!available) return null
-
-    const assigned: WinnerPrizeCode = {
-      ...available,
-      assigned_to_participant_id: winner.id,
-      assigned_to_username: winner.username,
-      assigned_at: new Date().toISOString(),
-    }
-    const next = current.map((entry) => (entry.id === available.id ? assigned : entry))
-    setWinnerPrizeCodes(next)
-    winnerPrizeCodesRef.current = next
-
-    try {
-      await persistWinnerPrizeCodes(next)
-    } catch (error) {
-      eventLog.error('winner_codes', 'assign failed', {
-        error: error instanceof Error ? error.message : String(error),
-        winnerId: winner.id,
-      })
-    }
-
-    return assigned
-  }, [persistWinnerPrizeCodes])
-
   /**
    * Consulta fresca de participantes. Usa generación para evitar que una
    * respuesta vieja pise una más nueva (race de Promise.all / realtime).
@@ -420,22 +252,16 @@ export function useParticipants(
     const timer = eventLog.timed('roulette', 'syncParticipantsFresh')
 
     try {
-      let participantQuery = supabase
+      let { data, error } = await supabase
         .from('participants')
         .select(PARTICIPANT_COLUMNS)
-      if (code !== DEFAULT_ROULETTE_CODE) {
-        participantQuery = participantQuery.like('ip_address', `%::r:${code}`)
-      }
-      let { data, error } = await participantQuery.order('created_at', { ascending: true })
+        .order('created_at', { ascending: true })
 
       if (error && IDENTITY_COLUMN_MISSING.test(error.message)) {
-        let legacyQuery = supabase
+        const legacy = await supabase
           .from('participants')
           .select(PARTICIPANT_COLUMNS_LEGACY)
-        if (code !== DEFAULT_ROULETTE_CODE) {
-          legacyQuery = legacyQuery.like('ip_address', `%::r:${code}`)
-        }
-        const legacy = await legacyQuery.order('created_at', { ascending: true })
+          .order('created_at', { ascending: true })
         data = legacy.data
         error = legacy.error
       }
@@ -477,15 +303,9 @@ export function useParticipants(
     const gen = ++fetchGenRef.current
     const code = rouletteCodeRef.current
     const timer = eventLog.timed('roulette', 'fetchParticipantsData')
-    let participantQuery = supabase
-      .from('participants')
-      .select(PARTICIPANT_COLUMNS)
-    if (code !== DEFAULT_ROULETTE_CODE) {
-      participantQuery = participantQuery.like('ip_address', `%::r:${code}`)
-    }
 
     const [pResRaw, bRes, sRes, rwRes] = await Promise.all([
-      participantQuery.order('created_at', { ascending: true }),
+      supabase.from('participants').select(PARTICIPANT_COLUMNS).order('created_at', { ascending: true }),
       supabase.from('banned_ips').select('*').order('created_at', { ascending: false }),
       supabase.from('sponsors').select('*').order('order_index', { ascending: true }),
       supabase.from('recent_winners').select('*').order('won_at', { ascending: false }),
@@ -493,13 +313,10 @@ export function useParticipants(
 
     let pRes = pResRaw
     if (pRes.error && IDENTITY_COLUMN_MISSING.test(pRes.error.message)) {
-      let legacyQuery = supabase
+      pRes = await supabase
         .from('participants')
         .select(PARTICIPANT_COLUMNS_LEGACY)
-      if (code !== DEFAULT_ROULETTE_CODE) {
-        legacyQuery = legacyQuery.like('ip_address', `%::r:${code}`)
-      }
-      pRes = await legacyQuery.order('created_at', { ascending: true })
+        .order('created_at', { ascending: true })
     }
 
     if (gen !== fetchGenRef.current) {
@@ -548,11 +365,9 @@ export function useParticipants(
   // Cambio de sala: limpia lista y marca loading para no pintar sala anterior.
   useEffect(() => {
     setParticipants([])
-    setWinnerPrizeCodes([])
     setLoading(true)
     setSyncError(null)
     fetchGenRef.current += 1
-    prizeCodeFetchGenRef.current += 1
   }, [rouletteCode])
 
   // Canal de sync de ruleta: estable respecto a loadParticipants.
@@ -577,7 +392,6 @@ export function useParticipants(
         winnerId: payload.payload.winnerId,
         winnerUsername: payload.payload.winnerUsername,
         winnerTeam: payload.payload.winnerTeam,
-        winnerPrizeCode: payload.payload.winnerPrizeCode ?? null,
         localReceivedAt: Date.now(),
       })
     })
@@ -619,21 +433,16 @@ export function useParticipants(
     if (cached.length > 0) preloadSponsorBannerImages(cached)
     void fetchBanners()
     void fetchSponsors()
-    if (loadWinnerPrizeCodes) void fetchWinnerPrizeCodes()
-    else {
-      setWinnerPrizeCodes([])
-      winnerPrizeCodesRef.current = []
-    }
 
     let cancelled = false
     const boot = async () => {
       try {
         if (loadParticipants) {
           setLoading(true)
-          await Promise.all([fetchParticipantsData(), fetchRecentWinners()])
+          await Promise.all([fetchParticipantsData(), fetchRecentWinners(), fetchRegistrationMeta()])
         } else {
-          // Registro: meta ligera + sponsors (pestaña pública). Lista completa al abrir ruleta/admin.
-          await fetchRegistrationMeta()
+          // Público: sin banned_ips ni lista completa. Solo sponsors/banners en paralelo arriba.
+          setLoading(false)
         }
       } catch (error) {
         eventLog.error('boot', 'initial fetch failed', {
@@ -648,7 +457,7 @@ export function useParticipants(
     return () => {
       cancelled = true
     }
-  }, [rouletteCode, loadParticipants, loadWinnerPrizeCodes, fetchBanners, fetchSponsors, fetchParticipantsData, fetchRegistrationMeta, fetchRecentWinners, fetchWinnerPrizeCodes])
+  }, [rouletteCode, loadParticipants, fetchBanners, fetchSponsors, fetchParticipantsData, fetchRegistrationMeta, fetchRecentWinners])
 
   // Realtime DB: un solo canal por sala; NO se remonta al flip de loadParticipants.
   useEffect(() => {
@@ -699,12 +508,6 @@ export function useParticipants(
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsors' }, () => {
         void fetchSponsors()
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
-        const row = (payload.new || payload.old) as { key?: string }
-        if (loadWinnerPrizeCodesRef.current && row.key === WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current)) {
-          void fetchWinnerPrizeCodes()
-        }
-      })
       .subscribe((status) => {
         eventLog.info('realtime', 'db channel', { status, code: rouletteCode })
       })
@@ -719,7 +522,6 @@ export function useParticipants(
     fetchSponsors,
     fetchRegistrationMeta,
     fetchRecentWinners,
-    fetchWinnerPrizeCodes,
     scheduleParticipantsRefetch,
     upsertParticipant,
   ])
@@ -742,14 +544,13 @@ export function useParticipants(
     winnerId: string,
     winnerUsername?: string,
     winnerTeam?: Participant['team'],
-    winnerPrizeCode?: string | null,
   ) => {
     setShowWaitingAnnouncement(false)
     if (channelRef.current) {
       await channelRef.current.send({
         type: 'broadcast',
         event: 'spin',
-        payload: { rotation, winnerId, winnerUsername, winnerTeam, winnerPrizeCode },
+        payload: { rotation, winnerId, winnerUsername, winnerTeam },
       })
     }
   }
@@ -795,16 +596,6 @@ export function useParticipants(
     return result
   }
 
-  const loadParticipantByIp = async (finalIp: string): Promise<Participant | null> => {
-    const { data } = await selectParticipants({
-      eq: { col: 'ip_address', val: finalIp },
-      orderDesc: true,
-      limit: 1,
-      single: true,
-    })
-    return (data as Participant | null) ?? null
-  }
-
   const loadParticipantByToken = async (token: string): Promise<Participant | null> => {
     const { data, error } = await selectParticipants({
       eq: { col: 'registration_token', val: token },
@@ -814,51 +605,21 @@ export function useParticipants(
     return (data as Participant | null) ?? null
   }
 
-  const loadParticipantByUsernameKey = async (usernameKey: string): Promise<Participant | null> => {
-    const { data, error } = await selectParticipants({
-      eq: { col: 'username_key', val: usernameKey },
-      single: true,
-    })
-    if (error) return null
-    return (data as Participant | null) ?? null
-  }
-
-  const loadParticipantByFingerprint = async (fingerprint: string): Promise<Participant | null> => {
-    const { data, error } = await selectParticipants({
-      eq: { col: 'device_fingerprint', val: fingerprint },
-      orderDesc: true,
-      limit: 1,
-      single: true,
-    })
-    if (error) return null
-    return (data as Participant | null) ?? null
-  }
-
   /**
-   * Tras un timeout de UI: confirma si el INSERT tardío ya quedó
-   * (token → fingerprint).
+   * Confirma registro de ESTE dispositivo (solo por token).
+   * No usa IP ni huella: en Wi‑Fi de evento eso robaba identidad.
    */
-  const verifyParticipantRegistered = async (): Promise<boolean> => {
-    const lastRegistrationToken = readLastRegistrationToken(rouletteCode)
-    const fingerprint = encodeDeviceFingerprint(rouletteCode)
+  const verifyParticipantRegistered = async (_ip?: string): Promise<boolean> => {
+    const roomToken = encodeRegistrationToken(getOrCreateDeviceToken(), rouletteCode)
     try {
-      const byToken = lastRegistrationToken
-        ? await loadParticipantByToken(lastRegistrationToken)
-        : null
-      if (byToken && belongsToRoomRef.current(byToken.ip_address)) {
+      const byToken = await loadParticipantByToken(roomToken)
+      if (!byToken) return false
+      if (belongsToRoomRef.current(byToken.ip_address)) {
         upsertParticipant(byToken, true)
-        diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
-        eventLog.info('register', 'verify ok by token', { id: byToken.id })
-        return true
       }
-      const byFp = await loadParticipantByFingerprint(fingerprint)
-      if (byFp && belongsToRoomRef.current(byFp.ip_address)) {
-        upsertParticipant(byFp, true)
-        diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
-        eventLog.info('register', 'verify ok by fingerprint', { id: byFp.id })
-        return true
-      }
-      return false
+      diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
+      eventLog.info('register', 'verify ok by token', { id: byToken.id })
+      return true
     } catch {
       return false
     }
@@ -867,26 +628,18 @@ export function useParticipants(
   const addParticipant = async (
     username: string,
     team: string,
-    _ip: string = '',
+    _ip: string,
     isAdminBypass: boolean = false,
   ) => {
     const timer = eventLog.timed('register', 'addParticipant')
     const deviceToken = isAdminBypass ? `admin-${Date.now()}` : getOrCreateDeviceToken()
-    const normalizedUsername = normalizeRegistrationUsername(username)
-    const identitySeed = `${deviceToken}:${normalizedUsername}`
-    const rawIp = isAdminBypass
-      ? `admin-bypass-${Date.now()}`
-      : `${DEVICE_IP_FALLBACK_PREFIX}${identitySeed}`
-    const finalIp = encodeIpForRoulette(rawIp, rouletteCode)
-    const roomToken = encodeRegistrationToken(identitySeed, rouletteCode)
+    const roomToken = encodeRegistrationToken(deviceToken, rouletteCode)
     const usernameKey = encodeUsernameKey(username, rouletteCode)
-    const fingerprint = isAdminBypass
-      ? encodeIpForRoulette(`admin-fp-${Date.now()}`, rouletteCode)
-      : encodeIpForRoulette(`${getDeviceFingerprint()}:${normalizedUsername}`, rouletteCode)
+    // Sin IP pública: usamos d:{token} para pertenencia a sala (UNIQUE de IP ya no aplica).
+    const finalIp = encodeDeviceRoomKey(deviceToken, rouletteCode)
 
     const finishOk = (row: Participant, extra?: Record<string, unknown>) => {
       upsertParticipant(row, true)
-      if (!isAdminBypass) saveLastRegistrationToken(rouletteCode, row.registration_token || roomToken)
       timer.end({ id: row.id, username, ...extra })
       diagnostics.patch({
         lastRegisterAt: Date.now(),
@@ -895,104 +648,16 @@ export function useParticipants(
       })
     }
 
-    const sameIdentityIp = (row: Participant) => row.ip_address === finalIp
-
-    const isCurrentIdentity = (row: Participant) =>
-      row.registration_token === roomToken ||
-      row.device_fingerprint === fingerprint ||
-      (!participantHasStrongIdentity(row) && sameIdentityIp(row))
-
-    const finishOwnedRegistration = (row: Participant, extra?: Record<string, unknown>) => {
-      if (!participantUsernameMatches(row, usernameKey, rouletteCode)) {
-        timer.fail(new Error('identity username mismatch'), {
-          existingId: row.id,
-          existingUsername: row.username,
-          ...extra,
-        })
-        diagnostics.patch({ lastRegisterOk: false, lastError: 'identity username mismatch' })
-        throw new Error(
-          `Este dispositivo ya tiene un registro en la ruleta con "${row.username}". Usa ese nombre o pide ayuda a un organizador.`,
-        )
-      }
-      finishOk(row, extra)
-    }
-
-    const rejectUsernameTaken = (row: Participant, extra?: Record<string, unknown>) => {
-      timer.fail(new Error('username already registered on another identity'), {
-        existingId: row.id,
-        existingUsername: row.username,
-        ...extra,
-      })
-      telemetry.uniqueConflict('unknown')
-      diagnostics.patch({ lastRegisterOk: false, lastError: 'username already registered' })
-      throw new Error(
-        `El usuario "${row.username}" ya quedó registrado en esta ruleta desde otro dispositivo. Abre la ruleta desde ese dispositivo o pide ayuda a un organizador.`,
-      )
-    }
-
-    const rejectConnectionTaken = (row: Participant, extra?: Record<string, unknown>) => {
-      timer.fail(new Error('connection already registered on another identity'), {
-        existingId: row.id,
-        existingUsername: row.username,
-        ...extra,
-      })
-      telemetry.uniqueConflict('ip')
-      diagnostics.patch({ lastRegisterOk: false, lastError: 'connection already registered' })
-      throw new Error(
-        `Esta conexión ya tiene un registro en la ruleta con "${row.username}". Usa el dispositivo original o pide ayuda a un organizador.`,
-      )
-    }
-
     if (!isAdminBypass) {
-      const now = new Date()
-      const banned = bannedUsersRef.current.find(
-        (ban) => ban.ip_address === finalIp && new Date(ban.expires_at) > now,
+      const alreadyLocal = participantsRef.current.find(
+        (row) => row.registration_token === roomToken,
       )
-      if (banned) {
-        await new Promise((resolve) => setTimeout(resolve, 800))
-        timer.end({ bannedSilent: true })
-        diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
+      if (alreadyLocal) {
+        finishOk(alreadyLocal, { idempotent: 'local-token' })
         return
       }
-
-      const localRows = participantsRef.current
-      const localByToken = localRows.find((row) => row.registration_token === roomToken)
-      if (localByToken) {
-        finishOwnedRegistration(localByToken, { idempotent: 'local-token' })
-        return
-      }
-
-      const localByFingerprint = localRows.find((row) => row.device_fingerprint === fingerprint)
-      if (localByFingerprint) {
-        finishOwnedRegistration(localByFingerprint, { idempotent: 'local-fingerprint' })
-        return
-      }
-
-      const localByIp = localRows.find((row) => sameIdentityIp(row))
-      if (localByIp) {
-        if (isCurrentIdentity(localByIp)) {
-          finishOwnedRegistration(localByIp, { idempotent: 'local-ip' })
-          return
-        }
-        rejectConnectionTaken(localByIp, { source: 'local-ip' })
-      }
-
-      const localByUsername = localRows.find((row) =>
-        participantUsernameMatches(row, usernameKey, rouletteCode),
-      )
-      if (localByUsername) {
-        if (isCurrentIdentity(localByUsername)) {
-          finishOwnedRegistration(localByUsername, { idempotent: 'local-username' })
-          return
-        }
-        rejectUsernameTaken(localByUsername, { source: 'local-username' })
-      }
-
-      // Registro normal: escribe primero en Supabase. Los UNIQUE de token/username/IP
-      // resuelven duplicados sin bloquear el alta con varias lecturas previas.
     }
 
-    // INSERT: IP/token/username/fingerprint todos acotados a la sala.
     const payload: Record<string, string> = {
       username,
       team,
@@ -1000,12 +665,14 @@ export function useParticipants(
       ip_address: finalIp,
       registration_token: roomToken,
       username_key: usernameKey,
-      device_fingerprint: fingerprint,
     }
 
-    let { error } = await supabase.from('participants').insert([payload])
+    let { data: insertedRow, error } = await supabase
+      .from('participants')
+      .insert([payload])
+      .select(PARTICIPANT_COLUMNS)
+      .maybeSingle()
 
-    // Compat: si faltan columnas nuevas, reintenta con el subconjunto soportado.
     if (error && IDENTITY_COLUMN_MISSING.test(error.message)) {
       eventLog.warn('register', 'identity columns missing; fallback insert', {
         message: error.message,
@@ -1019,58 +686,55 @@ export function useParticipants(
       if (!/registration_token/i.test(error.message)) {
         fallbackPayload.registration_token = roomToken
       }
-      const fallback = await supabase.from('participants').insert([fallbackPayload])
+      if (!/username_key/i.test(error.message)) {
+        fallbackPayload.username_key = usernameKey
+      }
+      const fallback = await supabase
+        .from('participants')
+        .insert([fallbackPayload])
+        .select(PARTICIPANT_COLUMNS_LEGACY)
+        .maybeSingle()
       error = fallback.error
+      insertedRow = fallback.data as Participant | null
     }
 
     if (error) {
       if (error.code === '23505') {
-        eventLog.warn('register', '23505 unique conflict (likely retry)', {
-          code: error.code,
-          details: error.details,
-          message: error.message,
-          finalIp,
+        const detail = String(error.details || error.message)
+        eventLog.warn('register', '23505 unique conflict', {
+          details: detail,
           roomTokenPrefix: roomToken.slice(0, 12),
         })
-        const detail = String(error.details || error.message)
-        telemetry.uniqueConflict(
-          /registration_token/i.test(detail)
-            ? 'token'
-            : /username_key/i.test(detail)
-              ? 'unknown'
-              : /ip_address/i.test(detail)
-                ? 'ip'
-                : 'unknown',
-        )
-        const existing =
-          (await loadParticipantByToken(roomToken)) ||
-          (await loadParticipantByFingerprint(fingerprint))
-        if (existing) {
-          finishOwnedRegistration(existing, { idempotent: '23505-identity' })
+
+        // Mismo dispositivo reintentando → OK con SU fila.
+        if (/registration_token/i.test(detail) || /ip_address/i.test(detail)) {
+          const mine = await loadParticipantByToken(roomToken)
+          if (mine) {
+            telemetry.uniqueConflict(/registration_token/i.test(detail) ? 'token' : 'ip')
+            finishOk(mine, { idempotent: '23505-token' })
+            return
+          }
+        }
+
+        // Nombre ya tomado por OTRA persona → error (nunca adjuntar su fila).
+        if (/username_key/i.test(detail)) {
+          telemetry.uniqueConflict('unknown')
+          timer.fail(error, { code: '23505-username' })
+          diagnostics.patch({ lastRegisterOk: false, lastError: 'username taken' })
+          throw new Error('Ese nombre de entrenador ya está registrado. Usa el tuyo.')
+        }
+
+        // Conflicto genérico: solo recupera si es ESTE token.
+        const mine = await loadParticipantByToken(roomToken)
+        if (mine) {
+          telemetry.uniqueConflict('unknown')
+          finishOk(mine, { idempotent: '23505-mine' })
           return
-        }
-
-        const existingByIp = await loadParticipantByIp(finalIp)
-        if (existingByIp) {
-          if (isCurrentIdentity(existingByIp)) {
-            finishOwnedRegistration(existingByIp, { idempotent: '23505-ip' })
-            return
-          }
-          rejectConnectionTaken(existingByIp, { source: '23505-ip' })
-        }
-
-        const existingByUsername = await loadParticipantByUsernameKey(usernameKey)
-        if (existingByUsername) {
-          if (isCurrentIdentity(existingByUsername)) {
-            finishOwnedRegistration(existingByUsername, { idempotent: '23505-username' })
-            return
-          }
-          rejectUsernameTaken(existingByUsername, { source: '23505-username' })
         }
 
         timer.fail(error, { code: '23505' })
         diagnostics.patch({ lastRegisterOk: false, lastError: '23505' })
-        throw new Error('No pudimos confirmar el registro. Intenta de nuevo en unos segundos.')
+        throw new Error('No se pudo completar el registro. Intenta de nuevo.')
       }
       timer.fail(error)
       diagnostics.patch({
@@ -1080,11 +744,7 @@ export function useParticipants(
       throw error
     }
 
-    const inserted =
-      (await loadParticipantByToken(roomToken)) ||
-      (await loadParticipantByUsernameKey(usernameKey)) ||
-      (await loadParticipantByIp(finalIp))
-    const row: Participant = inserted ?? {
+    const row: Participant = (insertedRow as Participant | null) ?? {
       id: makeTempId(),
       username,
       team: team as Participant['team'],
@@ -1092,10 +752,8 @@ export function useParticipants(
       ip_address: finalIp,
       registration_token: roomToken,
       username_key: usernameKey,
-      device_fingerprint: fingerprint,
     }
-
-    finishOk(row, { optimistic: !inserted })
+    finishOk(row, { optimistic: !insertedRow })
   }
 
   const deleteParticipant = async (id: string) => {
@@ -1279,8 +937,6 @@ export function useParticipants(
       await supabase.from('recent_winners').delete().in('id', winnerIds)
     }
 
-    await supabase.from('app_settings').delete().eq('key', WINNER_PRIZE_CODES_KEY(targetCode))
-
     await syncParticipantsFresh('delete_roulette')
   }
 
@@ -1288,7 +944,6 @@ export function useParticipants(
     participants,
     bannedUsers,
     recentWinners,
-    winnerPrizeCodes,
     sponsors,
     banners,
     loading,
@@ -1306,8 +961,6 @@ export function useParticipants(
     clearAll,
     removeRecentWinner,
     removeMultipleRecentWinners,
-    saveWinnerPrizeCodes,
-    assignWinnerPrizeCode,
     addSponsor,
     deleteSponsor,
     deleteMultipleSponsors,

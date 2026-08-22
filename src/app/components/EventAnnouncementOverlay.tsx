@@ -1,23 +1,35 @@
-import { useState } from 'react'
-import anuncioImg from '@/assets/anuncio.jpg'
-import barbatacoAnuncioImg from '@/assets/barbatacoanuncio.png'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 
-const ANNOUNCEMENT_IMAGES = [
-  { src: anuncioImg, alt: 'Anuncio Super Megaincursiones' },
-  { src: barbatacoAnuncioImg, alt: 'Anuncio Barbataco Parque Morelos' },
-] as const
+type Announcement = { src: string; alt: string }
 
 type Props = {
   open: boolean
   onDismiss: () => void
 }
 
-/** Anuncio a pantalla completa durante la espera de registros. */
+/** Anuncio a pantalla completa; las imágenes se cargan solo al abrir. */
 export function EventAnnouncementOverlay({ open, onDismiss }: Props) {
-  const [announcement] = useState(
-    () => ANNOUNCEMENT_IMAGES[Math.floor(Math.random() * ANNOUNCEMENT_IMAGES.length)]!,
-  )
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    void Promise.all([
+      import('@/assets/anuncio.jpg'),
+      import('@/assets/barbatacoanuncio.png'),
+    ]).then(([a, b]) => {
+      if (cancelled) return
+      const options: Announcement[] = [
+        { src: a.default, alt: 'Anuncio Super Megaincursiones' },
+        { src: b.default, alt: 'Anuncio Barbataco Parque Morelos' },
+      ]
+      setAnnouncement(options[Math.floor(Math.random() * options.length)]!)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
 
   if (!open) return null
 
@@ -37,12 +49,16 @@ export function EventAnnouncementOverlay({ open, onDismiss }: Props) {
         >
           <X className="h-5 w-5" strokeWidth={2.75} />
         </button>
-        <img
-          src={announcement.src}
-          alt={announcement.alt}
-          className="w-full max-h-[92dvh] object-contain rounded-2xl shadow-2xl select-none"
-          draggable={false}
-        />
+        {announcement ? (
+          <img
+            src={announcement.src}
+            alt={announcement.alt}
+            className="w-full max-h-[92dvh] object-contain rounded-2xl shadow-2xl select-none"
+            draggable={false}
+          />
+        ) : (
+          <div className="w-full aspect-[3/4] rounded-2xl bg-[#0d3b66]/20 animate-pulse" />
+        )}
       </div>
     </div>
   )
