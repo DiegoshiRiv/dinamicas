@@ -154,7 +154,7 @@ export default function App() {
 
   useEffect(() => {
     void hydrateDeviceToken()
-    const t = window.setTimeout(() => setAnnouncementReady(true), 1200)
+    const t = window.setTimeout(() => setAnnouncementReady(true), 400)
     return () => window.clearTimeout(t)
   }, [])
 

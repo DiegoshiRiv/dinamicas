@@ -409,21 +409,6 @@ export function RegistrationForm({
               ? 'Ayudar a registrarse'
               : 'Registrarse en la Dinámica'}
         </button>
-
-        {loading && (
-          <div className="space-y-1.5" aria-live="polite" aria-busy="true">
-            <div className="register-progress-track h-2.5 w-full rounded-full">
-              <span
-                key={loading ? 'register-progress' : 'idle'}
-                className="register-progress-fill rounded-full"
-                style={{ animationDuration: `${REGISTER_TIMEOUT_MS}ms` }}
-              />
-            </div>
-            <p className="text-center text-[11px] font-semibold text-[#5b6483]">
-              Enviando tu registro…
-            </p>
-          </div>
-        )}
       </form>
 
       {!isAdmin && (
