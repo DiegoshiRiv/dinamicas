@@ -1,11 +1,9 @@
--- Ensure the registration identity columns and indexes required by the
--- roulette flow exist in Supabase.
+-- Identidad de registro para registros concurrentes (50–500+).
+-- Sin UNIQUE de IP: en eventos todos comparten el mismo hotspot.
 --
--- Current frontend behavior:
--- - username_key is the main uniqueness guard per roulette.
--- - registration_token, device_fingerprint, and ip_address are generated from
---   device + username + roulette code, so multiple people can register from
---   the same phone while duplicate trainer names remain blocked.
+-- Unicidad:
+-- 1) registration_token = dispositivo + sala
+-- 2) username_key = nombre entrenador + sala
 
 ALTER TABLE public.participants
   ADD COLUMN IF NOT EXISTS registration_token text;
@@ -24,8 +22,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS participants_username_key_unique
   ON public.participants (username_key)
   WHERE username_key IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS participants_ip_address_unique
-  ON public.participants (ip_address);
+-- CRÍTICO: quitar UNIQUE de IP (bloqueaba a todos en el mismo Wi‑Fi).
+DROP INDEX IF EXISTS participants_ip_address_unique;
 
 CREATE INDEX IF NOT EXISTS participants_ip_address_idx
   ON public.participants (ip_address);
