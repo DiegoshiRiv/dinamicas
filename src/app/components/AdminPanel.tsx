@@ -131,7 +131,7 @@ export function AdminPanel({
   }, [])
 
   const filteredWinners = useMemo(
-    () => (recentWinners ?? []).filter((w) => {
+    () => (recentWinners ?? []).filter((w) =>
       w.username.toLowerCase().includes(searchWinnerTerm.toLowerCase()),
     ),
     [recentWinners, searchWinnerTerm],
