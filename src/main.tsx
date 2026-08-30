@@ -22,10 +22,15 @@ window.addEventListener('unhandledrejection', (event) => {
 window.addEventListener('error', (event) => {
   const msg = String(event.message || event.error || '')
   if (/Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed/i.test(msg)) {
+    // Safari en modo privado lanza al tocar sessionStorage: sin esto el propio
+    // manejador de errores reventaría y nunca se intentaría la recarga.
     const key = 'dinamicas-chunk-reload'
-    if (!sessionStorage.getItem(key)) {
+    try {
+      if (sessionStorage.getItem(key)) return
       sessionStorage.setItem(key, '1')
-      window.location.reload()
+    } catch {
+      /* sin almacenamiento se recarga igual, asumiendo el riesgo de repetir */
     }
+    window.location.reload()
   }
 })
