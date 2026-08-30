@@ -122,8 +122,16 @@ function drawPokeball(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: 
   ctx.restore()
 }
 
-function fireWinnerConfetti(color: string) {
+function fireWinnerConfetti(color: string, full = true) {
   const colors = [color, shadeColor(color, 45), '#ffffff', '#ee1515']
+
+  // Versión reducida para quien no ganó: la celebración completa (bucle de rAF
+  // de casi tres segundos) trababa la interfaz en gama baja justo cuando además
+  // llegan los cambios de la base de datos.
+  if (!full) {
+    confetti({ particleCount: 40, spread: 70, origin: { y: 0.55 }, colors, startVelocity: 35 })
+    return () => {}
+  }
 
   confetti({
     particleCount: 120,
@@ -176,7 +184,7 @@ interface WinnerRouletteProps {
   isSpectator?: boolean
   embedded?: boolean
   incomingSpin?: IncomingSpin | null
-  broadcastSpin?: (rotation: number, winnerId: string, winnerUsername?: string, winnerTeam?: Participant['team'], winnerPrizeCode?: string | null) => void | Promise<void>
+  broadcastSpin?: (rotation: number, winnerId: string, winnerUsername?: string, winnerTeam?: Participant['team'], winnerPrizeCode?: string | null) => void | Promise<void | boolean>
   assignWinnerPrizeCode?: (winner: Participant) => Promise<WinnerPrizeCode | null>
   /** Devuelve el código asignado a ese participante, o null si aún no hay. */
   fetchAssignedPrizeCode?: (participantId: string) => Promise<string | null>
@@ -395,6 +403,8 @@ export function WinnerRoulette({
   
   const [rotation, setRotation] = useState(0)
   const [isSpinning, setIsSpinning] = useState(false)
+  /** Se acorta en espectadores cuyo anuncio llegó con retraso. */
+  const [spinDurationMs, setSpinDurationMs] = useState(SPIN_DURATION_MS)
   const [isSyncing, setIsSyncing] = useState(false)
   const [forceSyncStatus, setForceSyncStatus] = useState<string | null>(null)
   const [winner, setWinner] = useState<Participant | null>(null)
@@ -446,15 +456,18 @@ export function WinnerRoulette({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pokeballImgRef = useRef<HTMLImageElement | null>(null)
   const spinTimerRef = useRef<number | null>(null)
+  /** Cerrojo sincrónico contra el doble toque en el botón de girar. */
+  const spinLockRef = useRef(false)
+  const copyFeedbackTimerRef = useRef<number | null>(null)
   const drawTimerRef = useRef<number | null>(null)
   const [wheelAssetsReady, setWheelAssetsReady] = useState(false)
   const confettiStopRef = useRef<(() => void) | null>(null)
 
   /** Dispara el confeti recordando cómo pararlo si el componente se desmonta. */
-  const celebrate = useCallback((color: string) => {
+  const celebrate = useCallback((color: string, full = true) => {
     try {
       confettiStopRef.current?.()
-      confettiStopRef.current = fireWinnerConfetti(color)
+      confettiStopRef.current = fireWinnerConfetti(color, full)
     } catch {
       /* el confeti es decorativo */
     }
@@ -475,6 +488,9 @@ export function WinnerRoulette({
   // borraba el resaltado justo en el momento del premio. La rueda solo pinta a
   // los activos, así que un descartado no aparece de todas formas.
   const selfPlayerId = selfParticipant?.id ?? null
+  /** Para leerlo dentro de temporizadores sin recrear el efecto del giro. */
+  const selfPlayerIdRef = useRef<string | null>(selfPlayerId)
+  selfPlayerIdRef.current = selfPlayerId
   const [selfFlashActive, setSelfFlashActive] = useState(false)
   const selfFlashTimerRef = useRef<number | null>(null)
   const isSelfWinner = Boolean(
@@ -497,6 +513,7 @@ export function WinnerRoulette({
   useEffect(() => {
     return () => {
       if (selfFlashTimerRef.current) window.clearTimeout(selfFlashTimerRef.current)
+      if (copyFeedbackTimerRef.current) window.clearTimeout(copyFeedbackTimerRef.current)
     }
   }, [])
 
@@ -509,6 +526,7 @@ export function WinnerRoulette({
     if (!isSpinning) return
     const id = window.setTimeout(() => {
       setIsSpinning(false)
+      spinLockRef.current = false
       setSpinError((prev) => prev ?? 'El giro se interrumpió. Vuelve a intentarlo.')
     }, SPIN_DURATION_MS + 8000)
     return () => window.clearTimeout(id)
@@ -653,10 +671,17 @@ export function WinnerRoulette({
   const [wheelSnapshot, setWheelSnapshot] = useState<Participant[] | null>(null)
 
   /** Ruleta visible: todos los activos (incl. venaderos) para que se vean en espectadores */
-  const playersForWheel = useMemo((): WheelPlayer[] => {
-    const source = wheelSnapshot ?? activePlayers
-    return shufflePlayersForWheel(source.map((p) => ({ ...p, weight: 1 })))
-  }, [wheelSnapshot, activePlayers])
+  /**
+   * Mientras hay lista congelada, `activePlayers` no influye en lo que se
+   * pinta. Si siguiera siendo dependencia, cada alta (cinco por segundo en la
+   * ráfaga) recalcularía y repintaría 500 sectores idénticos justo durante el
+   * giro, que es el único momento en que la fluidez importa.
+   */
+  const wheelSource = wheelSnapshot ?? activePlayers
+  const playersForWheel = useMemo(
+    (): WheelPlayer[] => shufflePlayersForWheel(wheelSource.map((p) => ({ ...p, weight: 1 }))),
+    [wheelSource],
+  )
 
   const totalWeight = useMemo(
     () => playersForWheel.reduce((acc, p) => acc + p.weight, 0),
@@ -667,6 +692,17 @@ export function WinnerRoulette({
   useEffect(() => {
     if (!isSpinning && !winner && wheelSnapshot) setWheelSnapshot(null)
   }, [isSpinning, winner, wheelSnapshot])
+
+  /**
+   * El espectador no tiene botón de cerrar: si deja el cartel abierto, la lista
+   * sigue congelada y su rueda no muestra a quien se registró después. Se cierra
+   * solo pasados unos segundos para que la rueda vuelva a estar viva.
+   */
+  useEffect(() => {
+    if (!isSpectator || !winner || isSpinning) return
+    const id = window.setTimeout(() => setWinner(null), 12000)
+    return () => window.clearTimeout(id)
+  }, [isSpectator, winner, isSpinning])
 
   const winnerSound = useWinnerSound()
   const playWinnerSound = winnerSound.play
@@ -997,7 +1033,14 @@ export function WinnerRoulette({
       // Congela la misma lista que se pinta, para que el puntero caiga en el nombre real.
       setWheelSnapshot(wheelSource)
 
-      const isOldSpin = Date.now() - incomingSpin.localReceivedAt > 2000
+      // Retraso real desde que el organizador emitió, no desde que llegó aquí:
+      // un mensaje que tardó cinco segundos se daba por fresco y el espectador
+      // seguía girando cuando en la pantalla grande ya había ganador.
+      const elapsed = incomingSpin.sentAt
+        ? Date.now() - incomingSpin.sentAt
+        : Date.now() - incomingSpin.localReceivedAt
+      const isOldSpin = elapsed > SPIN_DURATION_MS - 800
+      const spinDuration = Math.max(1200, SPIN_DURATION_MS - Math.max(0, elapsed))
 
       if (isOldSpin) {
         const finalRotation = rotationForEqualWheel(
@@ -1012,9 +1055,11 @@ export function WinnerRoulette({
         return
       }
 
+      setSpinDurationMs(spinDuration)
       setIsSpinning(true)
       setWinner(null)
-      setWinnerPrizeCode(null)
+      // Ojo: aquí NO se limpia winnerPrizeCode. Un giro nuevo no puede quitarle
+      // el código a quien ganó antes y todavía no lo ha copiado.
 
       setRotation((prev) =>
         rotationForEqualWheel(wheelPlayers, incomingSpin.winnerId, prev),
@@ -1025,9 +1070,12 @@ export function WinnerRoulette({
         setIsSpinning(false)
         if (winningPlayer) {
           setWinner(winningPlayer)
-          celebrate(participantSliceColor(winningPlayer))
+          celebrate(
+            participantSliceColor(winningPlayer),
+            selfPlayerIdRef.current === winningPlayer.id,
+          )
         }
-      }, SPIN_DURATION_MS)
+      }, spinDuration)
     }
 
     // Si la lista aún no cargó, sincroniza una vez y luego gira (evita ruleta incompleta).
@@ -1143,6 +1191,10 @@ export function WinnerRoulette({
 
   const spinRoulette = async () => {
     if (isSpinning || isSpectator || isSyncing) return
+    // El guard de estado no basta: entre él y setIsSpinning hay un await de
+    // varios segundos, así que dos toques seguidos elegían dos ganadores.
+    if (spinLockRef.current) return
+    spinLockRef.current = true
 
     setIsSyncing(true)
     setForceSyncStatus(null)
@@ -1188,10 +1240,12 @@ export function WinnerRoulette({
           realtimeReady,
         })
         setSpinError('No hay participantes elegibles en esta ruleta.')
+        spinLockRef.current = false
         return
       }
     }
 
+    setSpinDurationMs(SPIN_DURATION_MS)
     setIsSpinning(true)
     setSpinError(null)
     setWinner(null)
@@ -1351,16 +1405,15 @@ export function WinnerRoulette({
       try {
         // El código no viaja en el anuncio: llegaba a todos los espectadores y
         // cada cliente decidia si mostrarlo. Ahora el ganador lo consulta él.
-        const sent = broadcastSpin(
-          newRotation,
-          winningPlayer.id,
-          winningPlayer.username,
-          winningPlayer.team,
-          null,
+        // `send` resuelve con el estado en vez de rechazar, así que hay que
+        // mirar el valor devuelto y no solo capturar excepciones.
+        void Promise.resolve(
+          broadcastSpin(newRotation, winningPlayer.id, winningPlayer.username, winningPlayer.team, null),
         )
-        if (sent && typeof (sent as Promise<void>).catch === 'function') {
-          void (sent as Promise<void>).catch(notifyFailure)
-        }
+          .then((delivered) => {
+            if (delivered === false) notifyFailure('broadcast not acknowledged')
+          })
+          .catch(notifyFailure)
       } catch (error) {
         notifyFailure(error)
       }
@@ -1383,6 +1436,7 @@ export function WinnerRoulette({
         }
       }
       celebrate(participantSliceColor(winningPlayer))
+      spinLockRef.current = false
     }, SPIN_DURATION_MS)
   }
 
@@ -1410,7 +1464,8 @@ export function WinnerRoulette({
     // Permanente: es lo que permite cerrar el recuadro del premio. El otro
     // estado solo cambia el texto del botón y se apaga a los dos segundos.
     setPrizeCodeCopiedOnce(true)
-    window.setTimeout(() => setCodeCopied(false), 1800)
+    if (copyFeedbackTimerRef.current) window.clearTimeout(copyFeedbackTimerRef.current)
+    copyFeedbackTimerRef.current = window.setTimeout(() => setCodeCopied(false), 1800)
   }
 
   const createdRouletteUrl = createdRouletteCode
@@ -1619,7 +1674,7 @@ export function WinnerRoulette({
                 className="w-full h-full rounded-full"
                 style={{
                   transform: `rotate(${rotation}deg)`,
-                  transition: isSpinning ? `transform ${SPIN_DURATION_MS}ms ${SPIN_EASING}` : 'none',
+                  transition: isSpinning ? `transform ${spinDurationMs}ms ${SPIN_EASING}` : 'none',
                 }}
               />
               {isSpinning && (

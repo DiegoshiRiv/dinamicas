@@ -145,6 +145,8 @@ export type IncomingSpin = {
   winnerUsername?: string
   winnerTeam?: Participant['team']
   winnerPrizeCode?: string | null
+  /** Momento en que el organizador emitió el giro (para acortar si llegó tarde). */
+  sentAt?: number
   localReceivedAt: number
 }
 
@@ -422,6 +424,9 @@ export function useParticipants(
       .from('recent_winners')
       .select('*')
       .order('won_at', { ascending: false })
+      // Solo sirve para penalizar a quien ganó hace poco: traer el historial
+      // entero a 500 móviles cada vez que alguien gana no aporta nada.
+      .limit(500)
     if (error) {
       eventLog.error('roulette', 'recent_winners fetch failed', { error: error.message })
       return
@@ -633,7 +638,7 @@ export function useParticipants(
       supabase.from('participants').select(PARTICIPANT_COLUMNS).order('created_at', { ascending: true }),
       supabase.from('banned_ips').select('*').order('created_at', { ascending: false }),
       supabase.from('sponsors').select('*').order('order_index', { ascending: true }),
-      supabase.from('recent_winners').select('*').order('won_at', { ascending: false }),
+      supabase.from('recent_winners').select('*').order('won_at', { ascending: false }).limit(500),
     ])
 
     let pRes = pResRaw
@@ -709,7 +714,9 @@ export function useParticipants(
   // Canal de sync de ruleta: estable respecto a loadParticipants.
   useEffect(() => {
     const syncChannel = supabase.channel(`roulette_sync_${rouletteCode}_${channelEpoch}`, {
-      config: { broadcast: { self: false } },
+      // ack: el emisor necesita saber si el anuncio salió; sin esto `send`
+      // siempre resolvía 'ok' aunque nadie lo recibiera.
+      config: { broadcast: { self: false, ack: true } },
     })
 
     syncChannel.on('broadcast', { event: 'set_view' }, (payload) => {
@@ -731,6 +738,7 @@ export function useParticipants(
         winnerUsername: payload.payload.winnerUsername,
         winnerTeam: payload.payload.winnerTeam,
         winnerPrizeCode: payload.payload.winnerPrizeCode ?? null,
+        sentAt: typeof payload.payload.at === 'number' ? payload.payload.at : undefined,
         localReceivedAt: Date.now(),
       })
     })
@@ -989,13 +997,18 @@ export function useParticipants(
     winnerPrizeCode?: string | null,
   ) => {
     setShowWaitingAnnouncement(false)
-    if (channelRef.current) {
-      await channelRef.current.send({
-        type: 'broadcast',
-        event: 'spin',
-        payload: { rotation, winnerId, winnerUsername, winnerTeam, winnerPrizeCode },
-      })
-    }
+    // Devuelve si el anuncio salió de verdad. `send` no rechaza: resuelve con
+    // 'ok' | 'timed out' | 'error', así que el aviso de fallo del organizador
+    // nunca se disparaba y anunciaba un ganador que nadie había visto girar.
+    if (!channelRef.current) return false
+    const status = await channelRef.current.send({
+      type: 'broadcast',
+      event: 'spin',
+      // `at` permite al espectador acortar la animación si el mensaje llegó
+      // tarde, en vez de girar seis segundos por detrás de la pantalla grande.
+      payload: { rotation, winnerId, winnerUsername, winnerTeam, winnerPrizeCode, at: Date.now() },
+    })
+    return status === 'ok'
   }
 
   const broadcastRoundReset = async () => {
