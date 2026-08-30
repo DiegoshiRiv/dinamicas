@@ -72,7 +72,6 @@ export function RegistrationForm({
   const [username, setUsername] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
   const [exampleShotUrls, setExampleShotUrls] = useState<{ pogo?: string; camf?: string }>({})
 
@@ -101,7 +100,7 @@ export function RegistrationForm({
     }
   }, [showExamples])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (submittingRef.current) return
     setError('')
@@ -111,74 +110,73 @@ export function RegistrationForm({
 
     const typedUsername = username.trim()
     submittingRef.current = true
-    setLoading(true)
     const timer = eventLog.timed('register', 'submit')
-    const hardStop = window.setTimeout(() => {
-      if (submittingRef.current) {
-        submittingRef.current = false
-        setLoading(false)
-        setError('La conexión tardó demasiado. Revisa tu red e intenta de nuevo.')
-        timer.fail(new Error('hardStop'))
-      }
-    }, REGISTER_TIMEOUT_MS + 1500)
 
-    const markSuccess = () => {
-      setRegisteredAs(typedUsername)
-      setSuccess(true)
-      setUsername('')
-      onRegistered?.()
-      setTimeout(() => inputRef.current?.focus(), 100)
+    // Confirmación inmediata: el INSERT viaja en segundo plano y solo se revierte
+    // si el servidor rechaza de verdad (p. ej. el nombre ya está tomado).
+    setRegisteredAs(typedUsername)
+    setSuccess(true)
+    setUsername('')
+    setTimeout(() => inputRef.current?.focus(), 100)
+
+    const revert = (message: string) => {
+      setSuccess(false)
+      setRegisteredAs('')
+      setUsername(typedUsername)
+      setError(message)
     }
 
-    try {
-      const save = isAdmin
-        ? saveRegistration(typedUsername, 'admin', true)
-        : saveRegistration(typedUsername, '', false)
+    const finish = async () => {
+      try {
+        const save = isAdmin
+          ? saveRegistration(typedUsername, 'admin', true)
+          : saveRegistration(typedUsername, '', false)
 
-      await withTimeout(
-        save,
-        REGISTER_TIMEOUT_MS,
-        'La conexión tardó demasiado. Revisa tu red e intenta de nuevo.',
-      )
+        await withTimeout(
+          save,
+          REGISTER_TIMEOUT_MS,
+          'La conexión tardó demasiado. Revisa tu red e intenta de nuevo.',
+        )
 
-      timer.end({ ok: true })
-      markSuccess()
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al registrar'
-      const isTimeout = /tardó demasiado/i.test(message)
+        timer.end({ ok: true })
+        onRegistered?.()
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Error al registrar'
 
-      if (isTimeout && !isAdmin && verifyRegistration) {
-        try {
-          const confirmed = await verifyRegistration()
-          if (confirmed) {
-            timer.end({ ok: true, recoveredAfterTimeout: true })
-            markSuccess()
-            return
-          }
-        } catch {
-          // sigue al error visible
-        }
-      }
-
-      if (/ya está registrado|ya registrado|un registro por persona/i.test(message) && !isAdmin) {
-        // Nombre tomado → mostrar error claro; no fingir éxito.
-        if (/nombre de entrenador/i.test(message)) {
+        // El nombre es de otra persona: es el único caso que invalida el registro.
+        if (/nombre de entrenador/i.test(message) && !isAdmin) {
           timer.fail(err)
-          setError(message)
+          revert(message)
           return
         }
-        timer.end({ ok: true, idempotentMessage: true })
-        markSuccess()
-        return
-      }
 
-      timer.fail(err)
-      setError(message)
-    } finally {
-      window.clearTimeout(hardStop)
-      setLoading(false)
-      submittingRef.current = false
+        if (/ya está registrado|ya registrado|un registro por persona/i.test(message) && !isAdmin) {
+          timer.end({ ok: true, idempotentMessage: true })
+          onRegistered?.()
+          return
+        }
+
+        // Cualquier otro fallo: confirmar contra el servidor por token de dispositivo.
+        if (!isAdmin && verifyRegistration) {
+          try {
+            if (await verifyRegistration()) {
+              timer.end({ ok: true, recoveredAfterTimeout: true })
+              onRegistered?.()
+              return
+            }
+          } catch {
+            /* cae al revert */
+          }
+        }
+
+        timer.fail(err)
+        revert(message)
+      } finally {
+        submittingRef.current = false
+      }
     }
+
+    void finish()
   }
 
   return (
@@ -245,7 +243,6 @@ export function RegistrationForm({
               placeholder="Ej: Pawmot923"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              disabled={loading}
               className="w-full pl-12 pr-4 py-3.5 rounded-[15px] border border-gray-200 bg-white text-[#0d3b66] font-medium placeholder:text-gray-300 focus:outline-none focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 transition-all text-base"
             />
           </div>
@@ -269,14 +266,9 @@ export function RegistrationForm({
 
         <button
           type="submit"
-          disabled={loading}
-          className="w-full py-4 rounded-xl font-black text-white text-[15px] btn-register-gradient transition-all disabled:opacity-60 disabled:shadow-none"
+          className="w-full py-4 rounded-xl font-black text-white text-[15px] btn-register-gradient transition-all"
         >
-          {loading
-            ? 'Registrando...'
-            : isAdmin
-              ? 'Ayudar a registrarse'
-              : 'Registrarse en la Dinámica'}
+          {isAdmin ? 'Ayudar a registrarse' : 'Registrarse en la Dinámica'}
         </button>
       </form>
 

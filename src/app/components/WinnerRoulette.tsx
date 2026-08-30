@@ -266,29 +266,28 @@ function describeAssuredSchedule(entry: AssuredWinnerEntry, spinCount: number): 
   return `Pendiente: sale en ${remaining} giros (giro ${entry.targetSpin})`
 }
 
-/** Mezcla visual estable: se ve aleatorio, pero admin y espectadores comparten el mismo orden. */
+function wheelRankForId(id: string): number {
+  let hash = 2166136261
+  for (let i = 0; i < id.length; i++) {
+    hash ^= id.charCodeAt(i)
+    hash = Math.imul(hash, 16777619) >>> 0
+  }
+  return hash >>> 0
+}
+
+/**
+ * Orden visual estable: el puesto de cada persona depende solo de su id, nunca de
+ * quién más está en la lista. Así, si alguien se registra en medio de la ronda, el
+ * resto no se baraja de nuevo y todos los clientes coinciden en el orden relativo.
+ */
 function shufflePlayersForWheel<T extends Pick<Participant, 'id'>>(players: T[]): T[] {
-  const arranged = [...players]
-  // Semilla a partir de los ids: misma lista → mismo orden en todos los clientes.
-  let seed = 0
-  for (const player of arranged) {
-    const id = String(player.id)
-    for (let i = 0; i < id.length; i++) seed = (seed * 31 + id.charCodeAt(i)) >>> 0
-  }
-  seed ^= arranged.length * 2654435761
-
-  const next = () => {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
-    return seed / 0x100000000
-  }
-
-  for (let i = arranged.length - 1; i > 0; i--) {
-    const j = Math.floor(next() * (i + 1))
-    const tmp = arranged[i]
-    arranged[i] = arranged[j]
-    arranged[j] = tmp
-  }
-  return arranged
+  return [...players]
+    .map((player) => ({ player, rank: wheelRankForId(String(player.id)) }))
+    .sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank
+      return String(a.player.id).localeCompare(String(b.player.id))
+    })
+    .map((entry) => entry.player)
 }
 
 /** Ruleta con segmentos iguales (espectador): ángulo para que el puntero caiga en el ganador */
@@ -519,15 +518,28 @@ export function WinnerRoulette({
     });
   }, [eligiblePlayers, recentWinnerByUsername, penaltyMonths, penaltyPercent]);
 
+  /**
+   * Lista congelada mientras la ruleta gira. El giro se calcula contra la misma
+   * lista que está pintada en el canvas; si se dejara variar, el puntero caería
+   * sobre un nombre que no corresponde.
+   */
+  const [wheelSnapshot, setWheelSnapshot] = useState<Participant[] | null>(null)
+
   /** Ruleta visible: todos los activos (incl. venaderos) para que se vean en espectadores */
   const playersForWheel = useMemo((): WheelPlayer[] => {
-    return shufflePlayersForWheel(activePlayers.map((p) => ({ ...p, weight: 1 })))
-  }, [activePlayers])
+    const source = wheelSnapshot ?? activePlayers
+    return shufflePlayersForWheel(source.map((p) => ({ ...p, weight: 1 })))
+  }, [wheelSnapshot, activePlayers])
 
   const totalWeight = useMemo(
     () => playersForWheel.reduce((acc, p) => acc + p.weight, 0),
     [playersForWheel],
   )
+
+  // Terminado el giro, la ruleta vuelve a seguir la lista en vivo.
+  useEffect(() => {
+    if (!isSpinning && !winner && wheelSnapshot) setWheelSnapshot(null)
+  }, [isSpinning, winner, wheelSnapshot])
 
   useEffect(() => {
     if (drawTimerRef.current) window.clearTimeout(drawTimerRef.current)
@@ -779,13 +791,11 @@ export function WinnerRoulette({
 
     const runSpin = (list: Participant[]) => {
       const winningPlayer = resolveWinner()
-      const wheelPlayers = shufflePlayersForWheel(
-        list.length > 0
-          ? list
-          : winningPlayer
-            ? [winningPlayer]
-            : [],
-      )
+      const wheelSource =
+        list.length > 0 ? list : winningPlayer ? [winningPlayer] : []
+      const wheelPlayers = shufflePlayersForWheel(wheelSource)
+      // Congela la misma lista que se pinta, para que el puntero caiga en el nombre real.
+      setWheelSnapshot(wheelSource)
 
       const isOldSpin = Date.now() - incomingSpin.localReceivedAt > 2000
 
@@ -971,6 +981,8 @@ export function WinnerRoulette({
     const wheelPlayers: WheelPlayer[] = shufflePlayersForWheel(
       freshActive.map((p) => ({ ...p, weight: 1 })),
     )
+    // El canvas debe pintar exactamente esta lista mientras dure el giro.
+    setWheelSnapshot(freshActive)
 
     if (weighted.length === 0) {
       const canForceFromWheel =
