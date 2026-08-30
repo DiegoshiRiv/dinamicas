@@ -8,7 +8,7 @@ import {
 import {
   DEFAULT_ROULETTE_CODE,
   encodeIpForRoulette,
-  extractRouletteCodeFromIp,
+  extractRoomCode,
   sanitizeRouletteCode,
 } from '@/app/utils/rouletteCode'
 import { eventLog } from '@/app/utils/eventLog'
@@ -20,14 +20,15 @@ import {
   getOrCreateDeviceToken,
 } from '@/app/utils/registrationToken'
 import { randomRegistrationColor } from '@/app/utils/participantColor'
+import { RegisterError } from '@/app/utils/registerError'
 
 const PARTICIPANT_COLUMNS =
-  'id,username,team,status,ip_address,registration_token,username_key,device_fingerprint'
+  'id,username,team,status,ip_address,roulette_code,registration_token,username_key,device_fingerprint'
 const PARTICIPANT_COLUMNS_LEGACY = 'id,username,team,status,ip_address'
 const UPSERT_BATCH_MS = 200
 
 const IDENTITY_COLUMN_MISSING =
-  /registration_token|username_key|device_fingerprint/i
+  /registration_token|username_key|device_fingerprint|roulette_code/i
 
 const REGISTER_MAX_ATTEMPTS = 3
 const REGISTER_RETRY_DELAYS_MS = [250, 700]
@@ -77,6 +78,8 @@ export interface Participant {
   team: string
   status: 'active' | 'winner' | 'discarded'
   ip_address?: string
+  /** Sala a la que pertenece la fila. Antes se deducía parseando ip_address. */
+  roulette_code?: string | null
   registration_token?: string | null
   username_key?: string | null
   device_fingerprint?: string | null
@@ -85,12 +88,19 @@ export interface Participant {
 export interface BannedUser {
   id: string
   ip_address: string
+  roulette_code?: string | null
   username: string
   expires_at: string
   banned_by?: string | null
   created_at?: string
 }
-export interface RecentWinner { id: string; username: string; ip_address: string; won_at: string }
+export interface RecentWinner {
+  id: string
+  username: string
+  ip_address: string
+  roulette_code?: string | null
+  won_at: string
+}
 export interface Sponsor { id: string; name: string; url: string; image_url: string; order_index: number }
 export interface Banner { id: string; image_url: string; link_url?: string }
 export interface WinnerPrizeCode {
@@ -232,7 +242,10 @@ export function useParticipants(
   const fetchGenRef = useRef(0)
   const prizeCodeFetchGenRef = useRef(0)
   const rouletteCodeRef = useRef(rouletteCode)
-  const belongsToRoomRef = useRef((ip?: string) => extractRouletteCodeFromIp(ip) === rouletteCode)
+  const belongsToRoomRef = useRef(
+    (row: { roulette_code?: string | null; ip_address?: string | null }) =>
+      extractRoomCode(row) === rouletteCode,
+  )
 
   useEffect(() => {
     participantsRef.current = participants
@@ -255,7 +268,7 @@ export function useParticipants(
 
   useEffect(() => {
     rouletteCodeRef.current = rouletteCode
-    belongsToRoomRef.current = (ip?: string) => extractRouletteCodeFromIp(ip) === rouletteCode
+    belongsToRoomRef.current = (row) => extractRoomCode(row) === rouletteCode
   }, [rouletteCode])
 
   const flushPendingUpserts = useCallback(() => {
@@ -369,7 +382,7 @@ export function useParticipants(
     }
     if (bData) {
       setBannedUsers(
-        (bData as BannedUser[]).filter((b) => belongsToRoomRef.current(b.ip_address)),
+        (bData as BannedUser[]).filter((b) => belongsToRoomRef.current(b)),
       )
     }
   }, [])
@@ -523,7 +536,7 @@ export function useParticipants(
       }
 
       const filtered = ((data ?? []) as Participant[]).filter((p) =>
-        belongsToRoomRef.current(p.ip_address),
+        belongsToRoomRef.current(p),
       )
 
       // La consulta manda sobre lo que hubiera en la cola de 200 ms.
@@ -581,7 +594,7 @@ export function useParticipants(
       setSyncError(pRes.error.message)
     } else if (pRes.data) {
       const filtered = (pRes.data as Participant[]).filter((p) =>
-        belongsToRoomRef.current(p.ip_address),
+        belongsToRoomRef.current(p),
       )
       setParticipants(filtered)
       setSyncError(null)
@@ -590,7 +603,7 @@ export function useParticipants(
 
     if (!bRes.error && bRes.data) {
       setBannedUsers(
-        (bRes.data as BannedUser[]).filter((b) => belongsToRoomRef.current(b.ip_address)),
+        (bRes.data as BannedUser[]).filter((b) => belongsToRoomRef.current(b)),
       )
     }
 
@@ -785,7 +798,7 @@ export function useParticipants(
           { event: 'INSERT', schema: 'public', table: 'participants' },
           (payload) => {
             const row = payload.new as Participant
-            if (belongsToRoomRef.current(row.ip_address)) {
+            if (belongsToRoomRef.current(row)) {
               upsertParticipant(row)
             }
           },
@@ -795,7 +808,7 @@ export function useParticipants(
           { event: 'UPDATE', schema: 'public', table: 'participants' },
           (payload) => {
             const row = payload.new as Participant
-            if (belongsToRoomRef.current(row.ip_address)) {
+            if (belongsToRoomRef.current(row)) {
               upsertParticipant(row)
               return
             }
@@ -943,7 +956,7 @@ export function useParticipants(
     try {
       const byToken = await loadParticipantByToken(roomToken)
       if (!byToken) return false
-      if (belongsToRoomRef.current(byToken.ip_address)) {
+      if (belongsToRoomRef.current(byToken)) {
         upsertParticipant(byToken, true)
       }
       diagnostics.patch({ lastRegisterAt: Date.now(), lastRegisterOk: true })
@@ -992,6 +1005,7 @@ export function useParticipants(
       team,
       status: 'active',
       ip_address: finalIp,
+      roulette_code: rouletteCode,
       registration_token: roomToken,
       username_key: usernameKey,
     }
@@ -1043,6 +1057,9 @@ export function useParticipants(
       if (!/username_key/i.test(error.message)) {
         fallbackPayload.username_key = usernameKey
       }
+      if (!/roulette_code/i.test(error.message)) {
+        fallbackPayload.roulette_code = rouletteCode
+      }
       const fallback = await supabase
         .from('participants')
         .insert([fallbackPayload])
@@ -1076,12 +1093,18 @@ export function useParticipants(
           telemetry.uniqueConflict('unknown')
           timer.fail(error, { code: '23505-username' })
           diagnostics.patch({ lastRegisterOk: false, lastError: 'username taken' })
-          throw new Error('Ese nombre de entrenador ya está registrado. Usa el tuyo.')
+          throw new RegisterError(
+            'username-taken',
+            'Ese nombre de entrenador ya está registrado. Usa el tuyo.',
+          )
         }
 
         timer.fail(error, { code: '23505' })
         diagnostics.patch({ lastRegisterOk: false, lastError: '23505' })
-        throw new Error('No se pudo completar el registro. Intenta de nuevo.')
+        throw new RegisterError(
+          'generic',
+          'No se pudo completar el registro. Intenta de nuevo.',
+        )
       }
       // Último recurso: quizá alguna de las tentativas sí escribió la fila.
       const mine = await loadParticipantByToken(roomToken)
@@ -1095,7 +1118,7 @@ export function useParticipants(
         lastRegisterOk: false,
         lastError: error.message,
       })
-      throw new Error(friendlyRegisterError(error))
+      throw new RegisterError('generic', friendlyRegisterError(error))
     }
 
     const row: Participant = (insertedRow as Participant | null) ?? {
@@ -1104,6 +1127,7 @@ export function useParticipants(
       team,
       status: 'active',
       ip_address: finalIp,
+      roulette_code: rouletteCode,
       registration_token: roomToken,
       username_key: usernameKey,
     }
@@ -1137,12 +1161,28 @@ export function useParticipants(
       const user = participantsByIdRef.current.get(id)
       if (user) {
         const wonAt = new Date().toISOString()
-        const { data: winnerRow } = await supabase
+        const winnerPayload: Record<string, string> = {
+          username: user.username,
+          ip_address: user.ip_address || '',
+          roulette_code: extractRoomCode(user),
+          won_at: wonAt,
+        }
+        let insert = await supabase
           .from('recent_winners')
-          .insert([{ username: user.username, ip_address: user.ip_address || '', won_at: wonAt }])
+          .insert([winnerPayload])
           .select('*')
           .single()
 
+        if (insert.error && /roulette_code/i.test(insert.error.message)) {
+          const { roulette_code: _omit, ...legacyPayload } = winnerPayload
+          insert = await supabase
+            .from('recent_winners')
+            .insert([legacyPayload])
+            .select('*')
+            .single()
+        }
+
+        const winnerRow = insert.data
         if (winnerRow) {
           setRecentWinners((prev) => [winnerRow as RecentWinner, ...prev])
         } else {
@@ -1160,12 +1200,18 @@ export function useParticipants(
     expirationDate.setDate(expirationDate.getDate() + durationInDays)
     const payload: Record<string, string> = {
       ip_address: user.ip_address,
+      roulette_code: extractRoomCode(user),
       username: user.username,
       expires_at: expirationDate.toISOString(),
     }
     if (bannedBy?.trim()) payload.banned_by = bannedBy.trim().toLowerCase()
 
-    const { error } = await supabase.from('banned_ips').insert([payload])
+    let { error } = await supabase.from('banned_ips').insert([payload])
+    if (error && /roulette_code/i.test(error.message)) {
+      // Migración de roulette_code aún sin aplicar: la sala se sigue leyendo de ip_address.
+      const { roulette_code: _omit, ...legacyPayload } = payload
+      error = (await supabase.from('banned_ips').insert([legacyPayload])).error
+    }
     if (error) {
       eventLog.error('admin', 'ban failed', { error: error.message })
       throw new Error('No se pudo banear al usuario. Verifica la columna banned_by en Supabase.')
@@ -1265,31 +1311,25 @@ export function useParticipants(
     const targetCode = sanitizeRouletteCode(targetRouletteCode)
     if (targetCode === DEFAULT_ROULETTE_CODE) return
 
-    const { data: participantRows } = await supabase.from('participants').select('id, ip_address')
-    const participantIds =
-      participantRows
-        ?.filter((row) => extractRouletteCodeFromIp(row.ip_address) === targetCode)
-        .map((row) => row.id) ?? []
-    if (participantIds.length > 0) {
-      await supabase.from('participants').delete().in('id', participantIds)
+    // Se leen ambas columnas y se decide con extractRoomCode: así el borrado
+    // alcanza también las filas anteriores a la migración de roulette_code.
+    const idsInRoom = async (table: 'participants' | 'banned_ips' | 'recent_winners') => {
+      let res = await supabase.from(table).select('id, ip_address, roulette_code')
+      if (res.error && /roulette_code/i.test(res.error.message)) {
+        res = (await supabase.from(table).select('id, ip_address')) as typeof res
+      }
+      return (
+        res.data
+          ?.filter((row) => extractRoomCode(row) === targetCode)
+          .map((row) => row.id) ?? []
+      )
     }
 
-    const { data: bannedRows } = await supabase.from('banned_ips').select('id, ip_address')
-    const bannedIds =
-      bannedRows
-        ?.filter((row) => extractRouletteCodeFromIp(row.ip_address) === targetCode)
-        .map((row) => row.id) ?? []
-    if (bannedIds.length > 0) {
-      await supabase.from('banned_ips').delete().in('id', bannedIds)
-    }
-
-    const { data: winnerRows } = await supabase.from('recent_winners').select('id, ip_address')
-    const winnerIds =
-      winnerRows
-        ?.filter((row) => extractRouletteCodeFromIp(row.ip_address) === targetCode)
-        .map((row) => row.id) ?? []
-    if (winnerIds.length > 0) {
-      await supabase.from('recent_winners').delete().in('id', winnerIds)
+    for (const table of ['participants', 'banned_ips', 'recent_winners'] as const) {
+      const ids = await idsInRoom(table)
+      if (ids.length > 0) {
+        await supabase.from(table).delete().in('id', ids)
+      }
     }
 
     writeLocalPrizeCodes(WINNER_PRIZE_CODES_KEY(targetCode), [])

@@ -22,6 +22,19 @@ export function extractRouletteCodeFromIp(rawIp?: string): string {
   return sanitizeRouletteCode(rawIp.slice(markerIndex + ROOM_MARKER.length))
 }
 
+/**
+ * Sala a la que pertenece una fila. Prefiere la columna roulette_code; si la
+ * fila es anterior a esa migración, cae al marcador dentro de ip_address.
+ */
+export function extractRoomCode(row: {
+  roulette_code?: string | null
+  ip_address?: string | null
+}): string {
+  const explicit = row.roulette_code?.trim()
+  if (explicit) return sanitizeRouletteCode(explicit)
+  return extractRouletteCodeFromIp(row.ip_address ?? undefined)
+}
+
 export function extractBaseIp(rawIp?: string): string {
   if (!rawIp) return ''
   const markerIndex = rawIp.lastIndexOf(ROOM_MARKER)

@@ -30,6 +30,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS participants_username_key_unique
   WHERE username_key IS NOT NULL;
 
 -- CRÍTICO: quitar UNIQUE de IP (bloqueaba a todos en el mismo Wi‑Fi).
+-- Si la unicidad se creó como CONSTRAINT, DROP INDEX falla: hay que quitar
+-- la constraint primero (arrastra su índice).
+ALTER TABLE public.participants
+  DROP CONSTRAINT IF EXISTS participants_ip_address_unique;
+ALTER TABLE public.participants
+  DROP CONSTRAINT IF EXISTS participants_ip_address_key;
 DROP INDEX IF EXISTS participants_ip_address_unique;
 
 -- Índice no único: búsquedas / sala.

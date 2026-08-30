@@ -1,5 +1,7 @@
 -- Correcciones de esquema aplicadas el 2026-08-30 (ya ejecutadas en produccion).
 -- Se dejan aqui para poder reconstruir el proyecto desde cero.
+-- Ejecutar DESPUES de participants_performance.sql: ese script crea las
+-- columnas username_key / registration_token que este indexa.
 
 -- 1) team dejo de ser un equipo fijo y ahora guarda un color hex (#e11d48).
 --    El CHECK antiguo solo aceptaba blue/yellow/red, asi que TODO registro
