@@ -7,6 +7,7 @@ import type { Participant, RecentWinner, IncomingSpin, WinnerPrizeCode } from '@
 import confetti from 'canvas-confetti'
 import { QRCodeCanvas } from 'qrcode.react'
 import { buildRouletteRegistrationUrl, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
+import { ScreenNameNotice } from '@/app/components/ScreenNameNotice'
 
 import { normalizeUsername, isVenaderoBlacklisted } from '@/app/utils/UsuariosToxicosBlackList'
 import { telemetry } from '@/app/utils/telemetry'
@@ -1372,6 +1373,8 @@ export function WinnerRoulette({
               </svg>
             </div>
           </div>
+
+          {isSpectator && <ScreenNameNotice className="-mt-4 mb-2" />}
 
           {!isSpectator && (
             <div className="w-[90%] sm:w-full mx-auto space-y-2">
