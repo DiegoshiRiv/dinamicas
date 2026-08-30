@@ -693,8 +693,11 @@ export function WinnerRoulette({
       // Siempre mostrar nombres (antes se ocultaban con >80 y solo se veía el conteo).
       const n = playersForWheel.length
       const showPattern = n <= 36
-      const fontSize = n > 120 ? 7 : n > 80 ? 8 : n > 50 ? 10 : n > 20 ? 12 : 16
-      const maxChars = n > 120 ? 8 : n > 80 ? 10 : 15
+      const fontSize = n > 120 ? 9 : n > 80 ? 10 : n > 50 ? 12 : n > 20 ? 14 : 18
+      const maxChars = n > 120 ? 12 : n > 80 ? 14 : 20
+      // Espacio radial real entre el borde y el aro del hub: el recorte se decide
+      // midiendo el texto, así una letra más grande nunca invade el centro.
+      const labelSpace = radius - 14 - (radius * 0.22 + 10)
       let currentAngle = -Math.PI / 2
       let selfArcStart = Number.NaN
       let selfArcEnd = Number.NaN
@@ -790,11 +793,17 @@ export function WinnerRoulette({
         ctx.shadowBlur = isSelf ? (selfFlashActive ? 4 : 8) : n > 80 ? 2 : 4
         const selfFont = Math.min(22, fontSize + (n > 50 ? 2 : 4))
         ctx.font = `bold ${isSelf ? selfFont : fontSize}px sans-serif`
-        const rawLabel =
+        let rawLabel =
           player.username.length > maxChars
             ? `${player.username.substring(0, maxChars)}…`
             : player.username
-        const label = isSelf ? `★ ${rawLabel}` : rawLabel
+        let label = isSelf ? `★ ${rawLabel}` : rawLabel
+        while (ctx.measureText(label).width > labelSpace) {
+          const trimmed = rawLabel.replace(/…$/, '').slice(0, -1)
+          if (!trimmed) break
+          rawLabel = `${trimmed}…`
+          label = isSelf ? `★ ${rawLabel}` : rawLabel
+        }
         ctx.fillText(label, radius - 14, 3)
         ctx.shadowBlur = 0
         ctx.restore()
