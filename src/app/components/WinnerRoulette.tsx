@@ -411,6 +411,20 @@ export function WinnerRoulette({
     }
   }, [])
 
+  /**
+   * Red de seguridad última. Si cualquier imprevisto corta el giro después de
+   * arrancarlo, la rueda se quedaría girando sin fin delante del público. Esto
+   * la desbloquea siempre, pase lo que pase.
+   */
+  useEffect(() => {
+    if (!isSpinning) return
+    const id = window.setTimeout(() => {
+      setIsSpinning(false)
+      setSpinError((prev) => prev ?? 'El giro se interrumpió. Vuelve a intentarlo.')
+    }, SPIN_DURATION_MS + 8000)
+    return () => window.clearTimeout(id)
+  }, [isSpinning])
+
   const forcedWinner = useMemo(() => {
     if (!forcedWinnerId && !forcedWinnerName) return null
     return (
@@ -986,6 +1000,11 @@ export function WinnerRoulette({
     let freshList = participants
     try {
       freshList = await runConsistencySync('before_spin')
+    } catch (error) {
+      // Sin red no se cancela el sorteo: se gira con la última lista conocida,
+      // que es preferible a dejar al público esperando delante de la pantalla.
+      console.warn('[dinamicas:roulette] pre-spin sync failed, using cached list', error)
+      freshList = participants
     } finally {
       setIsSyncing(false)
     }
@@ -1106,9 +1125,19 @@ export function WinnerRoulette({
       return
     }
 
-    const assignedPrizeCode = assignWinnerPrizeCode
-      ? await assignWinnerPrizeCode(winningPlayer)
-      : null
+    // El premio no puede bloquear el espectáculo: si la red falla o tarda, se
+    // sigue sin código en vez de dejar la rueda girando eternamente.
+    let assignedPrizeCode: WinnerPrizeCode | null = null
+    if (assignWinnerPrizeCode) {
+      try {
+        assignedPrizeCode = await Promise.race([
+          assignWinnerPrizeCode(winningPlayer),
+          new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 4000)),
+        ])
+      } catch (error) {
+        console.warn('[dinamicas:roulette] prize code assignment failed', error)
+      }
+    }
 
     if (canForceWinner) {
       const nextSpin = assuredSpinCount + 1
@@ -1162,25 +1191,42 @@ export function WinnerRoulette({
     setRotation(newRotation)
 
     if (broadcastSpin) {
-      broadcastSpin(
-        newRotation,
-        winningPlayer.id,
-        winningPlayer.username,
-        winningPlayer.team,
-        assignedPrizeCode?.code ?? null,
-      )
+      try {
+        broadcastSpin(
+          newRotation,
+          winningPlayer.id,
+          winningPlayer.username,
+          winningPlayer.team,
+          assignedPrizeCode?.code ?? null,
+        )
+      } catch (error) {
+        // El master ya tiene su ganador; que no lleguen los espectadores no
+        // debe abortar la animación en la pantalla principal.
+        console.warn('[dinamicas:roulette] broadcast failed', error)
+      }
     }
 
+    // Pase lo que pase, la rueda tiene que parar y anunciar al ganador.
     if (spinTimerRef.current) window.clearTimeout(spinTimerRef.current)
     spinTimerRef.current = window.setTimeout(() => {
       setIsSpinning(false)
       setWinner(winningPlayer)
       if (!String(winningPlayer.id).startsWith('local-')) {
         if (usedForcedWinner || !cannotWin(winningPlayer)) {
-          void updateStatus(winningPlayer.id, 'winner')
+          try {
+            void Promise.resolve(updateStatus(winningPlayer.id, 'winner')).catch((error) => {
+              console.warn('[dinamicas:roulette] updateStatus failed', error)
+            })
+          } catch (error) {
+            console.warn('[dinamicas:roulette] updateStatus threw', error)
+          }
         }
       }
-      fireWinnerConfetti(participantSliceColor(winningPlayer))
+      try {
+        fireWinnerConfetti(participantSliceColor(winningPlayer))
+      } catch {
+        /* el confeti es decorativo */
+      }
     }, SPIN_DURATION_MS)
   }
 

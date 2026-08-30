@@ -608,9 +608,15 @@ export function useParticipants(
     prizeCodeFetchGenRef.current += 1
   }, [rouletteCode])
 
+  /**
+   * Se incrementa para forzar la recreación del canal cuando el navegador
+   * vuelve de segundo plano con el websocket muerto.
+   */
+  const [channelEpoch, setChannelEpoch] = useState(0)
+
   // Canal de sync de ruleta: estable respecto a loadParticipants.
   useEffect(() => {
-    const syncChannel = supabase.channel(`roulette_sync_${rouletteCode}`, {
+    const syncChannel = supabase.channel(`roulette_sync_${rouletteCode}_${channelEpoch}`, {
       config: { broadcast: { self: false } },
     })
 
@@ -659,7 +665,49 @@ export function useParticipants(
       setRealtimeReady(false)
       diagnostics.patch({ realtimeStatus: 'unsubscribed' })
     }
-  }, [rouletteCode, syncParticipantsFresh])
+  }, [rouletteCode, syncParticipantsFresh, channelEpoch])
+
+  /**
+   * Móvil que se bloquea, cambia de app o pierde cobertura: el websocket se
+   * cae en silencio y la pantalla se queda congelada con la lista vieja. Al
+   * volver se resincroniza y, si el canal no revivió solo, se recrea.
+   */
+  const realtimeReadyRef = useRef(realtimeReady)
+  useEffect(() => { realtimeReadyRef.current = realtimeReady }, [realtimeReady])
+
+  useEffect(() => {
+    const resume = () => {
+      if (document.visibilityState !== 'visible') return
+      // El canal se revive siempre: sin él un espectador no recibe el giro.
+      if (!realtimeReadyRef.current) setChannelEpoch((value) => value + 1)
+      // La lista solo donde se usa; en la pantalla de registro se evita a
+      // propósito para no gastar datos en 3G.
+      if (loadParticipantsRef.current) void syncParticipantsFresh('resume')
+    }
+    document.addEventListener('visibilitychange', resume)
+    window.addEventListener('online', resume)
+    window.addEventListener('focus', resume)
+    return () => {
+      document.removeEventListener('visibilitychange', resume)
+      window.removeEventListener('online', resume)
+      window.removeEventListener('focus', resume)
+    }
+  }, [syncParticipantsFresh])
+
+  /**
+   * Respaldo si Realtime no llega a conectar (wifi que bloquea websockets,
+   * 3G malo). Solo se activa en modo degradado y con espera irregular para
+   * que doscientos móviles no consulten todos en el mismo instante.
+   */
+  useEffect(() => {
+    if (realtimeReady || !loadParticipants) return
+    const period = 15000 + Math.floor(Math.random() * 10000)
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      void syncParticipantsFresh('poll_fallback')
+    }, period)
+    return () => window.clearInterval(id)
+  }, [realtimeReady, loadParticipants, syncParticipantsFresh])
 
   // Boot de datos (puede cambiar con loadParticipants) — canal DB va aparte.
   const loadParticipantsRef = useRef(loadParticipants)
