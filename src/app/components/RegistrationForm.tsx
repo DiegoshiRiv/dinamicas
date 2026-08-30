@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { User, AlertCircle, CheckCircle2 } from 'lucide-react'
 
-import pokebolaImg from '@/assets/iconos/Pokebola.webp'
+import anteriorImg from '@/assets/anterior.webp'
 import campfireIcon from '@/assets/recursos/campfire.webp'
 import wpIcon from '@/assets/iconos/w.webp'
 import {
@@ -265,7 +265,7 @@ export function RegistrationForm({
             </p>
             <div className="w-20 h-20 shrink-0 flex items-center justify-center overflow-hidden rounded-xl bg-[#0d3b66]/5 p-3">
               <img
-                src={pokebolaImg}
+                src={anteriorImg}
                 alt=""
                 className="max-w-full max-h-full object-contain"
                 decoding="async"

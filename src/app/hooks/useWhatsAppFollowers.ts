@@ -34,12 +34,14 @@ async function fetchWhatsAppFollowers(): Promise<number | null> {
 }
 
 export function useWhatsAppFollowers() {
-  const [count, setCount] = useState(() => readCachedCount() ?? WHATSAPP_FOLLOWER_COUNT)
+  const [count, setCount] = useState(() =>
+    Math.max(readCachedCount() ?? 0, WHATSAPP_FOLLOWER_COUNT),
+  )
 
   useEffect(() => {
     const cached = readCachedCount()
     if (cached != null) {
-      setCount(cached)
+      setCount(Math.max(cached, WHATSAPP_FOLLOWER_COUNT))
       return
     }
 
@@ -48,8 +50,11 @@ export function useWhatsAppFollowers() {
     void fetchWhatsAppFollowers()
       .then((live) => {
         if (cancelled || live == null) return
-        writeCachedCount(live)
-        setCount(live)
+        // El canal muestra la cifra redondeada, así que el valor leído puede
+        // quedar por debajo del conteo real ya confirmado.
+        const next = Math.max(live, WHATSAPP_FOLLOWER_COUNT)
+        writeCachedCount(next)
+        setCount(next)
       })
       .catch(() => {
         // keep fallback count
