@@ -234,15 +234,14 @@ function loadAssuredWinners(code: string, spinCount: number): AssuredWinnerEntry
     const parsed = JSON.parse(scoped ?? legacy ?? '[]')
     const saved = parseAssuredEntries(parsed, spinCount)
     const withoutDefault = saved.filter(
-      (entry) => normalizeUsername(entry.username) !== normalizeUsername(DEFAULT_ASSURED_WINNER),
+      (entry) => winnerKey(entry.username) !== winnerKey(DEFAULT_ASSURED_WINNER),
     )
     return [
       {
         username: DEFAULT_ASSURED_WINNER,
         targetSpin:
           saved.find(
-            (entry) =>
-              normalizeUsername(entry.username) === normalizeUsername(DEFAULT_ASSURED_WINNER),
+            (entry) => winnerKey(entry.username) === winnerKey(DEFAULT_ASSURED_WINNER),
           )?.targetSpin ?? spinCount + 1,
       },
       ...withoutDefault,
@@ -312,10 +311,14 @@ function rotationForEqualWheel(
 }
 
 /**
- * Clave para cruzar participantes con el historial de ganadores. Solo baja a
- * minúsculas y quita acentos y "@" inicial: no toca dígitos porque muchos
- * nombres los usan de forma significativa (ARU518, LizRen95) y colapsarlos
- * penalizaría a jugadores distintos.
+ * Identidad de un jugador para cruzarlo con el historial de ganadores y con la
+ * lista de ganadores forzados. Solo baja a minúsculas y quita acentos y "@"
+ * inicial.
+ *
+ * No usar normalizeUsername aquí: esa colapsa dígitos en letras para cazar
+ * leetspeak (ARU518 -> arusib), lo que fusiona personas distintas. Es correcto
+ * para la blacklist de venaderos, donde un falso positivo solo bloquea, pero
+ * aquí decidiría quién gana y castigaría o premiaría al jugador equivocado.
  */
 function winnerKey(username: string): string {
   return username
@@ -436,8 +439,8 @@ export function WinnerRoulette({
   const addAssuredWinner = () => {
     const username = assuredWinnerInput.trim()
     if (!username) return
-    const normalized = normalizeUsername(username)
-    if (!normalized || assuredWinners.some((entry) => normalizeUsername(entry.username) === normalized)) {
+    const normalized = winnerKey(username)
+    if (!normalized || assuredWinners.some((entry) => winnerKey(entry.username) === normalized)) {
       setAssuredWinnerInput('')
       return
     }
@@ -451,9 +454,9 @@ export function WinnerRoulette({
   }
 
   const removeAssuredWinner = (username: string) => {
-    if (normalizeUsername(username) === normalizeUsername(DEFAULT_ASSURED_WINNER)) return
+    if (winnerKey(username) === winnerKey(DEFAULT_ASSURED_WINNER)) return
     saveAssuredWinners(
-      assuredWinners.filter((entry) => normalizeUsername(entry.username) !== normalizeUsername(username)),
+      assuredWinners.filter((entry) => winnerKey(entry.username) !== winnerKey(username)),
     )
   }
 
@@ -462,7 +465,7 @@ export function WinnerRoulette({
     const targetSpin = assuredSpinCount + winIn
     saveAssuredWinners(
       assuredWinners.map((entry) =>
-        normalizeUsername(entry.username) === normalizeUsername(username)
+        winnerKey(entry.username) === winnerKey(username)
           ? { ...entry, targetSpin }
           : entry,
       ),
@@ -1068,7 +1071,7 @@ export function WinnerRoulette({
         .map((entry) => {
           const player = freshActive.find(
             (p) =>
-              normalizeUsername(p.username) === normalizeUsername(entry.username) &&
+              winnerKey(p.username) === winnerKey(entry.username) &&
               !assuredCompleted.has(p.id) &&
               !cannotWin(p),
           )
@@ -1571,14 +1574,14 @@ export function WinnerRoulette({
                           {assuredWinners.map((entry) => {
                             const participant = activePlayers.find(
                               (player) =>
-                                normalizeUsername(player.username) === normalizeUsername(entry.username),
+                                winnerKey(player.username) === winnerKey(entry.username),
                             )
                             const completed = Boolean(participant && assuredCompleted.has(participant.id))
                             const isDefault =
-                              normalizeUsername(entry.username) === normalizeUsername(DEFAULT_ASSURED_WINNER)
+                              winnerKey(entry.username) === winnerKey(DEFAULT_ASSURED_WINNER)
                             const remaining = Math.max(1, entry.targetSpin - assuredSpinCount)
                             return (
-                              <div key={normalizeUsername(entry.username)} className="px-3 py-2 space-y-1.5">
+                              <div key={winnerKey(entry.username)} className="px-3 py-2 space-y-1.5">
                                 <div className="flex items-center gap-2">
                                   <div className="min-w-0 flex-1">
                                     <p className="truncate text-xs font-bold text-[#4f5674]">{entry.username}</p>
