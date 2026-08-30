@@ -20,8 +20,11 @@ import {
   modalSheetClass,
 } from '@/app/layout/mobileShellLayout'
 
-/** Timeout corto: el INSERT es un solo round-trip. */
-const REGISTER_TIMEOUT_MS = 6000
+/**
+ * Presupuesto para que el alta termine en segundo plano, con margen para los
+ * reintentos del hook. La persona no espera: la confirmación es inmediata.
+ */
+const REGISTER_TIMEOUT_MS = 15000
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   let settled = false

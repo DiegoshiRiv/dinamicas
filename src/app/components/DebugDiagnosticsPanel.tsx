@@ -48,7 +48,10 @@ export function DebugDiagnosticsPanel({
 
   useEffect(() => {
     if (!enabled) return
-    return diagnostics.subscribe(() => setSnap(diagnostics.get()))
+    const unsubscribe = diagnostics.subscribe(() => setSnap(diagnostics.get()))
+    return () => {
+      unsubscribe()
+    }
   }, [enabled])
 
   useEffect(() => {

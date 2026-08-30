@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
-import { Swords, Eye, Trophy, Plus, User, Trash2, AlertCircle, Check, AlertTriangle, X } from 'lucide-react'
+import { Swords, Eye, Trophy, Plus, User, Trash2, Check, AlertTriangle, X } from 'lucide-react'
 import { useTournaments, Pokemon, TournamentPlayer } from '@/hooks/useTournaments'
 import pokebola from '@/assets/iconos/Pokebola.webp'
 
@@ -651,7 +651,6 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
             const gridRows = Math.ceil(slotCount / gridCols)
             const canOpenPlayerSheet = isAdmin || Boolean(devicePlayerId)
             const slotSize = Math.min(10, 78 / gridCols, 24 / gridRows)
-            const slotIndexByPlayerId = new Map(bracketPlayerIds.map((id, idx) => [id, idx]))
             const getSlotPosition = (slotIndex: number) => {
               const col = slotIndex % gridCols
               const row = Math.floor(slotIndex / gridCols)
@@ -680,7 +679,9 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
               })
             )
             const playerSourcePosition = new Map<string, { x: number; y: number }>()
-            bracketPlayerIds.forEach((id, idx) => playerSourcePosition.set(id, getSlotPosition(idx)))
+            bracketPlayerIds.forEach((id, idx) => {
+              if (id) playerSourcePosition.set(id, getSlotPosition(idx))
+            })
             const connectorPaths: { id: string; color: string; filter: string; d: string }[] = []
             const advancedMarkers: { id: string; player: TournamentPlayer; x: number; y: number; round: number }[] = []
             const totalBracketRounds = Math.max(1, Math.ceil(Math.log2(slotCount)))
@@ -760,12 +761,10 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
               })
             }
 
-            visualMatches.forEach((match, idx) => {
+            visualMatches.forEach((match) => {
               const first = playerSourcePosition.get(match.player1_id)
               if (!first) return
               const second = match.player2_id ? playerSourcePosition.get(match.player2_id) : undefined
-              const color = idx % 2 === 0 ? '#ff2f9d' : '#28b7ff'
-              const filter = idx % 2 === 0 ? 'url(#pinkGlow)' : 'url(#blueGlow)'
               const targetY = Math.max(14 + (Math.max(1, match.round) - 1) * 7, 14)
 
               if (!second) {

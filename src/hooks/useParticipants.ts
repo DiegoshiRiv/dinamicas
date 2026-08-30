@@ -8,7 +8,6 @@ import {
 import {
   DEFAULT_ROULETTE_CODE,
   encodeIpForRoulette,
-  extractBaseIp,
   extractRouletteCodeFromIp,
   sanitizeRouletteCode,
 } from '@/app/utils/rouletteCode'
@@ -29,6 +28,42 @@ const UPSERT_BATCH_MS = 200
 
 const IDENTITY_COLUMN_MISSING =
   /registration_token|username_key|device_fingerprint/i
+
+const REGISTER_MAX_ATTEMPTS = 3
+const REGISTER_RETRY_DELAYS_MS = [250, 700]
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms))
+}
+
+/** Traduce fallos técnicos a algo que el entrenador pueda entender y accionar. */
+function friendlyRegisterError(error: { code?: string; message?: string }): string {
+  const message = String(error.message ?? '')
+  if (/failed to fetch|network|socket|econn/i.test(message)) {
+    return 'Se perdió la conexión. Revisa tu internet e intenta de nuevo.'
+  }
+  if (/timeout|aborted/i.test(message)) {
+    return 'La red va lenta ahora mismo. Intenta de nuevo en unos segundos.'
+  }
+  if (/jwt|permission|policy|row-level/i.test(message)) {
+    return 'El registro está cerrado en este momento. Avisa al organizador.'
+  }
+  return 'No se pudo completar el registro. Intenta de nuevo.'
+}
+
+/**
+ * Fallos de red o saturación momentánea del servidor: merecen reintento.
+ * Un conflicto de unicidad o un rechazo de permisos, no.
+ */
+function isRetryableRegisterError(error: { code?: string; message?: string }): boolean {
+  const code = String(error.code ?? '')
+  if (code === '23505' || code.startsWith('42')) return false
+  const message = String(error.message ?? '')
+  if (/failed to fetch|network|timeout|socket|aborted|econn/i.test(message)) return true
+  // PostgREST devuelve códigos HTTP como string para errores de infraestructura.
+  if (/^(408|429|500|502|503|504)$/.test(code)) return true
+  return !error.code
+}
 
 /** Valor de sala sin IP pública: identity = token de dispositivo. */
 function encodeDeviceRoomKey(deviceToken: string, rouletteCode: string): string {
@@ -197,11 +232,6 @@ export function useParticipants(
     rouletteCodeRef.current = rouletteCode
     belongsToRoomRef.current = (ip?: string) => extractRouletteCodeFromIp(ip) === rouletteCode
   }, [rouletteCode])
-
-  const belongsToRoom = useCallback(
-    (ipAddress?: string) => extractRouletteCodeFromIp(ipAddress) === rouletteCode,
-    [rouletteCode],
-  )
 
   const flushPendingUpserts = useCallback(() => {
     if (pendingUpsertsRef.current.size === 0) return
@@ -426,7 +456,7 @@ export function useParticipants(
           .from('participants')
           .select(PARTICIPANT_COLUMNS_LEGACY)
           .order('created_at', { ascending: true })
-        data = legacy.data
+        data = legacy.data as typeof data
         error = legacy.error
       }
 
@@ -477,10 +507,10 @@ export function useParticipants(
 
     let pRes = pResRaw
     if (pRes.error && IDENTITY_COLUMN_MISSING.test(pRes.error.message)) {
-      pRes = await supabase
+      pRes = (await supabase
         .from('participants')
         .select(PARTICIPANT_COLUMNS_LEGACY)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: true })) as typeof pResRaw
     }
 
     if (gen !== fetchGenRef.current) {
@@ -631,42 +661,49 @@ export function useParticipants(
     }
   }, [rouletteCode, loadParticipants, loadWinnerPrizeCodes, fetchBanners, fetchSponsors, fetchParticipantsData, fetchRegistrationMeta, fetchRecentWinners, fetchWinnerPrizeCodes])
 
-  // Realtime DB: un solo canal por sala; NO se remonta al flip de loadParticipants.
+  // Realtime DB: un solo canal por sala.
+  const watchParticipants = loadParticipants
   useEffect(() => {
     const dbChannel = supabase.channel(`public:db_changes_${rouletteCode}`)
 
+    // Quien solo viene a registrarse no necesita el flujo de participantes. Con cientos
+    // de altas simultáneas eso serían miles de mensajes por teléfono, y es justo lo que
+    // hace que la pantalla se sienta trabada. Solo admin y la vista de ruleta lo escuchan.
+    if (watchParticipants) {
+      dbChannel
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'participants' },
+          (payload) => {
+            const row = payload.new as Participant
+            if (belongsToRoomRef.current(row.ip_address)) {
+              upsertParticipant(row)
+            }
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'participants' },
+          (payload) => {
+            const row = payload.new as Participant
+            if (belongsToRoomRef.current(row.ip_address)) {
+              upsertParticipant(row)
+              return
+            }
+            setParticipants((prev) => prev.filter((p) => p.id !== row.id))
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: 'DELETE', schema: 'public', table: 'participants' },
+          (payload) => {
+            const row = payload.old as { id?: string }
+            if (row.id) setParticipants((prev) => prev.filter((p) => p.id !== row.id))
+          },
+        )
+    }
+
     dbChannel
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'participants' },
-        (payload) => {
-          const row = payload.new as Participant
-          if (belongsToRoomRef.current(row.ip_address)) {
-            eventLog.info('realtime', 'participant INSERT', { id: row.id, user: row.username })
-            upsertParticipant(row)
-          }
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'participants' },
-        (payload) => {
-          const row = payload.new as Participant
-          if (belongsToRoomRef.current(row.ip_address)) {
-            upsertParticipant(row)
-            return
-          }
-          setParticipants((prev) => prev.filter((p) => p.id !== row.id))
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'participants' },
-        (payload) => {
-          const row = payload.old as { id?: string }
-          if (row.id) setParticipants((prev) => prev.filter((p) => p.id !== row.id))
-        },
-      )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'banned_ips' }, () => {
         if (loadParticipantsRef.current) scheduleParticipantsRefetch()
         else void fetchRegistrationMeta()
@@ -696,6 +733,7 @@ export function useParticipants(
     }
   }, [
     rouletteCode,
+    watchParticipants,
     fetchBanners,
     fetchSponsors,
     fetchRegistrationMeta,
@@ -771,7 +809,9 @@ export function useParticipants(
       if (query.orderAsc) legacy = legacy.order('created_at', { ascending: true })
       if (query.orderDesc) legacy = legacy.order('created_at', { ascending: false })
       if (query.limit) legacy = legacy.limit(query.limit)
-      result = query.single || query.limit === 1 ? await legacy.maybeSingle() : await legacy
+      result = (query.single || query.limit === 1
+        ? await legacy.maybeSingle()
+        : await legacy) as typeof result
     }
     return result
   }
@@ -847,11 +887,36 @@ export function useParticipants(
       username_key: usernameKey,
     }
 
-    let { data: insertedRow, error } = await supabase
-      .from('participants')
-      .insert([payload])
-      .select(PARTICIPANT_COLUMNS)
-      .maybeSingle()
+    // Wi‑Fi de evento con cientos de altas a la vez: un fallo de red puntual no
+    // debe costarle el registro a nadie, así que se reintenta con espera creciente.
+    let insertedRow: Participant | null = null
+    let error: { code?: string; message: string; details?: string } | null = null
+
+    for (let attempt = 0; attempt < REGISTER_MAX_ATTEMPTS; attempt++) {
+      const res = await supabase
+        .from('participants')
+        .insert([payload])
+        .select(PARTICIPANT_COLUMNS)
+        .maybeSingle()
+
+      insertedRow = (res.data as Participant | null) ?? null
+      error = res.error
+
+      if (!error || !isRetryableRegisterError(error)) break
+
+      // Puede que la fila sí entrara y se perdiera la respuesta: comprobar antes de reintentar.
+      const mine = await loadParticipantByToken(roomToken)
+      if (mine) {
+        finishOk(mine, { idempotent: 'recovered-before-retry', attempt })
+        return
+      }
+
+      eventLog.warn('register', 'insert retry', {
+        attempt: attempt + 1,
+        message: error.message,
+      })
+      await delay(REGISTER_RETRY_DELAYS_MS[attempt] ?? 900)
+    }
 
     if (error && IDENTITY_COLUMN_MISSING.test(error.message)) {
       eventLog.warn('register', 'identity columns missing; fallback insert', {
@@ -886,17 +951,18 @@ export function useParticipants(
           roomTokenPrefix: roomToken.slice(0, 12),
         })
 
-        // Mismo dispositivo reintentando → OK con SU fila.
-        if (/registration_token/i.test(detail) || /ip_address/i.test(detail)) {
-          const mine = await loadParticipantByToken(roomToken)
-          if (mine) {
-            telemetry.uniqueConflict(/registration_token/i.test(detail) ? 'token' : 'ip')
-            finishOk(mine, { idempotent: '23505-token' })
-            return
-          }
+        // Primero: ¿la fila en conflicto es la de ESTE dispositivo? Pasa al reintentar,
+        // al recargar o al tocar dos veces. Postgres puede reportar cualquiera de los
+        // dos índices únicos, así que preguntar por el token antes de culpar al nombre
+        // evita acusar a alguien de usar un nombre que en realidad es suyo.
+        const mine = await loadParticipantByToken(roomToken)
+        if (mine) {
+          telemetry.uniqueConflict(/registration_token/i.test(detail) ? 'token' : 'unknown')
+          finishOk(mine, { idempotent: '23505-mine' })
+          return
         }
 
-        // Nombre ya tomado por OTRA persona → error (nunca adjuntar su fila).
+        // Nombre de otra persona → error claro (nunca adjuntar su fila).
         if (/username_key/i.test(detail)) {
           telemetry.uniqueConflict('unknown')
           timer.fail(error, { code: '23505-username' })
@@ -904,24 +970,23 @@ export function useParticipants(
           throw new Error('Ese nombre de entrenador ya está registrado. Usa el tuyo.')
         }
 
-        // Conflicto genérico: solo recupera si es ESTE token.
-        const mine = await loadParticipantByToken(roomToken)
-        if (mine) {
-          telemetry.uniqueConflict('unknown')
-          finishOk(mine, { idempotent: '23505-mine' })
-          return
-        }
-
         timer.fail(error, { code: '23505' })
         diagnostics.patch({ lastRegisterOk: false, lastError: '23505' })
         throw new Error('No se pudo completar el registro. Intenta de nuevo.')
       }
+      // Último recurso: quizá alguna de las tentativas sí escribió la fila.
+      const mine = await loadParticipantByToken(roomToken)
+      if (mine) {
+        finishOk(mine, { idempotent: 'recovered-after-error' })
+        return
+      }
+
       timer.fail(error)
       diagnostics.patch({
         lastRegisterOk: false,
         lastError: error.message,
       })
-      throw error
+      throw new Error(friendlyRegisterError(error))
     }
 
     const row: Participant = (insertedRow as Participant | null) ?? {

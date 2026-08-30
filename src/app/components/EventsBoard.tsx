@@ -242,7 +242,7 @@ function dayHasEvents(
 }
 
 export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
-  const { events, createEvent, updateEvent, deleteEvent } = useEvents()
+  const { events, createEvent, updateEvent } = useEvents()
   const [month, setMonth] = useState(() => startOfMonth(new Date()))
   const [infographicDay, setInfographicDay] = useState<Date | null>(null)
   const [infographicPage, setInfographicPage] = useState(0)
@@ -318,28 +318,6 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
     setShowForm(false)
   }
 
-  const openEdit = (ev: CommunityEvent) => {
-    const start = parseISO(ev.starts_at)
-    const end = parseISO(ev.ends_at)
-    setForm({
-      title: ev.title,
-      description: ev.description,
-      pokemon_image_url: ev.pokemon_image_url,
-      date: format(start, 'yyyy-MM-dd'),
-      startTime: format(start, 'HH:mm'),
-      endTime: format(end, 'HH:mm'),
-      has_stamp: ev.has_stamp,
-      location_name: ev.location_name,
-      location_maps_url: ev.location_maps_url,
-      wild_iv_cp: ev.wild_iv_cp != null ? String(ev.wild_iv_cp) : '',
-      research_iv_cp: ev.research_iv_cp != null ? String(ev.research_iv_cp) : '',
-      researchTasks: (ev.special_research_tasks ?? []).join('\n'),
-    })
-    setImageName('Imagen actual')
-    setEditingId(ev.id)
-    setShowForm(true)
-  }
-
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -385,16 +363,6 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
       alert('No se pudo guardar el evento. ¿Ejecutaste la migración SQL en Supabase?')
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este evento?')) return
-    try {
-      await deleteEvent(id)
-      if (detailEvent?.id === id) setDetailEvent(null)
-    } catch {
-      alert('No se pudo eliminar el evento.')
     }
   }
 
