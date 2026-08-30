@@ -60,6 +60,28 @@ const EventAnnouncementOverlay = lazy(() =>
 
 type View = 'main' | 'roulette'
 
+/** Los ganadores recientes pierden un 90% de peso para dar sitio a los nuevos. */
+const DEFAULT_PENALTY_PERCENT = 90
+const PENALTY_DEFAULTS_KEY = 'penaltyDefaultsVersion'
+const PENALTY_DEFAULTS_VERSION = '2'
+
+/**
+ * Reaplica el valor por defecto una sola vez, para que el ajuste llegue también
+ * a quienes ya tenían guardado el porcentaje anterior.
+ */
+function readPenaltyPercent(): number {
+  try {
+    if (localStorage.getItem(PENALTY_DEFAULTS_KEY) !== PENALTY_DEFAULTS_VERSION) {
+      localStorage.setItem(PENALTY_DEFAULTS_KEY, PENALTY_DEFAULTS_VERSION)
+      localStorage.setItem('penaltyPercent', String(DEFAULT_PENALTY_PERCENT))
+      return DEFAULT_PENALTY_PERCENT
+    }
+    return Number(localStorage.getItem('penaltyPercent')) || DEFAULT_PENALTY_PERCENT
+  } catch {
+    return DEFAULT_PENALTY_PERCENT
+  }
+}
+
 export default function App() {
   const [activeRouletteCode, setActiveRouletteCode] = useState(() => {
     if (typeof window === 'undefined') return DEFAULT_ROULETTE_CODE
@@ -110,7 +132,7 @@ export default function App() {
   const [editingBannerId, setEditingBannerId] = useState<string | null>(null)
 
   const [penaltyMonths, setPenaltyMonths] = useState(() => Number(localStorage.getItem('penaltyMonths')) || 2)
-  const [penaltyPercent, setPenaltyPercent] = useState(() => Number(localStorage.getItem('penaltyPercent')) || 70)
+  const [penaltyPercent, setPenaltyPercent] = useState(readPenaltyPercent)
 
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => loadAdminSession())
   const isAdmin = Boolean(adminSession)

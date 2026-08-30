@@ -194,7 +194,7 @@ export function useParticipants(
   /** false cuando la ruleta gira (o se recibió el giro). */
   const [showWaitingAnnouncement, setShowWaitingAnnouncement] = useState(true)
 
-  const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 70 })
+  const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 90 })
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const refetchTimerRef = useRef<number | null>(null)
   const loadWinnerPrizeCodesRef = useRef(loadWinnerPrizeCodes)

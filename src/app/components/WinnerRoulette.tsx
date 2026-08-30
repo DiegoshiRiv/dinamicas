@@ -1242,16 +1242,18 @@ export function WinnerRoulette({
                   <RefreshCw className={`w-4 h-4 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
                   <span>{isSyncing ? 'ACTUALIZANDO…' : 'ACTUALIZAR LISTA'}</span>
                 </Button>
-                <Button
-                  onClick={() => setConfirmResetOpen(true)}
-                  disabled={isSpinning}
-                  variant="outline"
-                  className="bg-white hover:bg-[#f7f9ff] text-[#5b6483] font-bold rounded-xl border border-[#dce3f6] px-3 h-10 flex items-center gap-1.5 text-[10px] sm:text-xs"
-                  title="Devuelve a los ganadores a la ruleta (no actualiza la lista)"
-                >
-                  <RotateCcw className="w-4 h-4 shrink-0" />
-                  <span>REINTEGRAR GANADORES</span>
-                </Button>
+                {canForceWinner && (
+                  <Button
+                    onClick={() => setConfirmResetOpen(true)}
+                    disabled={isSpinning}
+                    variant="outline"
+                    className="bg-white hover:bg-[#f7f9ff] text-[#5b6483] font-bold rounded-xl border border-[#dce3f6] px-3 h-10 flex items-center gap-1.5 text-[10px] sm:text-xs"
+                    title="Devuelve a los ganadores a la ruleta (no actualiza la lista)"
+                  >
+                    <RotateCcw className="w-4 h-4 shrink-0" />
+                    <span>REINTEGRAR GANADORES</span>
+                  </Button>
+                )}
                 {onDeleteRouletteCode && activeRouletteCode !== 'general' && (
                   <Button
                     onClick={() => setConfirmDeleteRouletteOpen(true)}
