@@ -171,8 +171,12 @@ type WheelPlayer = Participant & { weight: number }
 
 type AssuredWinnerEntry = {
   username: string
-  /** Giro absoluto (1-based) de esta sala en el que debe ganar. */
-  targetSpin: number
+  /**
+   * Giro absoluto (1-based) de esta sala en el que debe ganar, o null si no se
+   * programó ninguno. Sin giro asignado la entrada no fuerza nada y el sorteo
+   * se comporta con normalidad.
+   */
+  targetSpin: number | null
 }
 
 const ASSURED_WINNERS_LEGACY_KEY = 'dinamicas:assuredWinners'
@@ -202,13 +206,12 @@ function saveAssuredSpinCount(code: string, count: number) {
   }
 }
 
-function parseAssuredEntries(raw: unknown, spinCount: number): AssuredWinnerEntry[] {
+function parseAssuredEntries(raw: unknown): AssuredWinnerEntry[] {
   if (!Array.isArray(raw)) return []
-  const nextSpin = spinCount + 1
   const out: AssuredWinnerEntry[] = []
   for (const item of raw) {
     if (typeof item === 'string' && item.trim()) {
-      out.push({ username: item.trim(), targetSpin: nextSpin })
+      out.push({ username: item.trim(), targetSpin: null })
       continue
     }
     if (item && typeof item === 'object') {
@@ -220,34 +223,35 @@ function parseAssuredEntries(raw: unknown, spinCount: number): AssuredWinnerEntr
       const targetSpin =
         typeof targetRaw === 'number' && Number.isFinite(targetRaw) && targetRaw >= 1
           ? Math.floor(targetRaw)
-          : nextSpin
+          : null
       out.push({ username, targetSpin })
     }
   }
   return out
 }
 
-function loadAssuredWinners(code: string, spinCount: number): AssuredWinnerEntry[] {
+function loadAssuredWinners(code: string): AssuredWinnerEntry[] {
   try {
     const scoped = localStorage.getItem(ASSURED_WINNERS_KEY(code))
     const legacy = scoped == null ? localStorage.getItem(ASSURED_WINNERS_LEGACY_KEY) : null
     const parsed = JSON.parse(scoped ?? legacy ?? '[]')
-    const saved = parseAssuredEntries(parsed, spinCount)
+    const saved = parseAssuredEntries(parsed)
     const withoutDefault = saved.filter(
       (entry) => winnerKey(entry.username) !== winnerKey(DEFAULT_ASSURED_WINNER),
     )
     return [
       {
         username: DEFAULT_ASSURED_WINNER,
+        // Sin giro programado no fuerza nada: hay que asignárselo a mano.
         targetSpin:
           saved.find(
             (entry) => winnerKey(entry.username) === winnerKey(DEFAULT_ASSURED_WINNER),
-          )?.targetSpin ?? spinCount + 1,
+          )?.targetSpin ?? null,
       },
       ...withoutDefault,
     ]
   } catch {
-    return [{ username: DEFAULT_ASSURED_WINNER, targetSpin: spinCount + 1 }]
+    return [{ username: DEFAULT_ASSURED_WINNER, targetSpin: null }]
   }
 }
 
@@ -261,10 +265,18 @@ function loadAssuredCompleted(code: string): Set<string> {
 }
 
 function describeAssuredSchedule(entry: AssuredWinnerEntry, spinCount: number): string {
+  if (entry.targetSpin == null) return 'Sin giro asignado: el sorteo va normal'
   const remaining = entry.targetSpin - spinCount
   if (remaining <= 0) return `Pendiente: debería salir en este giro (giro ${entry.targetSpin})`
   if (remaining === 1) return `Pendiente: sale en el próximo giro (giro ${entry.targetSpin})`
   return `Pendiente: sale en ${remaining} giros (giro ${entry.targetSpin})`
+}
+
+/** Lee el campo "en cuántos giros": vacío significa no forzar. */
+function readSpinInput(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (trimmed === '') return null
+  return Math.max(1, Math.min(99, Number(trimmed) || 1))
 }
 
 function wheelRankForId(id: string): number {
@@ -358,20 +370,29 @@ export function WinnerRoulette({
   const [createRouletteOpen, setCreateRouletteOpen] = useState(false)
   const [createdRouletteCode, setCreatedRouletteCode] = useState<string | null>(null)
   const [forcedWinnerId, setForcedWinnerId] = useState<string | null>(null)
+  /**
+   * Nombre del elegido, aparte del id. Si esa persona se vuelve a registrar su
+   * fila cambia de id, y buscando solo por id el forzado fallaría en silencio
+   * dejando el resultado al azar.
+   */
+  const [forcedWinnerName, setForcedWinnerName] = useState<string | null>(null)
+  /** Aviso al master cuando un giro se cancela; los espectadores no lo ven. */
+  const [spinError, setSpinError] = useState<string | null>(null)
   const [forcePickerOpen, setForcePickerOpen] = useState(false)
   const [forceSearch, setForceSearch] = useState('')
   const [assuredSpinCount, setAssuredSpinCount] = useState(() =>
     loadAssuredSpinCount(activeRouletteCode),
   )
   const [assuredWinners, setAssuredWinners] = useState<AssuredWinnerEntry[]>(() =>
-    loadAssuredWinners(activeRouletteCode, loadAssuredSpinCount(activeRouletteCode)),
+    loadAssuredWinners(activeRouletteCode),
   )
   const [assuredCompleted, setAssuredCompleted] = useState<Set<string>>(
     () => loadAssuredCompleted(activeRouletteCode),
   )
   const [assuredWinnersOpen, setAssuredWinnersOpen] = useState(false)
   const [assuredWinnerInput, setAssuredWinnerInput] = useState('')
-  const [assuredWinInSpins, setAssuredWinInSpins] = useState(1)
+  /** Vacío = sin programar, la persona entra al sorteo como cualquier otra. */
+  const [assuredWinInSpins, setAssuredWinInSpins] = useState<number | ''>('')
   
   const qrCreateRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -412,18 +433,26 @@ export function WinnerRoulette({
     }
   }, [])
 
-  const forcedWinner = useMemo(
-    () => (forcedWinnerId ? activePlayers.find((p) => p.id === forcedWinnerId) ?? null : null),
-    [forcedWinnerId, activePlayers],
-  )
+  const forcedWinner = useMemo(() => {
+    if (!forcedWinnerId && !forcedWinnerName) return null
+    return (
+      activePlayers.find((p) => p.id === forcedWinnerId) ??
+      (forcedWinnerName
+        ? activePlayers.find((p) => winnerKey(p.username) === winnerKey(forcedWinnerName))
+        : undefined) ??
+      null
+    )
+  }, [forcedWinnerId, forcedWinnerName, activePlayers])
 
   useEffect(() => {
     setForcedWinnerId(null)
+    setForcedWinnerName(null)
+    setSpinError(null)
     setForcePickerOpen(false)
     setForceSearch('')
     const spinCount = loadAssuredSpinCount(activeRouletteCode)
     setAssuredSpinCount(spinCount)
-    setAssuredWinners(loadAssuredWinners(activeRouletteCode, spinCount))
+    setAssuredWinners(loadAssuredWinners(activeRouletteCode))
     setAssuredCompleted(loadAssuredCompleted(activeRouletteCode))
   }, [activeRouletteCode])
 
@@ -444,13 +473,15 @@ export function WinnerRoulette({
       setAssuredWinnerInput('')
       return
     }
-    const winIn = Math.max(1, Math.min(99, Math.floor(assuredWinInSpins) || 1))
+    // Sin número de giro la entrada queda solo anotada: no fuerza el sorteo.
+    const winIn =
+      assuredWinInSpins === '' ? null : Math.max(1, Math.min(99, Math.floor(assuredWinInSpins)))
     saveAssuredWinners([
       ...assuredWinners,
-      { username, targetSpin: assuredSpinCount + winIn },
+      { username, targetSpin: winIn == null ? null : assuredSpinCount + winIn },
     ])
     setAssuredWinnerInput('')
-    setAssuredWinInSpins(1)
+    setAssuredWinInSpins('')
   }
 
   const removeAssuredWinner = (username: string) => {
@@ -460,9 +491,9 @@ export function WinnerRoulette({
     )
   }
 
-  const updateAssuredTargetSpin = (username: string, winInSpins: number) => {
-    const winIn = Math.max(1, Math.min(99, Math.floor(winInSpins) || 1))
-    const targetSpin = assuredSpinCount + winIn
+  const updateAssuredTargetSpin = (username: string, winInSpins: number | null) => {
+    const targetSpin =
+      winInSpins == null ? null : assuredSpinCount + Math.max(1, Math.min(99, Math.floor(winInSpins)))
     saveAssuredWinners(
       assuredWinners.map((entry) =>
         winnerKey(entry.username) === winnerKey(username)
@@ -1013,28 +1044,27 @@ export function WinnerRoulette({
       }
       return { ...p, weight }
     })
-    const wheelPlayers: WheelPlayer[] = shufflePlayersForWheel(
-      freshActive.map((p) => ({ ...p, weight: 1 })),
-    )
-    // El canvas debe pintar exactamente esta lista mientras dure el giro.
-    setWheelSnapshot(freshActive)
-
     if (weighted.length === 0) {
       const canForceFromWheel =
         canForceWinner &&
-        Boolean(forcedWinnerId) &&
-        freshActive.some((p) => p.id === forcedWinnerId)
+        freshActive.some(
+          (p) =>
+            p.id === forcedWinnerId ||
+            (forcedWinnerName != null && winnerKey(p.username) === winnerKey(forcedWinnerName)),
+        )
       if (!canForceFromWheel) {
         console.warn('[dinamicas:roulette] spin aborted: no eligible players after sync', {
           total: freshList.length,
           active: freshActive.length,
           realtimeReady,
         })
+        setSpinError('No hay participantes elegibles en esta ruleta.')
         return
       }
     }
 
     setIsSpinning(true)
+    setSpinError(null)
     setWinner(null)
     setWinnerPrizeCode(null)
 
@@ -1057,11 +1087,32 @@ export function WinnerRoulette({
     let usedForcedWinner = false
     let usedAssuredWinner = false
 
-    if (canForceWinner && forcedWinnerId) {
-      const forced = freshActive.find((p) => p.id === forcedWinnerId)
+    if (canForceWinner && (forcedWinnerId || forcedWinnerName)) {
+      // Por id primero; si esa persona se reregistró su fila es otra, así que
+      // se reintenta por nombre antes de rendirse y dejarlo al azar.
+      const forced =
+        freshActive.find((p) => p.id === forcedWinnerId) ??
+        (forcedWinnerName
+          ? freshActive.find((p) => winnerKey(p.username) === winnerKey(forcedWinnerName))
+          : undefined) ??
+        (forcedWinnerName
+          ? activePlayers.find((p) => winnerKey(p.username) === winnerKey(forcedWinnerName))
+          : undefined)
       if (forced) {
         winningPlayer = forced
         usedForcedWinner = true
+      } else {
+        // Elegido por el master pero ya no está en la sala: mejor no girar que
+        // premiar a otra persona sin avisar.
+        console.warn('[dinamicas:roulette] forced winner no longer in room', {
+          forcedWinnerId,
+          forcedWinnerName,
+        })
+        setIsSpinning(false)
+        setSpinError(
+          `${forcedWinnerName ?? 'El elegido'} ya no está en la ruleta. Quita la selección o vuelve a elegir.`,
+        )
+        return
       }
     }
 
@@ -1069,6 +1120,8 @@ export function WinnerRoulette({
       const nextSpin = assuredSpinCount + 1
       const dueAssured = assuredWinners
         .map((entry) => {
+          // Sin giro programado no se fuerza: el sorteo sigue siendo al azar.
+          if (entry.targetSpin == null) return null
           const player = freshActive.find(
             (p) =>
               winnerKey(p.username) === winnerKey(entry.username) &&
@@ -1116,6 +1169,7 @@ export function WinnerRoulette({
     }
 
     setForcedWinnerId(null)
+    setForcedWinnerName(null)
     setForcePickerOpen(false)
     setForceSearch('')
 
@@ -1132,6 +1186,18 @@ export function WinnerRoulette({
         /* ignore */
       }
     }
+
+    // La rueda se arma con el ganador ya decidido. Si el elegido por el master
+    // no venía en la lista sincronizada se le añade una casilla: sin ella el
+    // puntero caería en otro nombre distinto al que se anuncia.
+    const wheelSource = freshActive.some((p) => p.id === winningPlayer.id)
+      ? freshActive
+      : [...freshActive, winningPlayer]
+    const wheelPlayers: WheelPlayer[] = shufflePlayersForWheel(
+      wheelSource.map((p) => ({ ...p, weight: 1 })),
+    )
+    // El canvas debe pintar exactamente esta lista mientras dure el giro.
+    setWheelSnapshot(wheelSource)
 
     const visualIndex = wheelPlayers.findIndex((p) => p.id === winningPlayer.id)
     const n = wheelPlayers.length || 1
@@ -1458,7 +1524,11 @@ export function WinnerRoulette({
                   {forcedWinner && (
                     <button
                       type="button"
-                      onClick={() => setForcedWinnerId(null)}
+                      onClick={() => {
+                        setForcedWinnerId(null)
+                        setForcedWinnerName(null)
+                        setSpinError(null)
+                      }}
                       disabled={isSpinning}
                       className="text-[10px] font-semibold text-red-500 underline"
                     >
@@ -1486,6 +1556,8 @@ export function WinnerRoulette({
                               type="button"
                               onClick={() => {
                                 setForcedWinnerId(p.id)
+                                setForcedWinnerName(p.username)
+                                setSpinError(null)
                                 setForcePickerOpen(false)
                                 setForceSearch('')
                               }}
@@ -1549,15 +1621,19 @@ export function WinnerRoulette({
                               min={1}
                               max={99}
                               value={assuredWinInSpins}
-                              onChange={(event) =>
-                                setAssuredWinInSpins(Math.max(1, Math.min(99, Number(event.target.value) || 1)))
-                              }
+                              placeholder="—"
+                              onChange={(event) => {
+                                const raw = event.target.value.trim()
+                                setAssuredWinInSpins(
+                                  raw === '' ? '' : Math.max(1, Math.min(99, Number(raw) || 1)),
+                                )
+                              }}
                               className="h-10 w-20 rounded-xl border-amber-200 bg-white text-sm text-center"
                               disabled={isSpinning}
-                              title="1 = próximo giro, 2 = al segundo, 5 = al quinto…"
+                              title="Vacío = sin forzar. 1 = próximo giro, 2 = al segundo…"
                             />
                             <span className="text-[10px] text-amber-800/70 font-medium">
-                              (1=próximo, 3=en 3 giros…)
+                              (vacío=normal, 1=próximo)
                             </span>
                             <Button
                               type="button"
@@ -1579,7 +1655,10 @@ export function WinnerRoulette({
                             const completed = Boolean(participant && assuredCompleted.has(participant.id))
                             const isDefault =
                               winnerKey(entry.username) === winnerKey(DEFAULT_ASSURED_WINNER)
-                            const remaining = Math.max(1, entry.targetSpin - assuredSpinCount)
+                            const remaining =
+                              entry.targetSpin == null
+                                ? ''
+                                : Math.max(1, entry.targetSpin - assuredSpinCount)
                             return (
                               <div key={winnerKey(entry.username)} className="px-3 py-2 space-y-1.5">
                                 <div className="flex items-center gap-2">
@@ -1620,20 +1699,18 @@ export function WinnerRoulette({
                                       min={1}
                                       max={99}
                                       defaultValue={remaining}
+                                      placeholder="—"
                                       key={`${entry.username}-${entry.targetSpin}-${assuredSpinCount}`}
                                       onBlur={(event) => {
-                                        const value = Math.max(1, Math.min(99, Number(event.target.value) || 1))
+                                        const value = readSpinInput(event.target.value)
                                         if (value !== remaining) updateAssuredTargetSpin(entry.username, value)
                                       }}
                                       onKeyDown={(event) => {
                                         if (event.key === 'Enter') {
                                           event.preventDefault()
-                                          const value = Math.max(
-                                            1,
-                                            Math.min(99, Number((event.target as HTMLInputElement).value) || 1),
-                                          )
-                                          updateAssuredTargetSpin(entry.username, value)
-                                          ;(event.target as HTMLInputElement).blur()
+                                          const input = event.target as HTMLInputElement
+                                          updateAssuredTargetSpin(entry.username, readSpinInput(input.value))
+                                          input.blur()
                                         }
                                       }}
                                       className="h-8 w-16 rounded-lg border-amber-200 bg-amber-50/50 text-xs text-center"
@@ -1674,6 +1751,9 @@ export function WinnerRoulette({
                 )}
               </Button>
             </div>
+          )}
+          {!isSpectator && spinError && (
+            <p className="text-center text-[11px] font-bold text-red-600 px-4 mt-2">{spinError}</p>
           )}
           {!isSpectator && (syncError || !realtimeReady) && (
             <p className="text-center text-[11px] font-semibold text-[#5b6483] px-4 mt-2">
