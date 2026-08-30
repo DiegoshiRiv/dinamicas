@@ -1,21 +1,11 @@
-/** Paleta vibrante para segmentos de ruleta (sin equipos). */
+/** Colores de la bandera, tomados tal cual con cuentagotas. */
 export const PARTICIPANT_PALETTE = [
-  '#E74C3C',
-  '#549BE7',
-  '#F7D548',
-  '#2ECC71',
-  '#9B59B6',
-  '#E67E22',
-  '#1ABC9C',
-  '#E91E63',
-  '#00BCD4',
-  '#8BC34A',
-  '#FF5722',
-  '#3F51B5',
-  '#CDDC39',
-  '#795548',
-  '#607D8B',
-  '#FF9800',
+  '#F00001',
+  '#FF7F00',
+  '#FFFF00',
+  '#007940',
+  '#4041FE',
+  '#A001C0',
 ] as const
 
 function hashSeed(input: string): number {
@@ -36,10 +26,11 @@ export function isHexColor(value: string): boolean {
   return /^#[0-9A-Fa-f]{6}$/.test(value)
 }
 
+/** Participantes de eventos con equipos: se llevan al tono equivalente. */
 const LEGACY_TEAM_COLORS: Record<string, string> = {
-  blue: '#549BE7',
-  yellow: '#F7D548',
-  red: '#E74C3C',
+  blue: '#4041FE',
+  yellow: '#FFFF00',
+  red: '#F00001',
 }
 
 export function participantSliceColor(participant: { id: string; team?: string }): string {
