@@ -15,8 +15,6 @@ import { SponsorBannerCarousel } from '@/app/components/SponsorBannerCarousel'
 import type { Banner } from '@/hooks/useParticipants'
 import { useWhatsAppFollowers } from '@/app/hooks/useWhatsAppFollowers'
 import { eventLog } from '@/app/utils/eventLog'
-import { ScreenNameNotice } from '@/app/components/ScreenNameNotice'
-
 /**
  * Presupuesto para que el alta termine en segundo plano, con margen para los
  * reintentos del hook. La persona no espera: la confirmación es inmediata.
@@ -188,15 +186,13 @@ export function RegistrationForm({
         </div>
       ) : (
         <>
-      {isAdmin ? (
+      {isAdmin && (
         <p className="text-[13px] text-[#0d3b66]/85 text-center mt-2 mb-5 leading-relaxed px-1">
           Estás en modo admin, puedes añadir a cualquier persona.
         </p>
-      ) : (
-        <ScreenNameNotice className="mt-2 mb-5" />
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="mt-5 space-y-5">
         <div className="space-y-2">
           <label
             htmlFor="username"
@@ -244,8 +240,8 @@ export function RegistrationForm({
       </form>
 
       {!isAdmin && (
-        <section className="mt-8 pt-6 border-t border-[#0d3b66]/10 space-y-4">
-          <SponsorBannerCarousel banners={sponsorBanners} className="mb-4" />
+        <section className="mt-5 pt-4 border-t border-[#0d3b66]/10 space-y-4">
+          <SponsorBannerCarousel banners={sponsorBanners} className="mb-3" />
 
           <a
             href={CAMPFIRE_JOIN_URL}
