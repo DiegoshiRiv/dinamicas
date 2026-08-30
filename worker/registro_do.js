@@ -1,69 +1,70 @@
+const REGISTRATIONS_PATH = '/registrations'
+
+function json(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
 export class RegistroDO {
-    registrations: any[] = []
-  
-    constructor(private state: DurableObjectState) {
-      this.state = state
-    }
-  
-    async fetch(request: Request) {
-      const url = new URL(request.url)
-  
-      // Cargar estado guardado si existe (para persistencia)
-      await this.loadState()
-  
-      if (request.method === 'GET' && url.pathname === '/api/registrations') {
-        return new Response(JSON.stringify(this.registrations), {
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
-  
-      if (request.method === 'POST' && url.pathname === '/api/registrations') {
-        try {
-          const data = await request.json()
-          if (!data.username || !data.team) {
-            return new Response('Faltan datos', { status: 400 })
-          }
-  
-          // Validar duplicados
-          if (this.registrations.find(r => r.username.toLowerCase() === data.username.toLowerCase())) {
-            return new Response('Usuario ya registrado', { status: 409 })
-          }
-  
-          this.registrations.push({
-            id: Date.now().toString(),
-            username: data.username.trim(),
-            team: data.team,
-            status: 'active',
-            registeredAt: new Date().toISOString(),
-          })
-  
-          // Guardar el estado persistente
-          await this.saveState()
-  
-          return new Response(JSON.stringify(this.registrations), {
-            headers: { 'Content-Type': 'application/json' },
-          })
-        } catch {
-          return new Response('Error en datos', { status: 400 })
-        }
-      }
-  
+  constructor(state, env) {
+    this.state = state
+    this.env = env
+    this.registrations = null
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url)
+    if (url.pathname !== REGISTRATIONS_PATH) {
       return new Response('No encontrado', { status: 404 })
     }
-  
-    async loadState() {
-      try {
-        const stored = await this.state.storage.get<string>('registrations')
-        if (stored) {
-          this.registrations = JSON.parse(stored)
-        }
-      } catch {
-        this.registrations = []
-      }
+
+    const registrations = await this.load()
+
+    if (request.method === 'GET') {
+      return json(registrations)
     }
-  
-    async saveState() {
-      await this.state.storage.put('registrations', JSON.stringify(this.registrations))
+
+    if (request.method !== 'POST') {
+      return new Response('Método no permitido', { status: 405 })
     }
+
+    let data
+    try {
+      data = await request.json()
+    } catch {
+      return json({ error: 'Cuerpo inválido' }, 400)
+    }
+
+    const username = typeof data?.username === 'string' ? data.username.trim() : ''
+    if (!username) {
+      return json({ error: 'Falta el nombre de usuario' }, 400)
+    }
+
+    const key = username.toLowerCase()
+    const existing = registrations.find((r) => r.username.toLowerCase() === key)
+    if (existing) {
+      // Idempotente: reintentos y doble toque no deben fallar.
+      return json(existing, 200)
+    }
+
+    const row = {
+      id: crypto.randomUUID(),
+      username,
+      status: 'active',
+      registeredAt: new Date().toISOString(),
+    }
+    registrations.push(row)
+    await this.state.storage.put('registrations', registrations)
+
+    return json(row, 201)
   }
-  
+
+  async load() {
+    if (this.registrations) return this.registrations
+    const stored = await this.state.storage.get('registrations')
+    this.registrations = Array.isArray(stored) ? stored : []
+    return this.registrations
+  }
+}
