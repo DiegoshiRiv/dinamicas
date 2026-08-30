@@ -23,7 +23,7 @@ import uniteLogo from '@/assets/juegos/unite.png'
 import tcgLogo from '@/assets/juegos/tcg.png'
 import championsLogo from '@/assets/juegos/champions.png'
 import mastersLogo from '@/assets/juegos/masters.png'
-import friendsLogo from '@/assets/fotos/misterhomiefoto.png'
+import { misterhomieLogo as friendsLogo } from '@/app/data/lightAssets'
 
 const GAMES = [
   { id: 'go', name: 'Pokémon GO', logo: goLogo },

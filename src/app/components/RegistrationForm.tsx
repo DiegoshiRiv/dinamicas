@@ -1,9 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { User, AlertCircle, CheckCircle2, X } from 'lucide-react'
 
-import moltres from '@/assets/iconos/moltres.png'
-import zapdos from '@/assets/iconos/zapdos.png'
-import articuno from '@/assets/iconos/articuno.png'
 import pokebolaImg from '@/assets/iconos/Pokebola.png'
 import campfireIcon from '@/assets/recursos/campfire.png'
 import wpIcon from '@/assets/iconos/w.png'
@@ -52,7 +49,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 interface RegistrationFormProps {
-  saveRegistration: (username: string, team: string, ip: string, isAdminBypass?: boolean) => Promise<void>
+  saveRegistration: (username: string, ip: string, isAdminBypass?: boolean) => Promise<void>
   /** Tras timeout: confirma por token de dispositivo. */
   verifyRegistration?: () => Promise<boolean>
   isAdmin?: boolean
@@ -62,42 +59,6 @@ interface RegistrationFormProps {
   onViewRoulette?: () => void
   onRegistered?: () => void
 }
-
-type Team = 'blue' | 'yellow' | 'red'
-
-const teams: {
-  value: Team
-  label: string
-  color: string
-  bgColor: string
-  borderColor: string
-  icon: string
-}[] = [
-  {
-    value: 'blue',
-    label: 'Sabiduría',
-    color: '#3b82f6',
-    bgColor: '#3b82f6',
-    borderColor: 'border-[#93bbfd]',
-    icon: articuno,
-  },
-  {
-    value: 'yellow',
-    label: 'Instinto',
-    color: '#eab308',
-    bgColor: '#eab308',
-    borderColor: 'border-[#fde047]',
-    icon: zapdos,
-  },
-  {
-    value: 'red',
-    label: 'Valor',
-    color: '#ef4444',
-    bgColor: '#ef4444',
-    borderColor: 'border-[#fca5a5]',
-    icon: moltres,
-  },
-]
 
 export function RegistrationForm({
   saveRegistration,
@@ -109,16 +70,13 @@ export function RegistrationForm({
   onRegistered,
 }: RegistrationFormProps) {
   const [username, setUsername] = useState('')
-  const [team, setTeam] = useState<Team | ''>('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
-  const [anteriorGifUrl, setAnteriorGifUrl] = useState<string | null>(null)
   const [exampleShotUrls, setExampleShotUrls] = useState<{ pogo?: string; camf?: string }>({})
 
   const inputRef = useRef<HTMLInputElement>(null)
-  const anteriorSectionRef = useRef<HTMLDivElement>(null)
   const whatsappFollowers = useWhatsAppFollowers()
   const submittingRef = useRef(false)
   const [registeredAs, setRegisteredAs] = useState('')
@@ -126,24 +84,6 @@ export function RegistrationForm({
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
-
-  useEffect(() => {
-    if (isAdmin) return
-    const el = anteriorSectionRef.current
-    if (!el) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          void import('@/assets/pokemon gif/anterior.gif').then((mod) => setAnteriorGifUrl(mod.default))
-          observer.disconnect()
-        }
-      },
-      { rootMargin: '120px' },
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [isAdmin])
 
   useEffect(() => {
     if (!showExamples) return
@@ -168,7 +108,6 @@ export function RegistrationForm({
     setSuccess(false)
 
     if (!username.trim()) return setError('Escribe tu nombre de usuario')
-    if (!team) return setError('Selecciona un equipo')
 
     const typedUsername = username.trim()
     submittingRef.current = true
@@ -187,15 +126,14 @@ export function RegistrationForm({
       setRegisteredAs(typedUsername)
       setSuccess(true)
       setUsername('')
-      setTeam('')
       onRegistered?.()
       setTimeout(() => inputRef.current?.focus(), 100)
     }
 
     try {
       const save = isAdmin
-        ? saveRegistration(typedUsername, team, 'admin', true)
-        : saveRegistration(typedUsername, team, '', false)
+        ? saveRegistration(typedUsername, 'admin', true)
+        : saveRegistration(typedUsername, '', false)
 
       await withTimeout(
         save,
@@ -313,75 +251,6 @@ export function RegistrationForm({
           </div>
         </div>
 
-        <div className="space-y-3">
-          <p className="flex items-center justify-center gap-2 text-sm font-bold text-[#0d3b66]">
-            <span className="text-gray-300 font-normal">—</span>
-            <span
-              className="w-4 h-4 inline-block"
-              style={{
-                backgroundColor: 'currentColor',
-                WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
-                mask: `url(${pokebolaImg}) center / contain no-repeat`,
-              }}
-              aria-hidden
-            />
-            <span>{isAdmin ? 'Selecciona su equipo' : 'Selecciona tu equipo'}</span>
-            <span
-              className="w-4 h-4 inline-block"
-              style={{
-                backgroundColor: 'currentColor',
-                WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
-                mask: `url(${pokebolaImg}) center / contain no-repeat`,
-              }}
-              aria-hidden
-            />
-            <span className="text-gray-300 font-normal">—</span>
-          </p>
-
-          <div className="grid grid-cols-3 gap-3">
-            {teams.map((t) => {
-              const selected = team === t.value
-              return (
-                <button
-                  type="button"
-                  key={t.value}
-                  onClick={() => setTeam(t.value)}
-                  disabled={loading}
-                  aria-pressed={selected}
-                  className={`
-                    rounded-[15px] border-2 flex flex-col items-center justify-center gap-1.5 py-3 px-1
-                    transition-all duration-200
-                    ${selected
-                      ? 'scale-[1.04] shadow-lg'
-                      : `${t.borderColor} bg-white hover:bg-gray-50/80`}
-                  `}
-                  style={selected ? { backgroundColor: t.bgColor, borderColor: t.bgColor } : undefined}
-                >
-                  <div
-                    className={`w-12 h-12 sm:w-[3.25rem] sm:h-[3.25rem] transition-transform duration-200 ${
-                      selected ? 'scale-110' : ''
-                    }`}
-                    style={{
-                      backgroundColor: selected ? '#ffffff' : t.color,
-                      WebkitMask: `url(${t.icon}) center / contain no-repeat`,
-                      mask: `url(${t.icon}) center / contain no-repeat`,
-                    }}
-                    aria-hidden
-                  />
-                  <span
-                    className={`text-[11px] font-black uppercase tracking-wide transition-colors duration-200 ${
-                      selected ? 'text-white' : ''
-                    }`}
-                    style={!selected ? { color: t.color } : undefined}
-                  >
-                    {t.label}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
         {error && (
           <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-700 text-sm font-medium">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -430,25 +299,20 @@ export function RegistrationForm({
             <AnimatedCounter value={CAMPFIRE_MEMBER_COUNT} />
           </p>
 
-          <div
-            ref={anteriorSectionRef}
-            className="flex items-center gap-3 rounded-[15px] border border-[#0d3b66]/10 bg-white p-3.5 shadow-sm"
-          >
+          <div className="flex items-center gap-3 rounded-[15px] border border-[#0d3b66]/10 bg-white p-3.5 shadow-sm">
             <p className="flex-1 text-[13px] font-bold text-[#0d3b66] leading-snug">
               En la quedada anterior se reunieron{' '}
               <AnimatedCounter value={PREVIOUS_MEETUP_TRAINERS} /> entrenadores
             </p>
-            <div className="w-20 h-20 shrink-0 flex items-center justify-center overflow-hidden rounded-xl bg-[#0d3b66]/5">
-              {anteriorGifUrl ? (
-                <img
-                  src={anteriorGifUrl}
-                  alt="Pokémon de la quedada anterior"
-                  className="max-w-full max-h-full w-full h-full object-contain"
-                  decoding="async"
-                />
-              ) : (
-                <div className="w-full h-full" aria-hidden />
-              )}
+            <div className="w-20 h-20 shrink-0 flex items-center justify-center overflow-hidden rounded-xl bg-[#0d3b66]/5 p-3">
+              <img
+                src={pokebolaImg}
+                alt=""
+                className="max-w-full max-h-full object-contain"
+                decoding="async"
+                loading="lazy"
+                aria-hidden
+              />
             </div>
           </div>
 

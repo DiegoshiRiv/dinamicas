@@ -13,17 +13,3 @@ export function formatTimeRangeLabel(
 ): string {
   return `${formatClockLabel(startHour, startMinute)} a ${formatClockLabel(endHour, endMinute)}`
 }
-
-/** Día de la Comunidad Frigibax — horarios locales. */
-export const CD_FRIGIBAX_HOURS = {
-  event: formatTimeRangeLabel(14, 0, 17, 0),
-  lure: formatTimeRangeLabel(14, 0, 21, 0),
-  reunion: formatTimeRangeLabel(14, 0, 17, 0),
-} as const
-
-/** Día de la Comunidad Sobble — julio 2026. */
-export const CD_SOBBLE_HOURS = {
-  event: formatTimeRangeLabel(14, 0, 17, 0),
-  lure: formatTimeRangeLabel(14, 0, 21, 0),
-  reunion: formatTimeRangeLabel(14, 0, 17, 0),
-} as const

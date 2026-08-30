@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/app/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/app/components/ui/dropdown-menu'
 import type { Participant, BannedUser, RecentWinner, WinnerPrizeCode } from '@/hooks/useParticipants'
-import pokebolaImg from '@/assets/iconos/Pokebola.png'
+import { participantSliceColor } from '@/app/utils/participantColor'
 
 const PARTICIPANT_ROW_HEIGHT = 56
 const PARTICIPANT_LIST_HEIGHT = 430
@@ -77,7 +77,6 @@ export function AdminPanel({
 }: AdminPanelProps) {
   
   // Estados para Participantes
-  const [filterTeam, setFilterTeam] = useState<'all' | 'blue' | 'yellow' | 'red'>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearch = useDebouncedValue(searchTerm, 200)
   const [listScrollTop, setListScrollTop] = useState(0)
@@ -108,11 +107,10 @@ export function AdminPanel({
     const term = debouncedSearch.toLowerCase()
     return participants.filter((p) => {
       if (p.status !== 'active') return false
-      const matchesTeam = filterTeam === 'all' || p.team === filterTeam
       const matchesSearch = !term || p.username.toLowerCase().includes(term)
-      return matchesTeam && matchesSearch
+      return matchesSearch
     })
-  }, [participants, filterTeam, debouncedSearch])
+  }, [participants, debouncedSearch])
 
   const virtualRange = useMemo(() => {
     const visibleCount = Math.ceil(PARTICIPANT_LIST_HEIGHT / PARTICIPANT_ROW_HEIGHT) + VIRTUAL_OVERSCAN
@@ -271,84 +269,6 @@ export function AdminPanel({
         {/* PESTAÑA PARTICIPANTES */}
         <TabsContent value="participants" className="mt-0 space-y-4 outline-none">
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-[#e8ecf5] space-y-4">
-            <div className="rounded-xl bg-[#f8faff] border border-[#e7ebf5] p-4">
-              <h3 className="text-xl font-black text-[#1f2a44]">Filtrar por equipo</h3>
-              <div className="mt-3 grid grid-cols-3 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setFilterTeam('blue')}
-                  className={`h-9 min-w-0 rounded-full border px-0.5 text-[9px] font-bold flex items-center justify-center gap-0.5 tracking-tight transition-colors ${
-                    filterTeam === 'blue'
-                      ? 'bg-[#eff5ff] border-[#bdd1ff] text-[#2c5ec0]'
-                      : 'bg-white border-[#d7ddea] text-[#4f5674]'
-                  }`}
-                >
-                  <span
-                    className="w-2.5 h-2.5 shrink-0"
-                    style={{
-                      backgroundColor: '#3b82f6',
-                      WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
-                      mask: `url(${pokebolaImg}) center / contain no-repeat`,
-                    }}
-                    aria-hidden
-                  />
-                  Azul
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterTeam('yellow')}
-                  className={`h-9 min-w-0 rounded-full border px-0.5 text-[9px] font-bold flex items-center justify-center gap-0.5 tracking-tight transition-colors ${
-                    filterTeam === 'yellow'
-                      ? 'bg-[#fff9ec] border-[#f6deac] text-[#8f6a08]'
-                      : 'bg-white border-[#d7ddea] text-[#4f5674]'
-                  }`}
-                >
-                  <span
-                    className="w-2.5 h-2.5 shrink-0"
-                    style={{
-                      backgroundColor: '#f6c229',
-                      WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
-                      mask: `url(${pokebolaImg}) center / contain no-repeat`,
-                    }}
-                    aria-hidden
-                  />
-                  <span className="min-[360px]:hidden">Amar.</span>
-                  <span className="hidden min-[360px]:inline">Amarillo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterTeam('red')}
-                  className={`h-9 min-w-0 rounded-full border px-0.5 text-[9px] font-bold flex items-center justify-center gap-0.5 tracking-tight transition-colors ${
-                    filterTeam === 'red'
-                      ? 'bg-[#fff0f2] border-[#ffc9cf] text-[#bb2e3a]'
-                      : 'bg-white border-[#d7ddea] text-[#4f5674]'
-                  }`}
-                >
-                  <span
-                    className="w-2.5 h-2.5 shrink-0"
-                    style={{
-                      backgroundColor: '#ff4757',
-                      WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
-                      mask: `url(${pokebolaImg}) center / contain no-repeat`,
-                    }}
-                    aria-hidden
-                  />
-                  Rojo
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFilterTeam('all')}
-                className={`mt-3 w-full h-10 rounded-full border font-bold text-sm transition-colors ${
-                  filterTeam === 'all'
-                    ? 'bg-[#24324e] border-[#24324e] text-white'
-                    : 'bg-white border-[#d7ddea] text-[#4f5674]'
-                }`}
-              >
-                Ver todos
-              </button>
-            </div>
-
             <div className="flex items-center gap-2 rounded-xl bg-white border border-[#dde3ef] p-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7a819c] w-5 h-5" />
@@ -403,20 +323,10 @@ export function AdminPanel({
                           className="w-5 h-5 rounded-md border-[#cfd5ee] data-[state=checked]:bg-[#20b7ab] data-[state=checked]:border-[#20b7ab]"
                         />
                         <div
-                          className="w-7 h-7 shrink-0"
-                          style={{
-                            backgroundColor:
-                              p.team === 'blue'
-                                ? '#4f88f8'
-                                : p.team === 'yellow'
-                                  ? '#f2bd2f'
-                                  : '#ef5666',
-                            WebkitMask: `url(${pokebolaImg}) center / contain no-repeat`,
-                            mask: `url(${pokebolaImg}) center / contain no-repeat`,
-                          }}
+                          className="w-7 h-7 shrink-0 rounded-full border border-white shadow-sm"
+                          style={{ backgroundColor: participantSliceColor(p) }}
                           aria-hidden
-                        >
-                        </div>
+                        />
                         <span className="font-bold text-[#1f2a44] text-sm leading-tight whitespace-nowrap truncate">{p.username}</span>
                       </div>
                       <DropdownMenu>

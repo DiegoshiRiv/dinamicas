@@ -6,7 +6,7 @@ import { Input } from '@/app/components/ui/input'
 import type { Participant, RecentWinner, IncomingSpin } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 import { QRCodeCanvas } from 'qrcode.react'
-import { buildRouletteRegistrationUrl, encodeIpForRoulette, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
+import { buildRouletteRegistrationUrl, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 
 import { normalizeUsername, isVenaderoBlacklisted } from '@/app/utils/UsuariosToxicosBlackList'
 import { telemetry } from '@/app/utils/telemetry'
@@ -14,10 +14,12 @@ import {
   encodeRegistrationToken,
   getOrCreateDeviceToken,
 } from '@/app/utils/registrationToken'
+import {
+  participantSliceColor,
+  textColorOnSlice,
+  winnerAccentColors,
+} from '@/app/utils/participantColor'
 
-import moltres from '@/assets/iconos/moltres.png'
-import zapdos from '@/assets/iconos/zapdos.png'
-import articuno from '@/assets/iconos/articuno.png'
 import pokeBallIcon from '@/assets/iconos/Poké_Ball_icon.svg.png'
 
 function trackIp(ipSet: Set<string>, ip?: string) {
@@ -62,14 +64,6 @@ function shadeColor(hex: string, amount: number): string {
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`
 }
 
-function teamBaseColor(team: string): string {
-  switch (team) {
-    case 'blue': return '#549BE7'
-    case 'yellow': return '#F7D548'
-    default: return '#E74C3C'
-  }
-}
-
 function drawPokeball(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
   ctx.save()
   ctx.beginPath()
@@ -109,13 +103,8 @@ function drawPokeball(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: 
   ctx.restore()
 }
 
-function fireWinnerConfetti(team: string) {
-  const colors =
-    team === 'blue'
-      ? ['#549BE7', '#93C5FD', '#ffffff', '#ee1515']
-      : team === 'yellow'
-        ? ['#F7D548', '#FDE047', '#ffffff', '#ee1515']
-        : ['#E74C3C', '#FCA5A5', '#ffffff', '#F7D548']
+function fireWinnerConfetti(color: string) {
+  const colors = [color, shadeColor(color, 45), '#ffffff', '#ee1515']
 
   confetti({
     particleCount: 120,
@@ -183,7 +172,6 @@ type AssuredWinnerEntry = {
   targetSpin: number
 }
 
-const LAST_WIN_TEAM_KEY = (code: string) => `dinamicas:lastWinTeam:${sanitizeRouletteCode(code)}`
 const ASSURED_WINNERS_LEGACY_KEY = 'dinamicas:assuredWinners'
 const ASSURED_WINNERS_KEY = (code: string) =>
   `dinamicas:assuredWinners:${sanitizeRouletteCode(code)}`
@@ -301,39 +289,6 @@ function shufflePlayersForWheel<T extends Pick<Participant, 'id'>>(players: T[])
   }
   return arranged
 }
-
-function readLastWinTeam(code: string): Participant['team'] | null {
-  try {
-    const raw = sessionStorage.getItem(LAST_WIN_TEAM_KEY(code))
-    if (raw === 'blue' || raw === 'yellow' || raw === 'red') return raw
-  } catch {
-    /* ignore */
-  }
-  return null
-}
-
-function writeLastWinTeam(code: string, team: Participant['team']) {
-  try {
-    sessionStorage.setItem(LAST_WIN_TEAM_KEY(code), team)
-  } catch {
-    /* ignore */
-  }
-}
-
-/** Baja mucho el peso del equipo que acaba de ganar, si hay gente de otros equipos. */
-function applyTeamVariety<T extends { team: Participant['team']; secretWeight: number }>(
-  players: T[],
-  lastTeam: Participant['team'] | null,
-): T[] {
-  if (!lastTeam) return players
-  const hasOtherTeam = players.some((p) => p.team !== lastTeam && p.secretWeight > 0)
-  if (!hasOtherTeam) return players
-  // ~6% del peso original → casi nunca repite equipo; si solo queda ese equipo, no se aplica.
-  return players.map((p) =>
-    p.team === lastTeam ? { ...p, secretWeight: p.secretWeight * 0.06 } : p,
-  )
-}
-
 
 /** Ruleta con segmentos iguales (espectador): ángulo para que el puntero caiga en el ganador */
 function rotationForEqualWheel(
@@ -661,7 +616,7 @@ export function WinnerRoulette({
         if (sliceAngle === 0) return
         const endAngle = currentAngle + sliceAngle
         const isSelf = Boolean(selfPlayerId && player.id === selfPlayerId)
-        const base = teamBaseColor(player.team)
+        const base = participantSliceColor(player)
         let altShade = idx % 2 === 0 ? 0 : -18
         if (selfPlayerId && !isSelf) altShade -= 28
         if (isSelf) altShade += 28
@@ -738,9 +693,7 @@ export function WinnerRoulette({
           ? selfFlashActive
             ? '#ffffff'
             : '#052e16'
-          : player.team === 'yellow'
-            ? '#1f2937'
-            : '#ffffff'
+          : textColorOnSlice(base)
         ctx.shadowColor = isSelf
           ? selfFlashActive
             ? 'rgba(0,0,0,0.45)'
@@ -854,7 +807,7 @@ export function WinnerRoulette({
         setIsSpinning(false)
         if (winningPlayer) {
           setWinner(winningPlayer)
-          fireWinnerConfetti(winningPlayer.team)
+          fireWinnerConfetti(participantSliceColor(winningPlayer))
         }
       }, SPIN_DURATION_MS)
     }
@@ -1019,17 +972,14 @@ export function WinnerRoulette({
       if (isNerfed(p.username)) trackIp(nerfedIpsRef.current, p.ip_address)
     })
 
-    const secretPlayers = applyTeamVariety(
-      weighted.map((p) => {
-        let secretWeight = p.weight
-        const isIpNerfed = ipIsTracked(nerfedIpsRef.current, p.ip_address)
-        if (isNerfed(p.username) || isIpNerfed) {
-          secretWeight = p.weight * 0.01
-        }
-        return { ...p, secretWeight }
-      }),
-      readLastWinTeam(activeRouletteCode),
-    )
+    const secretPlayers = weighted.map((p) => {
+      let secretWeight = p.weight
+      const isIpNerfed = ipIsTracked(nerfedIpsRef.current, p.ip_address)
+      if (isNerfed(p.username) || isIpNerfed) {
+        secretWeight = p.weight * 0.01
+      }
+      return { ...p, secretWeight }
+    })
 
     const secretTotalWeight = secretPlayers.reduce((acc, p) => acc + p.secretWeight, 0)
 
@@ -1109,8 +1059,6 @@ export function WinnerRoulette({
       }
     }
 
-    writeLastWinTeam(activeRouletteCode, winningPlayer.team)
-
     const visualIndex = wheelPlayers.findIndex((p) => p.id === winningPlayer.id)
     const n = wheelPlayers.length || 1
     // Variación sutil dentro del segmento para que no siempre caiga en el centro exacto.
@@ -1138,18 +1086,12 @@ export function WinnerRoulette({
           void updateStatus(winningPlayer.id, 'winner')
         }
       }
-      fireWinnerConfetti(winningPlayer.team)
+      fireWinnerConfetti(participantSliceColor(winningPlayer))
     }, SPIN_DURATION_MS)
   }
 
-  const getTeamColors = (team: string) => {
-    switch (team) {
-      case 'blue': return { bg: '#EFF6FF', border: '#549BE7', text: '#2563EB', name: 'Sabiduría', icon: articuno }
-      case 'yellow': return { bg: '#FEFCE8', border: '#F7D548', text: '#CA8A04', name: 'Instinto', icon: zapdos }
-      case 'red': return { bg: '#FEF2F2', border: '#E74C3C', text: '#DC2626', name: 'Valor', icon: moltres }
-      default: return { bg: '#FFFFFF', border: '#0d3b66', text: '#0d3b66', name: '', icon: pokeBallIcon }
-    }
-  }
+  const winnerColor = winner ? participantSliceColor(winner) : '#0d3b66'
+  const winnerStyle = winnerAccentColors(winnerColor)
 
   const isMe = Boolean(
     winner &&
@@ -1424,9 +1366,11 @@ export function WinnerRoulette({
                               }`}
                             >
                               {p.username}
-                              <span className="ml-2 text-[10px] font-semibold text-[#94a3b8] uppercase">
-                                {p.team === 'blue' ? 'Sabiduría' : p.team === 'yellow' ? 'Instinto' : 'Valor'}
-                              </span>
+                              <span
+                                className="ml-2 inline-block w-2.5 h-2.5 rounded-full align-middle"
+                                style={{ backgroundColor: participantSliceColor(p) }}
+                                aria-hidden
+                              />
                             </button>
                           ))
                         )}
@@ -1625,7 +1569,7 @@ export function WinnerRoulette({
             <div
               className="absolute inset-0 winner-rays pointer-events-none opacity-30"
               style={{
-                background: `conic-gradient(from 0deg, transparent, ${getTeamColors(winner.team).border}33, transparent, ${getTeamColors(winner.team).border}22, transparent)`,
+                background: `conic-gradient(from 0deg, transparent, ${winnerStyle.border}33, transparent, ${winnerStyle.border}22, transparent)`,
               }}
             />
 
@@ -1637,7 +1581,7 @@ export function WinnerRoulette({
                   top: `${18 + i * 22}%`,
                   left: i === 0 ? '12%' : i === 1 ? '82%' : '50%',
                   animationDelay: `${i * 0.4}s`,
-                  color: getTeamColors(winner.team).border,
+                  color: winnerStyle.border,
                 }}
               >
                 {star}
@@ -1649,19 +1593,15 @@ export function WinnerRoulette({
                 <div
                   className="p-5 rounded-full shadow-lg border-[3px] winner-icon-bounce"
                   style={{
-                    backgroundColor: getTeamColors(winner.team).bg,
-                    borderColor: getTeamColors(winner.team).border,
-                    boxShadow: `0 0 30px ${getTeamColors(winner.team).border}55`,
+                    backgroundColor: winnerStyle.bg,
+                    borderColor: winnerStyle.border,
+                    boxShadow: `0 0 30px ${winnerStyle.border}55`,
                   }}
                 >
-                  <div
-                    className="w-16 h-16 drop-shadow-md"
-                    style={{
-                      backgroundColor: getTeamColors(winner.team).border,
-                      WebkitMask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat`,
-                      mask: `url(${getTeamColors(winner.team).icon}) center/contain no-repeat`,
-                    }}
-                    title={`Equipo ${getTeamColors(winner.team).name}`}
+                  <img
+                    src={pokeBallIcon}
+                    alt=""
+                    className="w-16 h-16 drop-shadow-md object-contain"
                   />
                 </div>
               </div>

@@ -20,6 +20,7 @@ import {
   encodeUsernameKey,
   getOrCreateDeviceToken,
 } from '@/app/utils/registrationToken'
+import { randomRegistrationColor } from '@/app/utils/participantColor'
 
 const PARTICIPANT_COLUMNS =
   'id,username,team,status,ip_address,registration_token,username_key,device_fingerprint'
@@ -37,7 +38,8 @@ function encodeDeviceRoomKey(deviceToken: string, rouletteCode: string): string 
 export interface Participant {
   id: string
   username: string
-  team: 'blue' | 'yellow' | 'red'
+  /** Color hex del segmento en ruleta (legacy: blue/yellow/red). */
+  team: string
   status: 'active' | 'winner' | 'discarded'
   ip_address?: string
   registration_token?: string | null
@@ -627,7 +629,6 @@ export function useParticipants(
 
   const addParticipant = async (
     username: string,
-    team: string,
     _ip: string,
     isAdminBypass: boolean = false,
   ) => {
@@ -635,6 +636,7 @@ export function useParticipants(
     const deviceToken = isAdminBypass ? `admin-${Date.now()}` : getOrCreateDeviceToken()
     const roomToken = encodeRegistrationToken(deviceToken, rouletteCode)
     const usernameKey = encodeUsernameKey(username, rouletteCode)
+    const team = randomRegistrationColor(roomToken)
     // Sin IP pública: usamos d:{token} para pertenencia a sala (UNIQUE de IP ya no aplica).
     const finalIp = encodeDeviceRoomKey(deviceToken, rouletteCode)
 
@@ -747,7 +749,7 @@ export function useParticipants(
     const row: Participant = (insertedRow as Participant | null) ?? {
       id: makeTempId(),
       username,
-      team: team as Participant['team'],
+      team,
       status: 'active',
       ip_address: finalIp,
       registration_token: roomToken,

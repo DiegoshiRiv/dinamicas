@@ -21,7 +21,10 @@ export default defineConfig({
   build: {
     target: 'es2020',
     cssCodeSplit: true,
+    cssMinify: true,
+    minify: 'esbuild',
     assetsInlineLimit: 2048,
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -33,6 +36,8 @@ export default defineConfig({
           if (id.includes('recharts')) return 'vendor-charts'
           if (id.includes('motion')) return 'vendor-motion'
           if (id.includes('lucide-react')) return 'vendor-icons'
+          if (id.includes('date-fns')) return 'vendor-dates'
+          if (id.includes('canvas-confetti')) return 'vendor-confetti'
           return 'vendor'
         },
       },

@@ -5,36 +5,14 @@ import { Swords, Eye, Trophy, Plus, User, Trash2, AlertCircle, Check, AlertTrian
 import { useTournaments, Pokemon, TournamentPlayer } from '@/hooks/useTournaments'
 import pokebola from '@/assets/iconos/Pokebola.png'
 
-import typeNormal from '@/assets/pokemon tipos/normal.png'
-import typeLucha from '@/assets/pokemon tipos/lucha.png'
-import typeVolador from '@/assets/pokemon tipos/volador.png'
-import typeVeneno from '@/assets/pokemon tipos/veneno.png'
-import typeTierra from '@/assets/pokemon tipos/tierra.png'
-import typeRoca from '@/assets/pokemon tipos/roca.png'
-import typeBicho from '@/assets/pokemon tipos/bicho.png'
-import typeFantasma from '@/assets/pokemon tipos/fantasma.png'
-import typeAcero from '@/assets/pokemon tipos/acero.png'
-import typeFuego from '@/assets/pokemon tipos/fuego.png'
-import typeAgua from '@/assets/pokemon tipos/agua.png'
-import typePlanta from '@/assets/pokemon tipos/planta.png'
-import typeElectrico from '@/assets/pokemon tipos/electrico.png'
-import typePsiquico from '@/assets/pokemon tipos/psiquico.png'
-import typeHielo from '@/assets/pokemon tipos/hielo.png'
-import typeDragon from '@/assets/pokemon tipos/dragon.png'
-import typeSiniestro from '@/assets/pokemon tipos/siniestro.png'
-import typeHada from '@/assets/pokemon tipos/hada.png'
+import { POKEMON_TYPES_LIST } from '@/app/data/pokemonTypes'
 
 import imgOscuro from '@/assets/iconos/oscuro.png'
 import imgPurificado from '@/assets/iconos/purificado.png'
 import campeonIcon from '@/assets/recursos/campeon.png'
 
-const POKEMON_TYPES = [
-  { name: 'Normal', icon: typeNormal }, { name: 'Fuego', icon: typeFuego }, { name: 'Agua', icon: typeAgua }, { name: 'Planta', icon: typePlanta },
-  { name: 'Eléctrico', icon: typeElectrico }, { name: 'Hielo', icon: typeHielo }, { name: 'Lucha', icon: typeLucha }, { name: 'Veneno', icon: typeVeneno },
-  { name: 'Tierra', icon: typeTierra }, { name: 'Volador', icon: typeVolador }, { name: 'Psíquico', icon: typePsiquico }, { name: 'Bicho', icon: typeBicho },
-  { name: 'Roca', icon: typeRoca }, { name: 'Fantasma', icon: typeFantasma }, { name: 'Dragón', icon: typeDragon }, { name: 'Siniestro', icon: typeSiniestro },
-  { name: 'Acero', icon: typeAcero }, { name: 'Hada', icon: typeHada }
-];
+const POKEMON_TYPES = POKEMON_TYPES_LIST
+const typeNormal = POKEMON_TYPES[0]?.icon ?? pokebola
 
 const REGIONAL_FORMS: Record<string, string[]> = {
   "Rattata": ["Alola"], "Raticate": ["Alola"], "Raichu": ["Alola"], "Sandshrew": ["Alola"], "Sandslash": ["Alola"], "Vulpix": ["Alola"], "Ninetales": ["Alola"], "Diglett": ["Alola"], "Dugtrio": ["Alola"], "Meowth": ["Alola", "Galar"], "Persian": ["Alola"], "Geodude": ["Alola"], "Graveler": ["Alola"], "Golem": ["Alola"], "Grimer": ["Alola"], "Muk": ["Alola"], "Exeggutor": ["Alola"], "Marowak": ["Alola"],

@@ -39,14 +39,9 @@ import {
   getCalendarMarkerGoEvents,
 } from '@/app/utils/eventDates'
 import { ACTIVE_POKEMON_GO_EVENTS } from '@/app/data/pokemonGoEvents'
-import { isViernesAmigosDay, VIERNES_AMIGOS } from '@/app/data/communitySchedule'
 import {
   bannerForCommunityEvent,
   bannerForGoEvent,
-  bannerForViernesAmigos,
-  bannersForFestGlobal,
-  festBannerPageIndex,
-  isFestGlobalDay,
   type EventBannerConfig,
 } from '@/app/data/eventBanners'
 import {
@@ -241,7 +236,6 @@ function dayHasEvents(
 ): boolean {
   return (
     (communityByDay.get(key)?.length ?? 0) > 0 ||
-    key === VIERNES_AMIGOS.date ||
     getCalendarMarkerGoEvents(goByDay.get(key) ?? []).length > 0 ||
     filterGoEventsForDay(ACTIVE_POKEMON_GO_EVENTS, key).length > 0
   )
@@ -294,16 +288,8 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
           bannerForCommunityEvent(ev, formatCommunitySchedule(ev.starts_at, ev.ends_at)),
         )
       }
-      if (isViernesAmigosDay(day)) {
-        banners.push(bannerForViernesAmigos())
-      }
       const goDayEvents = filterGoEventsForDay(ACTIVE_POKEMON_GO_EVENTS, key)
-      const hasFest = goDayEvents.some((ev) => ev.id === 'fest-global')
-      if (hasFest) {
-        banners.push(...bannersForFestGlobal())
-      }
       for (const ev of goDayEvents) {
-        if (ev.id === 'fest-global') continue
         banners.push(bannerForGoEvent(ev, formatGoEventSchedule(ev)))
       }
       return banners
@@ -319,7 +305,7 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
   const openInfographic = (day: Date) => {
     const key = dateToDayKey(day)
     if (!dayHasEvents(key, eventsByDay, goEventsByDay)) return
-    setInfographicPage(isFestGlobalDay(key) ? festBannerPageIndex(key) : 0)
+    setInfographicPage(0)
     setInfographicDay(day)
   }
 
@@ -631,7 +617,6 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
             const communityDayEvents = eventsByDay.get(key) ?? []
             const goMarkers = getCalendarMarkerGoEvents(goEventsByDay.get(key) ?? [])
             const hasCommunity = communityDayEvents.length > 0
-            const isViernes = key === VIERNES_AMIGOS.date
             const hasEvents = dayHasEvents(key, eventsByDay, goEventsByDay)
             const goStyle = getPokemonGoDayStyle(goMarkers)
             const festMarker = goMarkers.find((e) => e.id === 'fest-global')
@@ -661,7 +646,6 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
                   ${hasEvents && inMonth ? 'cursor-pointer hover:scale-[1.03] hover:shadow-md' : ''}
                   ${!hasEvents ? 'opacity-60' : ''}
                   ${hasCommunity && inMonth ? 'ring-2 ring-[#f97316] bg-orange-50/90' : ''}
-                  ${isViernes && inMonth && !hasCommunity ? 'ring-2 ring-[#2563eb] bg-[#e8f4fc]/60' : ''}
                   ${isToday && inMonth ? 'outline outline-2 outline-[#2563eb]/70 outline-offset-1' : ''}
                   ${!hasCommunity && !goStyle?.background && hasEvents && inMonth ? 'hover:bg-gray-50' : ''}
                 `}
@@ -670,9 +654,6 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
                 {hasEvents && inMonth && (
                   <div className="absolute bottom-0.5 left-0 right-0 flex justify-center items-end gap-0.5 px-0.5 h-5 pointer-events-none">
                     {hasCommunity && (
-                      <img src={tiempoLibreLogo} alt="" className="h-4 w-4 object-contain" />
-                    )}
-                    {isViernes && (
                       <img src={tiempoLibreLogo} alt="" className="h-4 w-4 object-contain" />
                     )}
                     {logoMarker && (

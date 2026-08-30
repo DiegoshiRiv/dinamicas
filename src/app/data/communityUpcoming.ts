@@ -2,11 +2,9 @@ import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { POKEMON_GO_EVENTS, type PokemonGoEvent } from '@/app/data/pokemonGoEvents'
 import { dateToDayKey } from '@/app/utils/eventDates'
-import megaRaichuBanner from '@/assets/wallpaper/MegaRaichu.png'
-import festBanner from '@/assets/wallpaper/bannnerFest.png'
 
-/** Reuniones presenciales vigentes en el carrusel (sin CD ni eventos pasados). */
-export const PRESENTIAL_CAROUSEL_GO_IDS = ['supermega-raichu'] as const
+/** Reuniones presenciales en el carrusel (vacío tras limpieza de eventos pasados). */
+export const PRESENTIAL_CAROUSEL_GO_IDS = [] as const
 
 export type PresencialCarouselSlide = {
   id: string
@@ -19,16 +17,6 @@ export type PresencialCarouselSlide = {
   accent: string
   selloDex?: boolean
   dayKey: string
-}
-
-const BANNER_BY_ID: Record<string, string> = {
-  'supermega-raichu': megaRaichuBanner,
-  'fest-global': festBanner,
-}
-
-const BADGE_BY_ID: Record<string, string> = {
-  'supermega-raichu': 'Supermegaincursiones',
-  'fest-global': 'GO Fest',
 }
 
 function formatRangeLabel(startDate: string, endDate: string): string {
@@ -47,15 +35,14 @@ function slideFromGoEvent(ev: PokemonGoEvent): PresencialCarouselSlide {
     dateLabel: formatRangeLabel(ev.startDate, ev.endDate),
     startDate: ev.startDate,
     endDate: ev.endDate,
-    banner: BANNER_BY_ID[ev.id] ?? megaRaichuBanner,
-    badge: BADGE_BY_ID[ev.id],
+    banner: '',
+    badge: undefined,
     accent: ev.accent,
     selloDex: ev.selloDex,
     dayKey: ev.startDate,
   }
 }
 
-/** Slides del carrusel: reuniones presenciales con SelloDex. */
 export function getPresencialCarouselSlides(now = new Date()): PresencialCarouselSlide[] {
   const todayKey = dateToDayKey(now)
   const ids = new Set<string>(PRESENTIAL_CAROUSEL_GO_IDS)

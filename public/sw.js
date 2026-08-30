@@ -1,9 +1,12 @@
-/* PWA SW v9: HTML siempre fresco; limpia caches viejos al activar. */
-const SW_VERSION = 'dinamicas-sw-v9'
+/* PWA SW v10: HTML fresco; precache shell; assets con hash cache-first. */
+const SW_VERSION = 'dinamicas-sw-v10'
+const PRECACHE_URLS = ['/favicon.png', '/apple-touch-icon.png', '/manifest.json']
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
-  event.waitUntil(caches.open(SW_VERSION).then(() => undefined))
+  event.waitUntil(
+    caches.open(SW_VERSION).then((cache) => cache.addAll(PRECACHE_URLS).catch(() => undefined)),
+  )
 })
 
 self.addEventListener('activate', (event) => {
@@ -35,18 +38,28 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/assets/') ||
     /\/assets\/.+\.[A-Za-z0-9_-]{6,}\.(js|css|png|jpg|jpeg|gif|webp|svg|woff2?)$/i.test(url.pathname)
 
-  // HTML / navegación: network-only (evita pantalla blanca por shell viejo).
   if (isNav || url.pathname === '/' || url.pathname.endsWith('.html') || url.pathname.endsWith('/index.html')) {
     event.respondWith(fetch(req).catch(() => offlineHtml()))
     return
   }
 
-  // Chunks/imágenes con hash en el nombre: cache-first (rápido en 3G).
+  if (PRECACHE_URLS.includes(url.pathname)) {
+    event.respondWith(
+      caches.match(req).then((cached) => cached || fetch(req).then((res) => {
+        if (res.ok) {
+          const copy = res.clone()
+          event.waitUntil(caches.open(SW_VERSION).then((c) => c.put(req, copy)))
+        }
+        return res
+      })),
+    )
+    return
+  }
+
   if (isHashedAsset) {
     event.respondWith(
       caches.match(req).then((cached) => {
         if (cached) {
-          // Actualiza en background.
           event.waitUntil(
             fetch(req)
               .then((res) => {
