@@ -42,6 +42,29 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms))
 }
 
+/**
+ * PostgREST mete los filtros en la URL, así que un `in.(...)` con cientos de
+ * UUID genera una petición de decenas de kB que el proxy rechaza con 414. Con
+ * 500 personas eso rompía justo lo peor: limpiar la ruleta entre rondas.
+ */
+const ID_BATCH_SIZE = 80
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const batches: T[][] = []
+  for (let i = 0; i < items.length; i += size) batches.push(items.slice(i, i + size))
+  return batches
+}
+
+async function deleteByIds(table: string, ids: string[]): Promise<void> {
+  for (const batch of chunk(ids, ID_BATCH_SIZE)) {
+    const { error } = await supabase.from(table).delete().in('id', batch)
+    if (error) {
+      eventLog.error('admin', 'batch delete failed', { table, size: batch.length, error: error.message })
+      throw error
+    }
+  }
+}
+
 /** Traduce fallos técnicos a algo que el entrenador pueda entender y accionar. */
 function friendlyRegisterError(error: { code?: string; message?: string }): string {
   const message = String(error.message ?? '')
@@ -653,13 +676,15 @@ export function useParticipants(
 
   const scheduleParticipantsRefetch = useCallback(() => {
     if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
+    // Con jitter: el mismo evento de realtime llega a todos los teléfonos a la
+    // vez, y sin dispersar la espera todos consultaban en el mismo instante.
     refetchTimerRef.current = window.setTimeout(() => {
       void fetchParticipantsData().catch((error) => {
         eventLog.error('roulette', 'scheduled refetch failed', {
           error: error instanceof Error ? error.message : String(error),
         })
       })
-    }, 1500)
+    }, 1500 + Math.random() * 1500)
   }, [fetchParticipantsData])
 
   // Cambio de sala: limpia lista y marca loading para no pintar sala anterior.
@@ -860,19 +885,27 @@ export function useParticipants(
         )
     }
 
+    // Un evento de realtime llega a todos los teléfonos en el mismo instante:
+    // sin dispersar la reacción, cada cambio provocaba cientos de consultas
+    // simultáneas contra Supabase.
+    const jitterTimers: number[] = []
+    const withJitter = (run: () => void, maxDelayMs: number) => {
+      jitterTimers.push(window.setTimeout(run, Math.random() * maxDelayMs))
+    }
+
     dbChannel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'banned_ips' }, () => {
         if (loadParticipantsRef.current) scheduleParticipantsRefetch()
-        else void fetchRegistrationMeta()
+        else withJitter(() => void fetchRegistrationMeta(), 2500)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_winners' }, () => {
-        void fetchRecentWinners()
+        withJitter(() => void fetchRecentWinners(), 2500)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_banners' }, () => {
-        void fetchBanners()
+        withJitter(() => void fetchBanners(), 4000)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsors' }, () => {
-        void fetchSponsors()
+        withJitter(() => void fetchSponsors(), 4000)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
         const row = (payload.new || payload.old) as { key?: string }
@@ -886,6 +919,7 @@ export function useParticipants(
 
     return () => {
       if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
+      for (const timer of jitterTimers) window.clearTimeout(timer)
       void supabase.removeChannel(dbChannel)
     }
   }, [
@@ -1188,7 +1222,7 @@ export function useParticipants(
   }
 
   const deleteMultiple = async (ids: string[]) => {
-    await supabase.from('participants').delete().in('id', ids)
+    await deleteByIds('participants', ids)
     const idSet = new Set(ids)
     setParticipants((prev) => prev.filter((p) => !idSet.has(p.id)))
   }
@@ -1275,7 +1309,10 @@ export function useParticipants(
   const resetGame = async () => {
     if (participants.length === 0) return
     const ids = participants.map((p) => p.id)
-    await supabase.from('participants').update({ status: 'active' }).in('id', ids)
+    for (const batch of chunk(ids, ID_BATCH_SIZE)) {
+      const { error } = await supabase.from('participants').update({ status: 'active' }).in('id', batch)
+      if (error) throw error
+    }
     setParticipants((prev) => prev.map((p) => ({ ...p, status: 'active' as const })))
   }
 
@@ -1285,7 +1322,7 @@ export function useParticipants(
       return
     }
     const ids = participants.map((p) => p.id)
-    await supabase.from('participants').delete().in('id', ids)
+    await deleteByIds('participants', ids)
     discardPendingUpserts()
     setParticipants([])
     await broadcastRoundReset()
@@ -1297,7 +1334,7 @@ export function useParticipants(
   }
 
   const removeMultipleRecentWinners = async (ids: string[]) => {
-    await supabase.from('recent_winners').delete().in('id', ids)
+    await deleteByIds('recent_winners', ids)
     const idSet = new Set(ids)
     setRecentWinners((prev) => prev.filter((w) => !idSet.has(w.id)))
   }
@@ -1323,7 +1360,7 @@ export function useParticipants(
     await fetchSponsors()
   }
   const deleteMultipleSponsors = async (ids: string[]) => {
-    await supabase.from('sponsors').delete().in('id', ids)
+    await deleteByIds('sponsors', ids)
     await fetchSponsors()
   }
   const updateSponsorsOrder = async (reorderedList: Sponsor[]) => {
@@ -1375,9 +1412,7 @@ export function useParticipants(
 
     for (const table of ['participants', 'banned_ips', 'recent_winners'] as const) {
       const ids = await idsInRoom(table)
-      if (ids.length > 0) {
-        await supabase.from(table).delete().in('id', ids)
-      }
+      if (ids.length > 0) await deleteByIds(table, ids)
     }
 
     writeLocalPrizeCodes(WINNER_PRIZE_CODES_KEY(targetCode), [])
