@@ -3,12 +3,17 @@ import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Plus, Trash2, CheckCircle2, AlertTriangle, Lock, BarChart2 } from 'lucide-react'
 import { usePolls } from '@/hooks/usePolls'
+import { hydrateDeviceToken } from '@/app/utils/registrationToken'
 
 export function PollBoard({ isAdmin }: { isAdmin: boolean }) {
   const { polls, votes, createPoll, closePoll, deletePoll, castVote } = usePolls()
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState<string[]>(['', ''])
-  const [clientIp, setClientIp] = useState<string>('')
+  /**
+   * Identidad del votante. Es el token del dispositivo, no una IP: en el Wi‑Fi
+   * del evento todos comparten IP y solo el primero habría podido votar.
+   */
+  const [voterKey, setVoterKey] = useState<string>('')
 
   // Estado para la opción seleccionada antes de confirmar (por cada ID de encuesta)
   const [selectedOption, setSelectedOption] = useState<Record<string, number>>({})
@@ -18,12 +23,8 @@ export function PollBoard({ isAdmin }: { isAdmin: boolean }) {
   const [confirmClose, setConfirmClose] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
-  // Obtenemos la IP para el bloqueo de votos
   useEffect(() => {
-    fetch('https://api.ipify.org?format=json')
-      .then(res => res.json())
-      .then(data => setClientIp(data.ip))
-      .catch(() => {})
+    void hydrateDeviceToken().then((token) => setVoterKey(`d:${token}`))
   }, [])
 
   const handleAddOption = () => setOptions([...options, ''])
@@ -38,11 +39,11 @@ export function PollBoard({ isAdmin }: { isAdmin: boolean }) {
 
   const handleConfirmVote = async (pollId: string) => {
     const optIndex = selectedOption[pollId];
-    if (optIndex === undefined || !clientIp) return;
+    if (optIndex === undefined || !voterKey) return;
     
     setIsVoting(prev => ({...prev, [pollId]: true}));
     try {
-      await castVote(pollId, optIndex, clientIp);
+      await castVote(pollId, optIndex, voterKey);
     } catch (error) {
       alert("Tu dispositivo ya registró un voto en esta encuesta.");
     } finally {
@@ -82,7 +83,7 @@ export function PollBoard({ isAdmin }: { isAdmin: boolean }) {
           
           const pollVotes = votes.filter(v => v.poll_id === poll.id)
           const totalVotes = pollVotes.length
-          const hasVoted = pollVotes.some(v => v.ip_address === clientIp)
+          const hasVoted = pollVotes.some(v => v.ip_address === voterKey)
           const showResults = hasVoted || isAdmin || !poll.is_active
 
           return (
@@ -111,7 +112,7 @@ export function PollBoard({ isAdmin }: { isAdmin: boolean }) {
                   {poll.options.map((opt, idx) => {
                     const optVotes = pollVotes.filter(v => v.option_index === idx).length
                     const percentage = totalVotes === 0 ? 0 : Math.round((optVotes / totalVotes) * 100)
-                    const didIVoteForThis = pollVotes.some(v => v.ip_address === clientIp && v.option_index === idx)
+                    const didIVoteForThis = pollVotes.some(v => v.ip_address === voterKey && v.option_index === idx)
 
                     return (
                       <div key={idx} className="relative w-full bg-gray-100 rounded-2xl h-14 flex items-center px-4 overflow-hidden border border-gray-200 shadow-inner">
@@ -155,7 +156,7 @@ export function PollBoard({ isAdmin }: { isAdmin: boolean }) {
                   })}
 
                   <Button 
-                    disabled={selectedOption[poll.id] === undefined || !clientIp || isVoting[poll.id]} 
+                    disabled={selectedOption[poll.id] === undefined || !voterKey || isVoting[poll.id]} 
                     onClick={() => handleConfirmVote(poll.id)}
                     className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-black py-6 text-lg rounded-xl shadow-lg transition-transform active:scale-95"
                   >
