@@ -15,6 +15,7 @@ import { SponsorBannerCarousel } from '@/app/components/SponsorBannerCarousel'
 import type { Banner } from '@/hooks/useParticipants'
 import { useWhatsAppFollowers } from '@/app/hooks/useWhatsAppFollowers'
 import { eventLog } from '@/app/utils/eventLog'
+import { registerFailureReason } from '@/app/utils/registerError'
 /**
  * Presupuesto para que el alta termine en segundo plano, con margen para los
  * reintentos del hook. La persona no espera: la confirmación es inmediata.
@@ -121,16 +122,17 @@ export function RegistrationForm({
         onRegistered?.()
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Error al registrar'
+        const reason = registerFailureReason(err)
 
         // El nombre es de otra persona: es el único caso que invalida el registro.
-        if (/nombre de entrenador/i.test(message) && !isAdmin) {
+        if (reason === 'username-taken' && !isAdmin) {
           timer.fail(err)
           revert(message)
           return
         }
 
-        if (/ya está registrado|ya registrado|un registro por persona/i.test(message) && !isAdmin) {
-          timer.end({ ok: true, idempotentMessage: true })
+        if (reason === 'already-registered' && !isAdmin) {
+          timer.end({ ok: true, idempotent: true })
           onRegistered?.()
           return
         }
