@@ -602,7 +602,12 @@ export function WinnerRoulette({
    * wifi compartido del evento eso dejaba fuera a gente que no había hecho nada.
    */
   const eligiblePlayers = useMemo(
-    () => activePlayers.filter((p) => !isVenaderoBlacklisted(p.username)),
+    () =>
+      activePlayers.filter(
+        // Las filas «local-» son optimistas: aún no existen en el servidor, así
+        // que no pueden ganar (no habría a quién marcar como ganador).
+        (p) => !isVenaderoBlacklisted(p.username) && !p.id.startsWith('local-'),
+      ),
     [activePlayers],
   )
 

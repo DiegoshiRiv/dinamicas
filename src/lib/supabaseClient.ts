@@ -24,4 +24,20 @@ export const supabase: SupabaseClient = supabaseConfigError
         },
       },
     ) as SupabaseClient)
-  : createClient(supabaseUrl!, supabaseKey!)
+  : createClient(supabaseUrl!, supabaseKey!, {
+      global: {
+        /**
+         * Sin límite, una petición en el Wi‑Fi saturado del evento se queda
+         * colgada para siempre: el alta no llegaba a reintentar y la carga
+         * inicial se quedaba en «Cargando…» sin salida. Al abortar, el error
+         * sí entra por los caminos de reintento que ya existen.
+         */
+        fetch: (input, init) => {
+          // Móviles antiguos sin AbortSignal.timeout: se queda como estaba.
+          const canTimeout =
+            typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+          if (init?.signal || !canTimeout) return fetch(input, init)
+          return fetch(input, { ...init, signal: AbortSignal.timeout(12000) })
+        },
+      },
+    })

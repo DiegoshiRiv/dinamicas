@@ -249,6 +249,8 @@ export function useParticipants(
   const [loading, setLoading] = useState(true)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [realtimeReady, setRealtimeReady] = useState(false)
+  /** Estado del canal de cambios de base de datos, distinto al de anuncios. */
+  const [dbRealtimeReady, setDbRealtimeReady] = useState(false)
 
   const [spectatorView, setSpectatorView] = useState<'main' | 'roulette'>('main')
   const [incomingSpin, setIncomingSpin] = useState<IncomingSpin | null>(null)
@@ -714,8 +716,8 @@ export function useParticipants(
       // Se valida porque un móvil con la app vieja puede mandar otra cosa y
       // dejaría al espectador en una vista que no existe.
       setSpectatorView(payload.payload?.view === 'roulette' ? 'roulette' : 'main')
-      if (payload.payload.config) setRouletteConfig(payload.payload.config)
-      if (payload.payload.view === 'roulette') {
+      if (payload.payload?.config) setRouletteConfig(payload.payload.config)
+      if (payload.payload?.view === 'roulette') {
         setLoading(true)
         void syncParticipantsFresh('broadcast_set_view').finally(() => setLoading(false))
       }
@@ -764,17 +766,33 @@ export function useParticipants(
    * cae en silencio y la pantalla se queda congelada con la lista vieja. Al
    * volver se resincroniza y, si el canal no revivió solo, se recrea.
    */
-  const realtimeReadyRef = useRef(realtimeReady)
-  useEffect(() => { realtimeReadyRef.current = realtimeReady }, [realtimeReady])
+  // Los dos canales cuentan: el de anuncios trae el giro y el de base de datos
+  // trae los registros. Que uno reviva no dice nada del otro.
+  const channelsReady = realtimeReady && (!loadParticipants || dbRealtimeReady)
+  const channelsReadyRef = useRef(channelsReady)
+  useEffect(() => { channelsReadyRef.current = channelsReady }, [channelsReady])
+  const lastResumeAtRef = useRef(0)
 
   useEffect(() => {
     const resume = () => {
       if (document.visibilityState !== 'visible') return
+      // Desbloquear el móvil dispara visibilitychange, focus y a veces online:
+      // sin este freno eran tres sincronizaciones seguidas por dispositivo.
+      const now = Date.now()
+      if (now - lastResumeAtRef.current < 4000) return
+      lastResumeAtRef.current = now
+
       // El canal se revive siempre: sin él un espectador no recibe el giro.
-      if (!realtimeReadyRef.current) setChannelEpoch((value) => value + 1)
+      if (!channelsReadyRef.current) setChannelEpoch((value) => value + 1)
       // La lista solo donde se usa; en la pantalla de registro se evita a
-      // propósito para no gastar datos en 3G.
-      if (loadParticipantsRef.current) void syncParticipantsFresh('resume')
+      // propósito para no gastar datos en 3G. Con retardo irregular para que
+      // cientos de móviles que despiertan a la vez no consulten en bloque.
+      if (loadParticipantsRef.current) {
+        window.setTimeout(() => {
+          if (document.visibilityState !== 'visible') return
+          void syncParticipantsFresh('resume')
+        }, Math.random() * 1500)
+      }
     }
     document.addEventListener('visibilitychange', resume)
     window.addEventListener('online', resume)
@@ -792,14 +810,14 @@ export function useParticipants(
    * que doscientos móviles no consulten todos en el mismo instante.
    */
   useEffect(() => {
-    if (realtimeReady || !loadParticipants) return
+    if (channelsReady || !loadParticipants) return
     const period = 15000 + Math.floor(Math.random() * 10000)
     const id = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return
       void syncParticipantsFresh('poll_fallback')
     }, period)
     return () => window.clearInterval(id)
-  }, [realtimeReady, loadParticipants, syncParticipantsFresh])
+  }, [channelsReady, loadParticipants, syncParticipantsFresh])
 
   // Boot de datos (puede cambiar con loadParticipants) — canal DB va aparte.
   const loadParticipantsRef = useRef(loadParticipants)
@@ -888,24 +906,34 @@ export function useParticipants(
     // Un evento de realtime llega a todos los teléfonos en el mismo instante:
     // sin dispersar la reacción, cada cambio provocaba cientos de consultas
     // simultáneas contra Supabase.
-    const jitterTimers: number[] = []
-    const withJitter = (run: () => void, maxDelayMs: number) => {
-      jitterTimers.push(window.setTimeout(run, Math.random() * maxDelayMs))
+    // Además se agrupan: borrar veinte ganadores emite veinte eventos, y sin
+    // esto cada uno lanzaba su propia consulta en cada dispositivo.
+    const pendingByTable = new Map<string, number>()
+    const withJitter = (key: string, run: () => void, maxDelayMs: number) => {
+      const previous = pendingByTable.get(key)
+      if (previous) window.clearTimeout(previous)
+      pendingByTable.set(
+        key,
+        window.setTimeout(() => {
+          pendingByTable.delete(key)
+          run()
+        }, 600 + Math.random() * maxDelayMs),
+      )
     }
 
     dbChannel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'banned_ips' }, () => {
         if (loadParticipantsRef.current) scheduleParticipantsRefetch()
-        else withJitter(() => void fetchRegistrationMeta(), 2500)
+        else withJitter('banned_ips', () => void fetchRegistrationMeta(), 2500)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_winners' }, () => {
-        withJitter(() => void fetchRecentWinners(), 2500)
+        withJitter('recent_winners', () => void fetchRecentWinners(), 2500)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsor_banners' }, () => {
-        withJitter(() => void fetchBanners(), 4000)
+        withJitter('sponsor_banners', () => void fetchBanners(), 4000)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsors' }, () => {
-        withJitter(() => void fetchSponsors(), 4000)
+        withJitter('sponsors', () => void fetchSponsors(), 4000)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
         const row = (payload.new || payload.old) as { key?: string }
@@ -914,16 +942,22 @@ export function useParticipants(
         }
       })
       .subscribe((status) => {
+        // Su estado se sigue aparte: antes solo se vigilaba el canal de
+        // anuncios, así que este podía morir en silencio y la lista se
+        // congelaba sin activar ni la reconexión ni el sondeo de respaldo.
+        setDbRealtimeReady(status === 'SUBSCRIBED')
         eventLog.info('realtime', 'db channel', { status, code: rouletteCode })
       })
 
     return () => {
       if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current)
-      for (const timer of jitterTimers) window.clearTimeout(timer)
+      for (const timer of pendingByTable.values()) window.clearTimeout(timer)
+      setDbRealtimeReady(false)
       void supabase.removeChannel(dbChannel)
     }
   }, [
     rouletteCode,
+    channelEpoch,
     watchParticipants,
     fetchBanners,
     fetchSponsors,
@@ -1120,7 +1154,10 @@ export function useParticipants(
         attempt: attempt + 1,
         message: error.message,
       })
-      await delay(REGISTER_RETRY_DELAYS_MS[attempt] ?? 900)
+      // Con jitter: los móviles que fallan por congestión reintentaban todos
+      // exactamente a la vez, reproduciendo el atasco que causó el fallo.
+      const base = REGISTER_RETRY_DELAYS_MS[attempt] ?? 900
+      await delay(base * (0.5 + Math.random()))
     }
 
     if (error && IDENTITY_COLUMN_MISSING.test(error.message)) {
@@ -1276,7 +1313,7 @@ export function useParticipants(
   }
 
   const banUser = async (id: string, durationInDays: number, bannedBy?: string) => {
-    const user = participants.find((p) => p.id === id)
+    const user = participantsByIdRef.current.get(id)
     if (!user || !user.ip_address) return
     const expirationDate = new Date()
     expirationDate.setDate(expirationDate.getDate() + durationInDays)
@@ -1307,8 +1344,11 @@ export function useParticipants(
   }
 
   const resetGame = async () => {
-    if (participants.length === 0) return
-    const ids = participants.map((p) => p.id)
+    // Desde la ref: el array del render puede tener 200 ms de retraso y dejaba
+    // fuera justo a los últimos que se registraron.
+    const current = participantsRef.current
+    if (current.length === 0) return
+    const ids = current.map((p) => p.id)
     for (const batch of chunk(ids, ID_BATCH_SIZE)) {
       const { error } = await supabase.from('participants').update({ status: 'active' }).in('id', batch)
       if (error) throw error
@@ -1317,11 +1357,12 @@ export function useParticipants(
   }
 
   const clearAll = async () => {
-    if (participants.length === 0) {
+    const current = participantsRef.current
+    if (current.length === 0) {
       await broadcastRoundReset()
       return
     }
-    const ids = participants.map((p) => p.id)
+    const ids = current.map((p) => p.id)
     await deleteByIds('participants', ids)
     discardPendingUpserts()
     setParticipants([])
