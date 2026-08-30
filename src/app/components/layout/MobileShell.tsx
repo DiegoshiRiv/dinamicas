@@ -35,9 +35,9 @@ import {
   getFondoCdUrl,
   type FondoCdId,
 } from '@/app/utils/alternatingFondoCd'
-import logoImg from '@/assets/logos/Logo.png'
-import pokebolaImg from '@/assets/iconos/Pokebola.png'
-import ruletaIcon from '@/assets/iconos/ruleta.png'
+import logoImg from '@/assets/logos/Logo.webp'
+import pokebolaImg from '@/assets/iconos/Pokebola.webp'
+import ruletaIcon from '@/assets/iconos/ruleta.webp'
 
 const FaqPanel = lazy(() =>
   import('@/app/components/FaqPanel').then((m) => ({ default: m.FaqPanel })),

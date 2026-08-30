@@ -1,4 +1,4 @@
-import pokeIcon from '@/assets/iconos/pokemondeejemplo.png'
+import pokeIcon from '@/assets/iconos/pokemondeejemplo.webp'
 
 /** Icono único ligero para todos los tipos (carpeta pokemon tipos eliminada). */
 export const POKEMON_TYPE_ICONS: Record<string, string> = {

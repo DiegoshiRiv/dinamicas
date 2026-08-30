@@ -6,7 +6,7 @@ import { ExternalLink, MapPin, X } from 'lucide-react'
 import { type EventBannerConfig, type BannerPerk } from '@/app/data/eventBanners'
 import { FONDO_CD_DYNAMIC } from '@/app/utils/alternatingFondoCd'
 import { useFondoCdUrl } from '@/hooks/useFondoCdUrl'
-import sellodexImg from '@/assets/recursos/sellodex.png'
+import sellodexImg from '@/assets/recursos/sellodex.webp'
 import { CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
 import {
   modalOverlayClass,

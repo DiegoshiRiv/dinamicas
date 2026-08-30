@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { User, AlertCircle, CheckCircle2, X } from 'lucide-react'
 
-import pokebolaImg from '@/assets/iconos/Pokebola.png'
-import campfireIcon from '@/assets/recursos/campfire.png'
-import wpIcon from '@/assets/iconos/w.png'
+import pokebolaImg from '@/assets/iconos/Pokebola.webp'
+import campfireIcon from '@/assets/recursos/campfire.webp'
+import wpIcon from '@/assets/iconos/w.webp'
 import {
   CAMPFIRE_JOIN_URL,
   WHATSAPP_CHANNEL_URL,
@@ -89,8 +89,8 @@ export function RegistrationForm({
     if (!showExamples) return
     let cancelled = false
     void Promise.all([
-      import('@/assets/capturas de pantalla/Pogo.jpg'),
-      import('@/assets/capturas de pantalla/Camf.jpg'),
+      import('@/assets/capturas de pantalla/Pogo.webp'),
+      import('@/assets/capturas de pantalla/Camf.webp'),
     ]).then(([pogo, camf]) => {
       if (!cancelled) {
         setExampleShotUrls({ pogo: pogo.default, camf: camf.default })

@@ -53,9 +53,9 @@ import { UpcomingCommunityEvents } from '@/app/components/UpcomingCommunityEvent
 import { optimizeImageFile } from '@/app/utils/optimizeImageFile'
 import { meetingPoints } from '@/app/data/meetingPoints'
 import { CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
-import tiempoLibreLogo from '@/assets/logos/tiempolibre.png'
-import communityDayLogo from '@/assets/logos/diadelacomunidad.png'
-import sellodexImg from '@/assets/recursos/sellodex.png'
+import tiempoLibreLogo from '@/assets/logos/tiempolibre.webp'
+import communityDayLogo from '@/assets/logos/diadelacomunidad.webp'
+import sellodexImg from '@/assets/recursos/sellodex.webp'
 import {
   modalOverlayClass,
   modalSheetBodyClass,

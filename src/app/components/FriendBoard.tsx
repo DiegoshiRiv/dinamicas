@@ -17,12 +17,12 @@ import {
 } from 'lucide-react'
 import { useFriends } from '@/hooks/useFriends'
 
-import pokebola from '@/assets/iconos/Pokebola.png'
-import goLogo from '@/assets/juegos/go.png'
-import uniteLogo from '@/assets/juegos/unite.png'
-import tcgLogo from '@/assets/juegos/tcg.png'
-import championsLogo from '@/assets/juegos/champions.png'
-import mastersLogo from '@/assets/juegos/masters.png'
+import pokebola from '@/assets/iconos/Pokebola.webp'
+import goLogo from '@/assets/juegos/go.webp'
+import uniteLogo from '@/assets/juegos/unite.webp'
+import tcgLogo from '@/assets/juegos/tcg.webp'
+import championsLogo from '@/assets/juegos/champions.webp'
+import mastersLogo from '@/assets/juegos/masters.webp'
 import { misterhomieLogo as friendsLogo } from '@/app/data/lightAssets'
 
 const GAMES = [

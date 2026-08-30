@@ -4,7 +4,7 @@ import {
   getPresencialCarouselSlides,
   type PresencialCarouselSlide,
 } from '@/app/data/communityUpcoming'
-import sellodexImg from '@/assets/recursos/sellodex.png'
+import sellodexImg from '@/assets/recursos/sellodex.webp'
 
 const AUTO_MS = 5000
 const SWIPE_THRESHOLD = 40

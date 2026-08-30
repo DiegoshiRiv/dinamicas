@@ -11,8 +11,8 @@ export const FONDO_CD_LABELS: Record<FondoCdId, string> = {
 }
 
 const FONDO_LOADERS: Record<FondoCdId, () => Promise<{ default: string }>> = {
-  fondoCD: () => import('@/assets/Fondo1.jpg'),
-  fondoCD2: () => import('@/assets/Fondo2.jpg'),
+  fondoCD: () => import('@/assets/Fondo1.webp'),
+  fondoCD2: () => import('@/assets/Fondo2.webp'),
 }
 
 const FONDO_ORDER: FondoCdId[] = ['fondoCD', 'fondoCD2']

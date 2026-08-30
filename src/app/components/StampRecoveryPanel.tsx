@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ExternalLink, X } from 'lucide-react'
 import { STAMP_RECOVERY_LINKS } from '@/app/data/stampRecovery'
-import registradoImg from '@/assets/capturas de pantalla/registrado.png'
-import sellodexImg from '@/assets/recursos/sellodex.png'
+import registradoImg from '@/assets/capturas de pantalla/registrado.webp'
+import sellodexImg from '@/assets/recursos/sellodex.webp'
 import {
   modalDialogSmClass,
   modalOverlayClass,

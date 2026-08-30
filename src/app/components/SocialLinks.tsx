@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect } from 'react'
 import { Instagram, Facebook, Download, ExternalLink } from 'lucide-react'
-import wpIcon from '@/assets/iconos/w.png'
-import xIcon from '@/assets/iconos/x.png'
-import campfireIcon from '@/assets/iconos/campfirevector.png'
+import wpIcon from '@/assets/iconos/w.webp'
+import xIcon from '@/assets/iconos/x.webp'
+import campfireIcon from '@/assets/iconos/campfirevector.webp'
 import { CAMPFIRE_JOIN_LABEL, CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
 
 interface SocialLinksProps {

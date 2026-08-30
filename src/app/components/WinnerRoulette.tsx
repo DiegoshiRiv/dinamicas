@@ -20,7 +20,7 @@ import {
   winnerAccentColors,
 } from '@/app/utils/participantColor'
 
-import pokeBallIcon from '@/assets/iconos/Poké_Ball_icon.svg.png'
+import pokeBallIcon from '@/assets/iconos/Poké_Ball_icon.svg.webp'
 
 function trackIp(ipSet: Set<string>, ip?: string) {
   if (!ip) return

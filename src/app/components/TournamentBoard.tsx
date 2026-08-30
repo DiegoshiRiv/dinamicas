@@ -3,13 +3,13 @@ import { Button } from '@/app/components/ui/button'
 import { Input } from '@/app/components/ui/input'
 import { Swords, Eye, Trophy, Plus, User, Trash2, AlertCircle, Check, AlertTriangle, X } from 'lucide-react'
 import { useTournaments, Pokemon, TournamentPlayer } from '@/hooks/useTournaments'
-import pokebola from '@/assets/iconos/Pokebola.png'
+import pokebola from '@/assets/iconos/Pokebola.webp'
 
 import { POKEMON_TYPES_LIST } from '@/app/data/pokemonTypes'
 
-import imgOscuro from '@/assets/iconos/oscuro.png'
-import imgPurificado from '@/assets/iconos/purificado.png'
-import campeonIcon from '@/assets/recursos/campeon.png'
+import imgOscuro from '@/assets/iconos/oscuro.webp'
+import imgPurificado from '@/assets/iconos/purificado.webp'
+import campeonIcon from '@/assets/recursos/campeon.webp'
 
 const POKEMON_TYPES = POKEMON_TYPES_LIST
 const typeNormal = POKEMON_TYPES[0]?.icon ?? pokebola

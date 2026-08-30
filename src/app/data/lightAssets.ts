@@ -1,15 +1,15 @@
 /** Assets ligeros centralizados. Solo lo que la app usa hoy. */
-import logoFest from '@/assets/logos/Logo.png'
-import cdLogo from '@/assets/logos/diadelacomunidad.png'
-import tiempoLibreLogo from '@/assets/logos/tiempolibre.png'
-import misterhomieLogo from '@/assets/logos/misterhomie.png'
-import fondoRelleno from '@/assets/Fondo1.jpg'
-import pokeIcon from '@/assets/iconos/pokemondeejemplo.png'
-import megaEvIcon from '@/assets/iconos/megaev.png'
-import sellodexImg from '@/assets/recursos/sellodex.png'
-import campfireImg from '@/assets/recursos/campfire.png'
-import pokeparadaImg from '@/assets/iconos/pokeparada.png'
-import iv100Img from '@/assets/iconos/100_ivs.png'
+import logoFest from '@/assets/logos/Logo.webp'
+import cdLogo from '@/assets/logos/diadelacomunidad.webp'
+import tiempoLibreLogo from '@/assets/logos/tiempolibre.webp'
+import misterhomieLogo from '@/assets/logos/misterhomie.webp'
+import fondoRelleno from '@/assets/Fondo1.webp'
+import pokeIcon from '@/assets/iconos/pokemondeejemplo.webp'
+import megaEvIcon from '@/assets/iconos/megaev.webp'
+import sellodexImg from '@/assets/recursos/sellodex.webp'
+import campfireImg from '@/assets/recursos/campfire.webp'
+import pokeparadaImg from '@/assets/iconos/pokeparada.webp'
+import iv100Img from '@/assets/iconos/100_ivs.webp'
 
 export {
   logoFest,

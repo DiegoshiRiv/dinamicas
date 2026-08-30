@@ -1,6 +1,6 @@
 import { X, ExternalLink } from 'lucide-react'
 import { CAMPFIRE_JOIN_LABEL, CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
-import campfireIcon from '@/assets/recursos/campfire.png'
+import campfireIcon from '@/assets/recursos/campfire.webp'
 import { modalOverlayClass, modalSheetWhiteClass } from '@/app/layout/mobileShellLayout'
 
 const FAQ_ITEMS = [

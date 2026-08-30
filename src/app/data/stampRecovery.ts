@@ -1,4 +1,4 @@
-import sellodexImg from '@/assets/recursos/sellodex.png'
+import sellodexImg from '@/assets/recursos/sellodex.webp'
 
 export interface StampRecoveryLink {
   id: string

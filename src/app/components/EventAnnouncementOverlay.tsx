@@ -1,4 +1,4 @@
-import barbatacoAnuncioImg from '@/assets/barbatacoanuncio.png'
+import barbatacoAnuncioImg from '@/assets/barbatacoanuncio.webp'
 import { X } from 'lucide-react'
 
 type Props = {
