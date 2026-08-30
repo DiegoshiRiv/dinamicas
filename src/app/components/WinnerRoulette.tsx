@@ -26,6 +26,30 @@ import {
 import pokeBallIcon from '@/assets/iconos/Poké_Ball_icon.svg.webp'
 
 const SPIN_DURATION_MS = 6000
+
+/**
+ * El código sin copiar se guarda en el dispositivo: ni un giro nuevo ni una
+ * recarga deben quitárselo al ganador antes de que lo tenga a mano.
+ */
+const PENDING_PRIZE_KEY = (rouletteCode: string) =>
+  `dinamicas-pending-prize-code:${sanitizeRouletteCode(rouletteCode)}`
+
+function readPendingPrizeCode(rouletteCode: string): string | null {
+  try {
+    return localStorage.getItem(PENDING_PRIZE_KEY(rouletteCode))?.trim() || null
+  } catch {
+    return null
+  }
+}
+
+function writePendingPrizeCode(rouletteCode: string, code: string | null) {
+  try {
+    if (code) localStorage.setItem(PENDING_PRIZE_KEY(rouletteCode), code)
+    else localStorage.removeItem(PENDING_PRIZE_KEY(rouletteCode))
+  } catch {
+    /* modo privado: el código sigue visible mientras no se recargue */
+  }
+}
 const SPIN_EASING = 'cubic-bezier(0.12, 0.85, 0.15, 1)'
 
 /**
@@ -374,11 +398,19 @@ export function WinnerRoulette({
   const [isSyncing, setIsSyncing] = useState(false)
   const [forceSyncStatus, setForceSyncStatus] = useState<string | null>(null)
   const [winner, setWinner] = useState<Participant | null>(null)
-  const [winnerPrizeCode, setWinnerPrizeCode] = useState<string | null>(null)
+  /**
+   * Código de premio de ESTA persona. Vive aparte del ganador en curso: antes
+   * colgaba de `winner`, así que el siguiente giro le borraba el recuadro a
+   * quien todavía no había copiado su código.
+   */
+  const [winnerPrizeCode, setWinnerPrizeCode] = useState<string | null>(() =>
+    readPendingPrizeCode(activeRouletteCode),
+  )
   const [codeCopied, setCodeCopied] = useState(false)
   /** Solo tras copiar se puede cerrar el recuadro del código. */
   const [prizeCodeCopiedOnce, setPrizeCodeCopiedOnce] = useState(false)
   const [prizeBoxClosed, setPrizeBoxClosed] = useState(false)
+  const lastPrizeCodeRef = useRef<string | null>(null)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
   const [confirmDeleteRouletteOpen, setConfirmDeleteRouletteOpen] = useState(false)
   const [createRouletteFormOpen, setCreateRouletteFormOpen] = useState(false)
@@ -649,10 +681,8 @@ export function WinnerRoulette({
    */
   useEffect(() => {
     if (!isSpectator || isSpinning) return
-    if (!winner || !isSelfWinner || !fetchAssignedPrizeCode) {
-      setWinnerPrizeCode(null)
-      return
-    }
+    // Que gane otra persona no borra un código propio pendiente de copiar.
+    if (!winner || !isSelfWinner || !fetchAssignedPrizeCode) return
 
     let cancelled = false
     const winnerId = winner.id
@@ -667,7 +697,14 @@ export function WinnerRoulette({
           const code = await fetchAssignedPrizeCode(winnerId)
           if (cancelled) return
           if (code) {
+            if (lastPrizeCodeRef.current !== code) {
+              // Código nuevo: el recuadro vuelve a estar pendiente de copia.
+              lastPrizeCodeRef.current = code
+              setPrizeCodeCopiedOnce(false)
+              setPrizeBoxClosed(false)
+            }
             setWinnerPrizeCode(code)
+            writePendingPrizeCode(activeRouletteCode, code)
             return
           }
         } catch {
@@ -680,7 +717,7 @@ export function WinnerRoulette({
     return () => {
       cancelled = true
     }
-  }, [isSpectator, winner, isSpinning, isSelfWinner, fetchAssignedPrizeCode])
+  }, [isSpectator, winner, isSpinning, isSelfWinner, fetchAssignedPrizeCode, activeRouletteCode])
 
   useEffect(() => {
     if (drawTimerRef.current) window.clearTimeout(drawTimerRef.current)
@@ -1015,13 +1052,7 @@ export function WinnerRoulette({
 
   useEffect(() => {
     setCodeCopied(false)
-  }, [winner?.id, winnerPrizeCode])
-
-  // Ganador nuevo: el recuadro del premio vuelve a estar pendiente.
-  useEffect(() => {
-    setPrizeCodeCopiedOnce(false)
-    setPrizeBoxClosed(false)
-  }, [winner?.id])
+  }, [winnerPrizeCode])
 
   useEffect(() => {
     let cancelled = false
@@ -1949,7 +1980,7 @@ export function WinnerRoulette({
 
       {/* Código de premio: recuadro propio, solo en el teléfono del ganador, y
           no se puede cerrar hasta que lo haya copiado. */}
-      {isSpectator && isMe && winnerPrizeCode && !prizeBoxClosed && (
+      {isSpectator && winnerPrizeCode && !prizeBoxClosed && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border-2 border-emerald-300">
             <div className="flex items-center justify-center gap-2 text-emerald-700 font-black text-base mb-1">
@@ -1985,7 +2016,10 @@ export function WinnerRoulette({
             {prizeCodeCopiedOnce ? (
               <Button
                 type="button"
-                onClick={() => setPrizeBoxClosed(true)}
+                onClick={() => {
+                  setPrizeBoxClosed(true)
+                  writePendingPrizeCode(activeRouletteCode, null)
+                }}
                 className="mt-2 w-full py-5 rounded-xl font-black bg-[#0d3b66] hover:bg-[#0a2f52] text-white"
               >
                 Ya lo guardé, cerrar
