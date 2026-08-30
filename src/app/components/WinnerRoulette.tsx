@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Button } from '@/app/components/ui/button'
-import { Check, Copy, Gift, RotateCcw, RefreshCw } from 'lucide-react'
+import { Check, Copy, Gift, RotateCcw, RefreshCw, Volume2, VolumeX } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
 import { Input } from '@/app/components/ui/input'
 import type { Participant, RecentWinner, IncomingSpin, WinnerPrizeCode } from '@/hooks/useParticipants'
@@ -8,6 +8,7 @@ import confetti from 'canvas-confetti'
 import { QRCodeCanvas } from 'qrcode.react'
 import { buildRouletteRegistrationUrl, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 import { ScreenNameNotice } from '@/app/components/ScreenNameNotice'
+import { useWinnerSound } from '@/app/hooks/useWinnerSound'
 
 import { normalizeUsername, isVenaderoBlacklisted } from '@/app/utils/UsuariosToxicosBlackList'
 import { telemetry } from '@/app/utils/telemetry'
@@ -541,6 +542,14 @@ export function WinnerRoulette({
   useEffect(() => {
     if (!isSpinning && !winner && wheelSnapshot) setWheelSnapshot(null)
   }, [isSpinning, winner, wheelSnapshot])
+
+  const winnerSound = useWinnerSound()
+  const playWinnerSound = winnerSound.play
+
+  // Suena una sola vez, al revelarse el ganador.
+  useEffect(() => {
+    if (winner && !isSpinning) playWinnerSound()
+  }, [winner, isSpinning, playWinnerSound])
 
   useEffect(() => {
     if (drawTimerRef.current) window.clearTimeout(drawTimerRef.current)
@@ -1294,6 +1303,31 @@ export function WinnerRoulette({
                     : `Tu espacio ahora se resalta · ${selfPlayer.username}`}
                 </button>
               )}
+
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={winnerSound.toggle}
+                  aria-pressed={winnerSound.enabled}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black border transition-colors active:scale-95 ${
+                    winnerSound.enabled
+                      ? 'bg-[#0d3b66] text-white border-[#0a2f52]'
+                      : 'bg-white text-[#0d3b66] border-[#dce3f6] hover:bg-[#f1f5ff]'
+                  }`}
+                >
+                  {winnerSound.enabled ? (
+                    <Volume2 className="w-4 h-4" strokeWidth={2.5} />
+                  ) : (
+                    <VolumeX className="w-4 h-4" strokeWidth={2.5} />
+                  )}
+                  {winnerSound.enabled ? 'Sonido activado' : 'Activar sonido'}
+                </button>
+                <p className="mt-1 text-[11px] text-[#5b6483] font-semibold">
+                  {winnerSound.enabled
+                    ? 'Sonará una melodía si ganas.'
+                    : 'Actívalo y sonará una melodía si ganas.'}
+                </p>
+              </div>
             </div>
           )}
 
