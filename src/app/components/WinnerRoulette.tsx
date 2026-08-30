@@ -15,6 +15,7 @@ import { telemetry } from '@/app/utils/telemetry'
 import {
   encodeRegistrationToken,
   getOrCreateDeviceToken,
+  readLastRegistrationToken,
 } from '@/app/utils/registrationToken'
 import {
   participantSliceColor,
@@ -27,15 +28,27 @@ import pokeBallIcon from '@/assets/iconos/Poké_Ball_icon.svg.webp'
 const SPIN_DURATION_MS = 6000
 const SPIN_EASING = 'cubic-bezier(0.12, 0.85, 0.15, 1)'
 
-/** Localiza al espectador en la lista solo por token de dispositivo. */
+/**
+ * Localiza al espectador en la lista por token de dispositivo. Si ese token se
+ * regeneró después de registrarse (modo privado, limpieza de datos), cae al
+ * token con el que realmente quedó guardada su fila.
+ */
 function findSelfParticipant(
   players: Participant[],
   rouletteCode: string,
 ): Participant | null {
   if (!players || players.length === 0) return null
   const code = sanitizeRouletteCode(rouletteCode)
-  const roomToken = encodeRegistrationToken(getOrCreateDeviceToken(), code)
-  return players.find((player) => player.registration_token === roomToken) ?? null
+  const candidates = [
+    encodeRegistrationToken(getOrCreateDeviceToken(), code),
+    readLastRegistrationToken(code),
+  ].filter((token): token is string => Boolean(token))
+
+  for (const token of candidates) {
+    const found = players.find((player) => player.registration_token === token)
+    if (found) return found
+  }
+  return null
 }
 
 function shadeColor(hex: string, amount: number): string {
@@ -141,6 +154,8 @@ interface WinnerRouletteProps {
   incomingSpin?: IncomingSpin | null
   broadcastSpin?: (rotation: number, winnerId: string, winnerUsername?: string, winnerTeam?: Participant['team'], winnerPrizeCode?: string | null) => void | Promise<void>
   assignWinnerPrizeCode?: (winner: Participant) => Promise<WinnerPrizeCode | null>
+  /** Devuelve el código asignado a ese participante, o null si aún no hay. */
+  fetchAssignedPrizeCode?: (participantId: string) => Promise<string | null>
   penaltyMonths: number
   penaltyPercent: number
   rouletteCodes?: string[]
@@ -343,6 +358,7 @@ export function WinnerRoulette({
   onBack: _onBack, participants = [], recentWinners = [], updateStatus, onResetGame, 
   isSpectator = false, embedded = false, incomingSpin, broadcastSpin,
   assignWinnerPrizeCode,
+  fetchAssignedPrizeCode,
   penaltyMonths, penaltyPercent,
   rouletteCodes = [], activeRouletteCode = 'general', onChangeRouletteCode,
   onCreateRouletteCode, onDeleteRouletteCode, registrationBaseUrl = '',
@@ -360,6 +376,9 @@ export function WinnerRoulette({
   const [winner, setWinner] = useState<Participant | null>(null)
   const [winnerPrizeCode, setWinnerPrizeCode] = useState<string | null>(null)
   const [codeCopied, setCodeCopied] = useState(false)
+  /** Solo tras copiar se puede cerrar el recuadro del código. */
+  const [prizeCodeCopiedOnce, setPrizeCodeCopiedOnce] = useState(false)
+  const [prizeBoxClosed, setPrizeBoxClosed] = useState(false)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
   const [confirmDeleteRouletteOpen, setConfirmDeleteRouletteOpen] = useState(false)
   const [createRouletteFormOpen, setCreateRouletteFormOpen] = useState(false)
@@ -420,10 +439,18 @@ export function WinnerRoulette({
     () => (isSpectator ? findSelfParticipant(participants ?? [], activeRouletteCode) : null),
     [isSpectator, participants, activeRouletteCode],
   )
-  const selfPlayer = selfParticipant?.status === 'active' ? selfParticipant : null
-  const selfPlayerId = selfPlayer?.id ?? null
+  // Sin filtrar por estado: al ganar, la fila pasa a 'winner' y exigir 'active'
+  // borraba el resaltado justo en el momento del premio. La rueda solo pinta a
+  // los activos, así que un descartado no aparece de todas formas.
+  const selfPlayerId = selfParticipant?.id ?? null
   const [selfFlashActive, setSelfFlashActive] = useState(false)
   const selfFlashTimerRef = useRef<number | null>(null)
+  const isSelfWinner = Boolean(
+    winner &&
+      selfParticipant &&
+      winner.id === selfParticipant.id &&
+      !isVenaderoBlacklisted(winner.username),
+  )
 
   const flashSelfSpace = () => {
     if (!selfPlayerId) return
@@ -607,10 +634,53 @@ export function WinnerRoulette({
   const winnerSound = useWinnerSound()
   const playWinnerSound = winnerSound.play
 
-  // Suena una sola vez, al revelarse el ganador.
+  // La melodía es del ganador: antes sonaba en todos los teléfonos a la vez.
+  const soundPlayedForRef = useRef<string | null>(null)
   useEffect(() => {
-    if (winner && !isSpinning) playWinnerSound()
-  }, [winner, isSpinning, playWinnerSound])
+    if (isSpinning || !winner || !isSelfWinner) return
+    if (soundPlayedForRef.current === winner.id) return
+    soundPlayedForRef.current = winner.id
+    playWinnerSound()
+  }, [winner, isSpinning, isSelfWinner, playWinnerSound])
+
+  /**
+   * Solo el ganador pide su código, y solo el suyo. Se reintenta porque el
+   * anuncio del giro puede adelantar al guardado de la asignación.
+   */
+  useEffect(() => {
+    if (!isSpectator || isSpinning) return
+    if (!winner || !isSelfWinner || !fetchAssignedPrizeCode) {
+      setWinnerPrizeCode(null)
+      return
+    }
+
+    let cancelled = false
+    const winnerId = winner.id
+    const attemptDelays = [0, 800, 1800, 3500, 6000]
+
+    const run = async () => {
+      for (const wait of attemptDelays) {
+        if (cancelled) return
+        if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait))
+        if (cancelled) return
+        try {
+          const code = await fetchAssignedPrizeCode(winnerId)
+          if (cancelled) return
+          if (code) {
+            setWinnerPrizeCode(code)
+            return
+          }
+        } catch {
+          /* se reintenta */
+        }
+      }
+    }
+
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [isSpectator, winner, isSpinning, isSelfWinner, fetchAssignedPrizeCode])
 
   useEffect(() => {
     if (drawTimerRef.current) window.clearTimeout(drawTimerRef.current)
@@ -896,11 +966,6 @@ export function WinnerRoulette({
         setRotation(finalRotation)
         if (winningPlayer) {
           setWinner(winningPlayer)
-          setWinnerPrizeCode(
-            selfParticipant?.id === winningPlayer.id
-              ? incomingSpin.winnerPrizeCode ?? null
-              : null,
-          )
         }
         return
       }
@@ -918,11 +983,6 @@ export function WinnerRoulette({
         setIsSpinning(false)
         if (winningPlayer) {
           setWinner(winningPlayer)
-          setWinnerPrizeCode(
-            selfParticipant?.id === winningPlayer.id
-              ? incomingSpin.winnerPrizeCode ?? null
-              : null,
-          )
           celebrate(participantSliceColor(winningPlayer))
         }
       }, SPIN_DURATION_MS)
@@ -956,6 +1016,12 @@ export function WinnerRoulette({
   useEffect(() => {
     setCodeCopied(false)
   }, [winner?.id, winnerPrizeCode])
+
+  // Ganador nuevo: el recuadro del premio vuelve a estar pendiente.
+  useEffect(() => {
+    setPrizeCodeCopiedOnce(false)
+    setPrizeBoxClosed(false)
+  }, [winner?.id])
 
   useEffect(() => {
     let cancelled = false
@@ -1174,10 +1240,11 @@ export function WinnerRoulette({
 
     // El premio no puede bloquear el espectáculo: si la red falla o tarda, se
     // sigue sin código en vez de dejar la rueda girando eternamente.
-    let assignedPrizeCode: WinnerPrizeCode | null = null
     if (assignWinnerPrizeCode) {
       try {
-        assignedPrizeCode = await Promise.race([
+        // Se espera la asignación (no su valor) para que el código ya esté
+        // guardado cuando el teléfono del ganador vaya a buscarlo.
+        await Promise.race([
           assignWinnerPrizeCode(winningPlayer),
           new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 4000)),
         ])
@@ -1246,12 +1313,14 @@ export function WinnerRoulette({
         setSpinError('El giro no llegó a los espectadores. Anúncialo en voz alta.')
       }
       try {
+        // El código no viaja en el anuncio: llegaba a todos los espectadores y
+        // cada cliente decidia si mostrarlo. Ahora el ganador lo consulta él.
         const sent = broadcastSpin(
           newRotation,
           winningPlayer.id,
           winningPlayer.username,
           winningPlayer.team,
-          assignedPrizeCode?.code ?? null,
+          null,
         )
         if (sent && typeof (sent as Promise<void>).catch === 'function') {
           void (sent as Promise<void>).catch(notifyFailure)
@@ -1284,12 +1353,7 @@ export function WinnerRoulette({
   const winnerColor = winner ? participantSliceColor(winner) : '#0d3b66'
   const winnerStyle = winnerAccentColors(winnerColor)
 
-  const isMe = Boolean(
-    winner &&
-      selfParticipant &&
-      winner.id === selfParticipant.id &&
-      !isVenaderoBlacklisted(winner.username),
-  )
+  const isMe = isSelfWinner
 
   const copyWinnerPrizeCode = async () => {
     if (!winnerPrizeCode) return
@@ -1307,6 +1371,9 @@ export function WinnerRoulette({
       document.body.removeChild(textarea)
     }
     setCodeCopied(true)
+    // Permanente: es lo que permite cerrar el recuadro del premio. El otro
+    // estado solo cambia el texto del botón y se apaga a los dos segundos.
+    setPrizeCodeCopiedOnce(true)
     window.setTimeout(() => setCodeCopied(false), 1800)
   }
 
@@ -1424,7 +1491,7 @@ export function WinnerRoulette({
                   ? 'Cargando nombres…'
                   : `${activePlayers.length} participante${activePlayers.length === 1 ? '' : 's'}`}
               </p>
-              {selfPlayer && (
+              {selfParticipant && (
                 <button
                   type="button"
                   onClick={flashSelfSpace}
@@ -1437,8 +1504,8 @@ export function WinnerRoulette({
                 >
                   <span aria-hidden>★</span>
                   {selfFlashActive
-                    ? `¡Tu espacio se resalta! · ${selfPlayer.username}`
-                    : `Tu espacio ahora se resalta · ${selfPlayer.username}`}
+                    ? `¡Tu espacio se resalta! · ${selfParticipant.username}`
+                    : `Tu espacio ahora se resalta · ${selfParticipant.username}`}
                 </button>
               )}
 
@@ -1867,37 +1934,6 @@ export function WinnerRoulette({
               <p className="text-4xl font-black mb-8 break-words leading-tight text-[#0d3b66] winner-name-shine">
                 {winner.username}
               </p>
-              {isSpectator && isMe && winnerPrizeCode && (
-                <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left">
-                  <div className="flex items-center gap-2 text-emerald-800 font-black text-sm mb-2">
-                    <Gift className="w-4 h-4" />
-                    Código exclusivo del ganador
-                  </div>
-                  <p className="text-xs font-semibold text-emerald-700 mb-3">
-                    Solo tú puedes copiar este código desde tu dispositivo.
-                  </p>
-                  <div className="rounded-xl bg-white border border-emerald-200 px-3 py-3 text-center font-black tracking-widest text-lg text-[#0d3b66] break-all">
-                    {winnerPrizeCode}
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={() => void copyWinnerPrizeCode()}
-                    className="mt-3 w-full py-5 rounded-xl font-black bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    {codeCopied ? (
-                      <>
-                        <Check className="w-4 h-4 mr-2" />
-                        Copiado
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 mr-2" />
-                        Copiar código
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
               {!isSpectator && (
                 <Button
                   onClick={() => setWinner(null)}
@@ -1907,6 +1943,58 @@ export function WinnerRoulette({
                 </Button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Código de premio: recuadro propio, solo en el teléfono del ganador, y
+          no se puede cerrar hasta que lo haya copiado. */}
+      {isSpectator && isMe && winnerPrizeCode && !prizeBoxClosed && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border-2 border-emerald-300">
+            <div className="flex items-center justify-center gap-2 text-emerald-700 font-black text-base mb-1">
+              <Gift className="w-5 h-5" />
+              Código de premio
+            </div>
+            <p className="text-center text-xs font-bold text-emerald-700 mb-4">
+              Es tuyo y solo aparece en tu teléfono. Cópialo antes de cerrar.
+            </p>
+
+            <div className="rounded-2xl bg-emerald-50 border-2 border-emerald-200 px-3 py-4 text-center font-black tracking-widest text-xl text-[#0d3b66] break-all select-all">
+              {winnerPrizeCode}
+            </div>
+
+            <Button
+              type="button"
+              onClick={() => void copyWinnerPrizeCode()}
+              className="mt-4 w-full py-6 rounded-xl font-black text-base bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {codeCopied ? (
+                <>
+                  <Check className="w-5 h-5 mr-2" />
+                  ¡Copiado!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-5 h-5 mr-2" />
+                  {prizeCodeCopiedOnce ? 'Copiar de nuevo' : 'Copiar código'}
+                </>
+              )}
+            </Button>
+
+            {prizeCodeCopiedOnce ? (
+              <Button
+                type="button"
+                onClick={() => setPrizeBoxClosed(true)}
+                className="mt-2 w-full py-5 rounded-xl font-black bg-[#0d3b66] hover:bg-[#0a2f52] text-white"
+              >
+                Ya lo guardé, cerrar
+              </Button>
+            ) : (
+              <p className="mt-3 text-center text-[11px] font-bold text-[#5b6483]">
+                El recuadro se cierra cuando copies el código.
+              </p>
+            )}
           </div>
         </div>
       )}

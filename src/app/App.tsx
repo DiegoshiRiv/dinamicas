@@ -177,7 +177,7 @@ export default function App() {
     addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner, removeRecentWinner, removeMultipleRecentWinners,
-    saveWinnerPrizeCodes, assignWinnerPrizeCode,
+    saveWinnerPrizeCodes, assignWinnerPrizeCode, fetchAssignedPrizeCode,
     deleteRouletteData, spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig,
     roundVersion, showWaitingAnnouncement,
   } = useParticipants(activeRouletteCode, {
@@ -540,6 +540,7 @@ export default function App() {
             participants={participants} recentWinners={recentWinners} updateStatus={updateStatus} onResetGame={resetGame} 
             isSpectator={!isAdmin} embedded incomingSpin={incomingSpin} broadcastSpin={broadcastSpin} 
             assignWinnerPrizeCode={assignWinnerPrizeCode}
+            fetchAssignedPrizeCode={fetchAssignedPrizeCode}
             penaltyMonths={canManageProbability ? penaltyMonths : rouletteConfig.penaltyMonths}
             penaltyPercent={canManageProbability ? penaltyPercent : rouletteConfig.penaltyPercent}
             rouletteCodes={rouletteCodes}

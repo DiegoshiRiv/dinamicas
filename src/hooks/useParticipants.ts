@@ -18,8 +18,13 @@ import {
   encodeRegistrationToken,
   encodeUsernameKey,
   getOrCreateDeviceToken,
+  saveLastRegistrationToken,
 } from '@/app/utils/registrationToken'
-import { randomRegistrationColor } from '@/app/utils/participantColor'
+import {
+  randomRegistrationColor,
+  readLastRegistrationColor,
+  saveLastRegistrationColor,
+} from '@/app/utils/participantColor'
 import { RegisterError } from '@/app/utils/registerError'
 
 const PARTICIPANT_COLUMNS =
@@ -473,6 +478,36 @@ export function useParticipants(
       throw error
     }
   }, [persistWinnerPrizeCodes])
+
+  /**
+   * Código asignado a un participante concreto. Lo usa el teléfono del ganador
+   * para pedir solo lo suyo, en vez de recibir el código por el canal de
+   * anuncios, donde lo veían todos los espectadores.
+   */
+  const fetchAssignedPrizeCode = useCallback(
+    async (participantId: string): Promise<string | null> => {
+      const key = WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current)
+      const pick = (codes: WinnerPrizeCode[]) =>
+        codes.find((entry) => entry.assigned_to_participant_id === participantId)?.code ?? null
+
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', key)
+          .maybeSingle()
+        if (error) throw error
+        return pick(normalizeWinnerPrizeCodes(data?.value))
+      } catch (error) {
+        if (isMissingSettingsTable(error)) return pick(readLocalPrizeCodes(key))
+        eventLog.error('winner_codes', 'fetch assigned failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return pick(readLocalPrizeCodes(key))
+      }
+    },
+    [],
+  )
 
   const assignWinnerPrizeCode = useCallback(async (winner: Participant): Promise<WinnerPrizeCode | null> => {
     const current = winnerPrizeCodesRef.current
@@ -976,12 +1011,25 @@ export function useParticipants(
     const deviceToken = isAdminBypass ? `admin-${Date.now()}` : getOrCreateDeviceToken()
     const roomToken = encodeRegistrationToken(deviceToken, rouletteCode)
     const usernameKey = encodeUsernameKey(username, rouletteCode)
-    const team = randomRegistrationColor(roomToken)
+    // Se evitan el color de la última alta de este dispositivo y los de las dos
+    // más recientes que conoce este cliente, para que no salgan seguidos.
+    const recentTeams = participantsRef.current.slice(-2).map((row) => row.team)
+    const team = randomRegistrationColor([
+      readLastRegistrationColor(rouletteCode),
+      ...recentTeams,
+    ])
+    saveLastRegistrationColor(rouletteCode, team)
     // Sin IP pública: usamos d:{token} para pertenencia a sala (UNIQUE de IP ya no aplica).
     const finalIp = encodeDeviceRoomKey(deviceToken, rouletteCode)
 
     const finishOk = (row: Participant, extra?: Record<string, unknown>) => {
       upsertParticipant(row, true)
+      // Guarda el token con el que quedó la fila: si el del dispositivo se
+      // regenera (modo privado, limpieza de datos), este sigue identificando a
+      // la persona en la ruleta y le permite ver su código de premio.
+      if (!isAdminBypass) {
+        saveLastRegistrationToken(rouletteCode, row.registration_token || roomToken)
+      }
       timer.end({ id: row.id, username, ...extra })
       diagnostics.patch({
         lastRegisterAt: Date.now(),
@@ -1362,6 +1410,7 @@ export function useParticipants(
     removeMultipleRecentWinners,
     saveWinnerPrizeCodes,
     assignWinnerPrizeCode,
+    fetchAssignedPrizeCode,
     addSponsor,
     deleteSponsor,
     deleteMultipleSponsors,

@@ -58,7 +58,54 @@ export function winnerAccentColors(color: string) {
   }
 }
 
-/** Valor a guardar en `team` al registrar (color hex). */
-export function randomRegistrationColor(seed: string): string {
-  return colorForParticipant(seed)
+const LAST_COLOR_KEY = 'dinamicas-last-registration-color-v1'
+
+function lastColorKey(rouletteCode: string): string {
+  return `${LAST_COLOR_KEY}:${rouletteCode}`
+}
+
+export function readLastRegistrationColor(rouletteCode: string): string | null {
+  try {
+    return localStorage.getItem(lastColorKey(rouletteCode))?.trim() || null
+  } catch {
+    return null
+  }
+}
+
+export function saveLastRegistrationColor(rouletteCode: string, color: string) {
+  try {
+    localStorage.setItem(lastColorKey(rouletteCode), color)
+  } catch {
+    /* modo privado: solo se pierde la variedad, no el registro */
+  }
+}
+
+function randomIndex(limit: number): number {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const buffer = new Uint32Array(1)
+    crypto.getRandomValues(buffer)
+    // Se descarta el resto sesgado para que los seis colores sean equiprobables.
+    const ceiling = Math.floor(0xffffffff / limit) * limit
+    if (buffer[0]! < ceiling) return buffer[0]! % limit
+  }
+  return Math.floor(Math.random() * limit)
+}
+
+/**
+ * Color a guardar en `team` al registrar.
+ *
+ * Antes salía de un hash del token, así que no era aleatorio: los tokens
+ * comparten sufijo de sala y varios caían en el mismo color, por eso el rojo
+ * parecía repetirse. Ahora se sortea de verdad y se descartan los colores
+ * recién usados para que dos altas seguidas no coincidan.
+ */
+export function randomRegistrationColor(avoid: (string | null | undefined)[] = []): string {
+  const excluded = new Set(
+    avoid.filter((color): color is string => Boolean(color)).map((color) => color.toLowerCase()),
+  )
+  const candidates = PARTICIPANT_PALETTE.filter(
+    (color) => !excluded.has(color.toLowerCase()),
+  )
+  const pool = candidates.length > 0 ? candidates : PARTICIPANT_PALETTE
+  return pool[randomIndex(pool.length)]!
 }
