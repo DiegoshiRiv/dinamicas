@@ -111,9 +111,9 @@ export default function App() {
   })
   const [rouletteCodes, setRouletteCodes] = useState<string[]>(() => {
     if (typeof window === 'undefined') return [DEFAULT_ROULETTE_CODE]
-    const raw = localStorage.getItem('rouletteCodes')
-    if (!raw) return [DEFAULT_ROULETTE_CODE]
     try {
+      const raw = localStorage.getItem('rouletteCodes')
+      if (!raw) return [DEFAULT_ROULETTE_CODE]
       const parsed = JSON.parse(raw) as string[]
       const sanitized = parsed.map((code) => sanitizeRouletteCode(code)).filter(Boolean)
       return Array.from(new Set([DEFAULT_ROULETTE_CODE, ...sanitized]))
@@ -160,8 +160,15 @@ export default function App() {
   const canManageProbability = isSuperAdmin(adminSession)
 
   useEffect(() => {
-    localStorage.setItem('penaltyMonths', penaltyMonths.toString())
-    localStorage.setItem('penaltyPercent', penaltyPercent.toString())
+    // Safari privado y cuota llena lanzan aquí. Sin protección la excepción
+    // sube al ErrorBoundary raíz y deja al asistente con pantalla de error,
+    // sin poder registrarse ni ver la ruleta.
+    try {
+      localStorage.setItem('penaltyMonths', penaltyMonths.toString())
+      localStorage.setItem('penaltyPercent', penaltyPercent.toString())
+    } catch {
+      /* preferencia local: se pierde, pero la app sigue */
+    }
   }, [penaltyMonths, penaltyPercent])
 
   const {
@@ -260,7 +267,11 @@ export default function App() {
   }, [activeRouletteCode, rouletteCodes])
 
   useEffect(() => {
-    localStorage.setItem('rouletteCodes', JSON.stringify(rouletteCodes))
+    try {
+      localStorage.setItem('rouletteCodes', JSON.stringify(rouletteCodes))
+    } catch {
+      /* preferencia local: se pierde, pero la app sigue */
+    }
   }, [rouletteCodes])
 
   useEffect(() => {

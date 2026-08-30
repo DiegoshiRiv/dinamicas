@@ -309,6 +309,20 @@ export function useParticipants(
     scheduleUpsertFlush()
   }, [flushPendingUpserts, scheduleUpsertFlush])
 
+  /**
+   * Tira los upserts en vuelo. Se acumulan 200 ms antes de aplicarse, así que
+   * sin esto un "limpiar ruleta" o una sincronización que caiga dentro de esa
+   * ventana quedaba pisada después por filas ya borradas del servidor, que
+   * reaparecían como fantasmas y podían llegar a ganar.
+   */
+  const discardPendingUpserts = useCallback(() => {
+    if (upsertFlushTimerRef.current) {
+      window.clearTimeout(upsertFlushTimerRef.current)
+      upsertFlushTimerRef.current = null
+    }
+    pendingUpsertsRef.current.clear()
+  }, [])
+
   const fetchBanners = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -512,6 +526,8 @@ export function useParticipants(
         belongsToRoomRef.current(p.ip_address),
       )
 
+      // La consulta manda sobre lo que hubiera en la cola de 200 ms.
+      discardPendingUpserts()
       setParticipants(filtered)
       setSyncError(null)
       const ms = Math.round(performance.now() - started)
@@ -533,7 +549,7 @@ export function useParticipants(
       diagnostics.patch({ lastError: msg })
       return participantsRef.current
     }
-  }, [])
+  }, [discardPendingUpserts])
 
   const fetchParticipantsData = useCallback(async () => {
     const gen = ++fetchGenRef.current
@@ -600,13 +616,14 @@ export function useParticipants(
 
   // Cambio de sala: limpia lista y marca loading para no pintar sala anterior.
   useEffect(() => {
+    discardPendingUpserts()
     setParticipants([])
     setWinnerPrizeCodes([])
     setLoading(true)
     setSyncError(null)
     fetchGenRef.current += 1
     prizeCodeFetchGenRef.current += 1
-  }, [rouletteCode])
+  }, [rouletteCode, discardPendingUpserts])
 
   /**
    * Se incrementa para forzar la recreación del canal cuando el navegador
@@ -621,7 +638,9 @@ export function useParticipants(
     })
 
     syncChannel.on('broadcast', { event: 'set_view' }, (payload) => {
-      setSpectatorView(payload.payload.view)
+      // Se valida porque un móvil con la app vieja puede mandar otra cosa y
+      // dejaría al espectador en una vista que no existe.
+      setSpectatorView(payload.payload?.view === 'roulette' ? 'roulette' : 'main')
       if (payload.payload.config) setRouletteConfig(payload.payload.config)
       if (payload.payload.view === 'roulette') {
         setLoading(true)
@@ -1173,6 +1192,7 @@ export function useParticipants(
     }
     const ids = participants.map((p) => p.id)
     await supabase.from('participants').delete().in('id', ids)
+    discardPendingUpserts()
     setParticipants([])
     await broadcastRoundReset()
   }

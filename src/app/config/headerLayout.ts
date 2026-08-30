@@ -114,7 +114,11 @@ export function loadHeaderLayoutsFromStorage(): HeaderLayoutsStore {
 
 export function saveHeaderLayoutsToStorage(store: HeaderLayoutsStore) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(HEADER_LAYOUT_STORAGE_KEY, JSON.stringify(store))
+  try {
+    localStorage.setItem(HEADER_LAYOUT_STORAGE_KEY, JSON.stringify(store))
+  } catch {
+    /* sin almacenamiento el diseño no persiste, pero la app sigue */
+  }
 }
 
 export function getRenderedFondoSize(

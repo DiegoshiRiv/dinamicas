@@ -97,15 +97,19 @@ function fireWinnerConfetti(color: string) {
     gravity: 0.9,
   })
 
+  let cancelled = false
   const end = Date.now() + 2800
+  let frame = 0
   const burst = () => {
+    if (cancelled) return
     confetti({ particleCount: 4, angle: 60, spread: 65, origin: { x: 0, y: 0.65 }, colors })
     confetti({ particleCount: 4, angle: 120, spread: 65, origin: { x: 1, y: 0.65 }, colors })
-    if (Date.now() < end) requestAnimationFrame(burst)
+    if (Date.now() < end) frame = requestAnimationFrame(burst)
   }
   burst()
 
-  setTimeout(() => {
+  const finale = window.setTimeout(() => {
+    if (cancelled) return
     confetti({
       particleCount: 80,
       spread: 360,
@@ -116,6 +120,14 @@ function fireWinnerConfetti(color: string) {
       scalar: 1.1,
     })
   }, 400)
+
+  // El bucle dura 2,8 s. Si el componente se va antes, seguía pintando encima
+  // de una vista desmontada y robando frames en móviles lentos.
+  return () => {
+    cancelled = true
+    if (frame) cancelAnimationFrame(frame)
+    window.clearTimeout(finale)
+  }
 }
 
 interface WinnerRouletteProps {
@@ -127,7 +139,7 @@ interface WinnerRouletteProps {
   isSpectator?: boolean
   embedded?: boolean
   incomingSpin?: IncomingSpin | null
-  broadcastSpin?: (rotation: number, winnerId: string, winnerUsername?: string, winnerTeam?: Participant['team'], winnerPrizeCode?: string | null) => void
+  broadcastSpin?: (rotation: number, winnerId: string, winnerUsername?: string, winnerTeam?: Participant['team'], winnerPrizeCode?: string | null) => void | Promise<void>
   assignWinnerPrizeCode?: (winner: Participant) => Promise<WinnerPrizeCode | null>
   penaltyMonths: number
   penaltyPercent: number
@@ -293,6 +305,11 @@ function rotationForEqualWheel(
   if (n === 0) return currentRotation
 
   const index = players.findIndex((p) => p.id === winnerId)
+  if (index < 0) {
+    // Nunca debería pasar: quien llama añade al ganador a la lista. Si pasa,
+    // el puntero caería en un nombre ajeno, así que al menos queda registrado.
+    console.warn('[dinamicas:roulette] winner not on wheel, pointer will be wrong', { winnerId })
+  }
   const idx = index >= 0 ? index : 0
   const sliceDeg = 360 / n
   const sliceCenter = idx * sliceDeg + sliceDeg / 2
@@ -380,6 +397,19 @@ export function WinnerRoulette({
   const spinTimerRef = useRef<number | null>(null)
   const drawTimerRef = useRef<number | null>(null)
   const [wheelAssetsReady, setWheelAssetsReady] = useState(false)
+  const confettiStopRef = useRef<(() => void) | null>(null)
+
+  /** Dispara el confeti recordando cómo pararlo si el componente se desmonta. */
+  const celebrate = useCallback((color: string) => {
+    try {
+      confettiStopRef.current?.()
+      confettiStopRef.current = fireWinnerConfetti(color)
+    } catch {
+      /* el confeti es decorativo */
+    }
+  }, [])
+
+  useEffect(() => () => confettiStopRef.current?.(), [])
   
   const activePlayers = useMemo(
     () => (participants ?? []).filter((p) => p.status === 'active'),
@@ -818,12 +848,14 @@ export function WinnerRoulette({
     const resolveWinner = (): Participant | null => {
       const fromList = participants.find((p) => p.id === incomingSpin.winnerId)
       if (fromList && !cannotWin(fromList)) return fromList
-      if (incomingSpin.winnerUsername && incomingSpin.winnerTeam) {
+      // Basta con el nombre: si no vino color se deriva del id, porque exigir
+      // ambos dejaba giros sin ganador y el público se quedaba mirando la nada.
+      if (incomingSpin.winnerUsername) {
         if (isVenaderoBlacklisted(incomingSpin.winnerUsername)) return null
         return {
           id: incomingSpin.winnerId,
           username: incomingSpin.winnerUsername,
-          team: incomingSpin.winnerTeam,
+          team: incomingSpin.winnerTeam ?? '',
           status: 'active',
         }
       }
@@ -832,8 +864,14 @@ export function WinnerRoulette({
 
     const runSpin = (list: Participant[]) => {
       const winningPlayer = resolveWinner()
+      // El ganador tiene que tener casilla en la rueda que se pinta. Si la
+      // lista de este móvil venía desfasada (alguien se registró justo antes,
+      // o el canal estuvo caído) el puntero se paraba sobre otro nombre.
+      const base = list.length > 0 ? list : []
       const wheelSource =
-        list.length > 0 ? list : winningPlayer ? [winningPlayer] : []
+        winningPlayer && !base.some((p) => p.id === winningPlayer.id)
+          ? [...base, winningPlayer]
+          : base
       const wheelPlayers = shufflePlayersForWheel(wheelSource)
       // Congela la misma lista que se pinta, para que el puntero caiga en el nombre real.
       setWheelSnapshot(wheelSource)
@@ -876,7 +914,7 @@ export function WinnerRoulette({
               ? incomingSpin.winnerPrizeCode ?? null
               : null,
           )
-          fireWinnerConfetti(participantSliceColor(winningPlayer))
+          celebrate(participantSliceColor(winningPlayer))
         }
       }, SPIN_DURATION_MS)
     }
@@ -1089,11 +1127,11 @@ export function WinnerRoulette({
         .map((entry) => {
           // Sin giro programado no se fuerza: el sorteo sigue siendo al azar.
           if (entry.targetSpin == null) return null
+          // Marcado por nombre, no por id: si la persona se reregistra su fila
+          // cambia de id y volvería a cobrar el premio asegurado otra vez.
+          if (assuredCompleted.has(winnerKey(entry.username))) return null
           const player = freshActive.find(
-            (p) =>
-              winnerKey(p.username) === winnerKey(entry.username) &&
-              !assuredCompleted.has(p.id) &&
-              !cannotWin(p),
+            (p) => winnerKey(p.username) === winnerKey(entry.username) && !cannotWin(p),
           )
           if (!player) return null
           if (entry.targetSpin > nextSpin) return null
@@ -1152,7 +1190,7 @@ export function WinnerRoulette({
 
     if (usedAssuredWinner) {
       const nextCompleted = new Set(assuredCompleted)
-      nextCompleted.add(winningPlayer.id)
+      nextCompleted.add(winnerKey(winningPlayer.username))
       setAssuredCompleted(nextCompleted)
       try {
         localStorage.setItem(
@@ -1191,18 +1229,26 @@ export function WinnerRoulette({
     setRotation(newRotation)
 
     if (broadcastSpin) {
+      // El envío es asíncrono: un try/catch normal no atrapa su rechazo, así
+      // que hay que encadenar el catch o el fallo se pierde y nadie se entera
+      // de que los espectadores no vieron el giro.
+      const notifyFailure = (error: unknown) => {
+        console.warn('[dinamicas:roulette] broadcast failed', error)
+        setSpinError('El giro no llegó a los espectadores. Anúncialo en voz alta.')
+      }
       try {
-        broadcastSpin(
+        const sent = broadcastSpin(
           newRotation,
           winningPlayer.id,
           winningPlayer.username,
           winningPlayer.team,
           assignedPrizeCode?.code ?? null,
         )
+        if (sent && typeof (sent as Promise<void>).catch === 'function') {
+          void (sent as Promise<void>).catch(notifyFailure)
+        }
       } catch (error) {
-        // El master ya tiene su ganador; que no lleguen los espectadores no
-        // debe abortar la animación en la pantalla principal.
-        console.warn('[dinamicas:roulette] broadcast failed', error)
+        notifyFailure(error)
       }
     }
 
@@ -1222,11 +1268,7 @@ export function WinnerRoulette({
           }
         }
       }
-      try {
-        fireWinnerConfetti(participantSliceColor(winningPlayer))
-      } catch {
-        /* el confeti es decorativo */
-      }
+      celebrate(participantSliceColor(winningPlayer))
     }, SPIN_DURATION_MS)
   }
 
@@ -1646,7 +1688,7 @@ export function WinnerRoulette({
                               (player) =>
                                 winnerKey(player.username) === winnerKey(entry.username),
                             )
-                            const completed = Boolean(participant && assuredCompleted.has(participant.id))
+                            const completed = assuredCompleted.has(winnerKey(entry.username))
                             const isDefault =
                               winnerKey(entry.username) === winnerKey(DEFAULT_ASSURED_WINNER)
                             const remaining =
@@ -1966,7 +2008,12 @@ export function WinnerRoulette({
                   <QRCodeCanvas value={createdRouletteUrl} size={220} level="H" includeMargin />
                 </div>
                 <Button
-                  onClick={handleDownloadCreatedQrPdf}
+                  onClick={() => {
+                    void handleDownloadCreatedQrPdf().catch((error) => {
+                      console.warn('[dinamicas:roulette] QR pdf failed', error)
+                      setSpinError('No se pudo generar el PDF. Revisa la conexión.')
+                    })
+                  }}
                   className="w-full bg-[#23c8b6] hover:bg-[#1fb7a7] text-white font-bold"
                 >
                   Descargar PDF

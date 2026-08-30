@@ -42,11 +42,16 @@ export function loadAdminSession(): AdminSession | null {
 
 export function saveAdminSession(session: AdminSession | null) {
   if (typeof window === 'undefined') return
-  if (!session) {
-    localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY)
-    localStorage.removeItem('isAdmin')
-    return
+  // Se llama desde un efecto: si lanzara, tumbaría la app del organizador.
+  try {
+    if (!session) {
+      localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY)
+      localStorage.removeItem('isAdmin')
+      return
+    }
+    localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(session))
+    localStorage.setItem('isAdmin', 'true')
+  } catch {
+    /* sesión no persistida: habrá que volver a entrar tras recargar */
   }
-  localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(session))
-  localStorage.setItem('isAdmin', 'true')
 }
