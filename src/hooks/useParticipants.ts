@@ -58,12 +58,20 @@ export interface BannedUser {
 export interface RecentWinner { id: string; username: string; ip_address: string; won_at: string }
 export interface Sponsor { id: string; name: string; url: string; image_url: string; order_index: number }
 export interface Banner { id: string; image_url: string; link_url?: string }
+export interface WinnerPrizeCode {
+  id: string
+  code: string
+  assigned_to_participant_id?: string | null
+  assigned_to_username?: string | null
+  assigned_at?: string | null
+}
 
 export type IncomingSpin = {
   rotation: number
   winnerId: string
   winnerUsername?: string
   winnerTeam?: Participant['team']
+  winnerPrizeCode?: string | null
   localReceivedAt: number
 }
 
@@ -71,15 +79,73 @@ function makeTempId() {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+function makePrizeCodeId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `code-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+const WINNER_PRIZE_CODES_KEY = (code: string) =>
+  `winner_prize_codes:${sanitizeRouletteCode(code)}`
+
+function normalizeWinnerPrizeCodes(raw: unknown): WinnerPrizeCode[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const codes: WinnerPrizeCode[] = []
+
+  for (const item of raw) {
+    const source =
+      typeof item === 'string'
+        ? { code: item }
+        : item && typeof item === 'object'
+          ? (item as Record<string, unknown>)
+          : null
+    if (!source) continue
+
+    const code = typeof source.code === 'string' ? source.code.trim() : ''
+    if (!code || seen.has(code)) continue
+    seen.add(code)
+
+    const id = typeof source.id === 'string' && source.id.trim()
+      ? source.id.trim()
+      : makePrizeCodeId()
+    const assignedToParticipantId =
+      typeof source.assigned_to_participant_id === 'string'
+        ? source.assigned_to_participant_id
+        : null
+    const assignedToUsername =
+      typeof source.assigned_to_username === 'string'
+        ? source.assigned_to_username
+        : null
+    const assignedAt =
+      typeof source.assigned_at === 'string'
+        ? source.assigned_at
+        : null
+
+    codes.push({
+      id,
+      code,
+      assigned_to_participant_id: assignedToParticipantId,
+      assigned_to_username: assignedToUsername,
+      assigned_at: assignedAt,
+    })
+  }
+
+  return codes.slice(0, 10)
+}
+
 export function useParticipants(
   activeRouletteCode: string = DEFAULT_ROULETTE_CODE,
-  options: { loadParticipants?: boolean } = {},
+  options: { loadParticipants?: boolean; loadWinnerPrizeCodes?: boolean } = {},
 ) {
   const loadParticipants = options.loadParticipants ?? true
+  const loadWinnerPrizeCodes = options.loadWinnerPrizeCodes ?? loadParticipants
   const rouletteCode = sanitizeRouletteCode(activeRouletteCode)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([])
   const [recentWinners, setRecentWinners] = useState<RecentWinner[]>([])
+  const [winnerPrizeCodes, setWinnerPrizeCodes] = useState<WinnerPrizeCode[]>([])
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
   const [banners, setBanners] = useState<Banner[]>(() => loadCachedSponsorBanners())
   const [loading, setLoading] = useState(true)
@@ -96,12 +162,15 @@ export function useParticipants(
   const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 70 })
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const refetchTimerRef = useRef<number | null>(null)
+  const loadWinnerPrizeCodesRef = useRef(loadWinnerPrizeCodes)
   const participantsRef = useRef(participants)
   const bannedUsersRef = useRef(bannedUsers)
+  const winnerPrizeCodesRef = useRef(winnerPrizeCodes)
   const participantsByIdRef = useRef<Map<string, Participant>>(new Map())
   const pendingUpsertsRef = useRef<Map<string, Participant>>(new Map())
   const upsertFlushTimerRef = useRef<number | null>(null)
   const fetchGenRef = useRef(0)
+  const prizeCodeFetchGenRef = useRef(0)
   const rouletteCodeRef = useRef(rouletteCode)
   const belongsToRoomRef = useRef((ip?: string) => extractRouletteCodeFromIp(ip) === rouletteCode)
 
@@ -115,6 +184,14 @@ export function useParticipants(
   useEffect(() => {
     bannedUsersRef.current = bannedUsers
   }, [bannedUsers])
+
+  useEffect(() => {
+    winnerPrizeCodesRef.current = winnerPrizeCodes
+  }, [winnerPrizeCodes])
+
+  useEffect(() => {
+    loadWinnerPrizeCodesRef.current = loadWinnerPrizeCodes
+  }, [loadWinnerPrizeCodes])
 
   useEffect(() => {
     rouletteCodeRef.current = rouletteCode
@@ -243,6 +320,91 @@ export function useParticipants(
     }
   }, [])
 
+  const fetchWinnerPrizeCodes = useCallback(async () => {
+    if (!loadWinnerPrizeCodesRef.current) {
+      setWinnerPrizeCodes([])
+      winnerPrizeCodesRef.current = []
+      return
+    }
+    const gen = ++prizeCodeFetchGenRef.current
+    try {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current))
+        .maybeSingle()
+      if (gen !== prizeCodeFetchGenRef.current) return
+      if (error) throw error
+      const parsed = normalizeWinnerPrizeCodes(data?.value)
+      setWinnerPrizeCodes(parsed)
+      winnerPrizeCodesRef.current = parsed
+    } catch (error) {
+      eventLog.error('winner_codes', 'fetch failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      if (gen === prizeCodeFetchGenRef.current) {
+        setWinnerPrizeCodes([])
+        winnerPrizeCodesRef.current = []
+      }
+    }
+  }, [])
+
+  const persistWinnerPrizeCodes = useCallback(async (codes: WinnerPrizeCode[]) => {
+    const normalized = normalizeWinnerPrizeCodes(codes)
+    const key = WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current)
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert(
+        { key, value: normalized, updated_at: new Date().toISOString() },
+        { onConflict: 'key' },
+      )
+    if (error) throw error
+  }, [])
+
+  const saveWinnerPrizeCodes = useCallback(async (codes: WinnerPrizeCode[]) => {
+    const normalized = normalizeWinnerPrizeCodes(codes)
+    setWinnerPrizeCodes(normalized)
+    winnerPrizeCodesRef.current = normalized
+    try {
+      await persistWinnerPrizeCodes(normalized)
+    } catch (error) {
+      eventLog.error('winner_codes', 'save failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      throw error
+    }
+  }, [persistWinnerPrizeCodes])
+
+  const assignWinnerPrizeCode = useCallback(async (winner: Participant): Promise<WinnerPrizeCode | null> => {
+    const current = winnerPrizeCodesRef.current
+    const existing = current.find((entry) => entry.assigned_to_participant_id === winner.id)
+    if (existing) return existing
+
+    const available = current.find((entry) => !entry.assigned_to_participant_id)
+    if (!available) return null
+
+    const assigned: WinnerPrizeCode = {
+      ...available,
+      assigned_to_participant_id: winner.id,
+      assigned_to_username: winner.username,
+      assigned_at: new Date().toISOString(),
+    }
+    const next = current.map((entry) => (entry.id === available.id ? assigned : entry))
+    setWinnerPrizeCodes(next)
+    winnerPrizeCodesRef.current = next
+
+    try {
+      await persistWinnerPrizeCodes(next)
+    } catch (error) {
+      eventLog.error('winner_codes', 'assign failed', {
+        error: error instanceof Error ? error.message : String(error),
+        winnerId: winner.id,
+      })
+    }
+
+    return assigned
+  }, [persistWinnerPrizeCodes])
+
   /**
    * Consulta fresca de participantes. Usa generación para evitar que una
    * respuesta vieja pise una más nueva (race de Promise.all / realtime).
@@ -367,9 +529,11 @@ export function useParticipants(
   // Cambio de sala: limpia lista y marca loading para no pintar sala anterior.
   useEffect(() => {
     setParticipants([])
+    setWinnerPrizeCodes([])
     setLoading(true)
     setSyncError(null)
     fetchGenRef.current += 1
+    prizeCodeFetchGenRef.current += 1
   }, [rouletteCode])
 
   // Canal de sync de ruleta: estable respecto a loadParticipants.
@@ -394,6 +558,7 @@ export function useParticipants(
         winnerId: payload.payload.winnerId,
         winnerUsername: payload.payload.winnerUsername,
         winnerTeam: payload.payload.winnerTeam,
+        winnerPrizeCode: payload.payload.winnerPrizeCode ?? null,
         localReceivedAt: Date.now(),
       })
     })
@@ -435,6 +600,11 @@ export function useParticipants(
     if (cached.length > 0) preloadSponsorBannerImages(cached)
     void fetchBanners()
     void fetchSponsors()
+    if (loadWinnerPrizeCodes) void fetchWinnerPrizeCodes()
+    else {
+      setWinnerPrizeCodes([])
+      winnerPrizeCodesRef.current = []
+    }
 
     let cancelled = false
     const boot = async () => {
@@ -459,7 +629,7 @@ export function useParticipants(
     return () => {
       cancelled = true
     }
-  }, [rouletteCode, loadParticipants, fetchBanners, fetchSponsors, fetchParticipantsData, fetchRegistrationMeta, fetchRecentWinners])
+  }, [rouletteCode, loadParticipants, loadWinnerPrizeCodes, fetchBanners, fetchSponsors, fetchParticipantsData, fetchRegistrationMeta, fetchRecentWinners, fetchWinnerPrizeCodes])
 
   // Realtime DB: un solo canal por sala; NO se remonta al flip de loadParticipants.
   useEffect(() => {
@@ -510,6 +680,12 @@ export function useParticipants(
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sponsors' }, () => {
         void fetchSponsors()
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload) => {
+        const row = (payload.new || payload.old) as { key?: string }
+        if (loadWinnerPrizeCodesRef.current && row.key === WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current)) {
+          void fetchWinnerPrizeCodes()
+        }
+      })
       .subscribe((status) => {
         eventLog.info('realtime', 'db channel', { status, code: rouletteCode })
       })
@@ -524,6 +700,7 @@ export function useParticipants(
     fetchSponsors,
     fetchRegistrationMeta,
     fetchRecentWinners,
+    fetchWinnerPrizeCodes,
     scheduleParticipantsRefetch,
     upsertParticipant,
   ])
@@ -546,13 +723,14 @@ export function useParticipants(
     winnerId: string,
     winnerUsername?: string,
     winnerTeam?: Participant['team'],
+    winnerPrizeCode?: string | null,
   ) => {
     setShowWaitingAnnouncement(false)
     if (channelRef.current) {
       await channelRef.current.send({
         type: 'broadcast',
         event: 'spin',
-        payload: { rotation, winnerId, winnerUsername, winnerTeam },
+        payload: { rotation, winnerId, winnerUsername, winnerTeam, winnerPrizeCode },
       })
     }
   }
@@ -939,6 +1117,8 @@ export function useParticipants(
       await supabase.from('recent_winners').delete().in('id', winnerIds)
     }
 
+    await supabase.from('app_settings').delete().eq('key', WINNER_PRIZE_CODES_KEY(targetCode))
+
     await syncParticipantsFresh('delete_roulette')
   }
 
@@ -946,6 +1126,7 @@ export function useParticipants(
     participants,
     bannedUsers,
     recentWinners,
+    winnerPrizeCodes,
     sponsors,
     banners,
     loading,
@@ -963,6 +1144,8 @@ export function useParticipants(
     clearAll,
     removeRecentWinner,
     removeMultipleRecentWinners,
+    saveWinnerPrizeCodes,
+    assignWinnerPrizeCode,
     addSponsor,
     deleteSponsor,
     deleteMultipleSponsors,

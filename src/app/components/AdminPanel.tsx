@@ -47,7 +47,7 @@ interface AdminPanelProps {
   participants: Participant[]; 
   bannedUsers: BannedUser[];
   recentWinners: RecentWinner[];
-  winnerPrizeCodes: WinnerPrizeCode[];
+  winnerPrizeCodes?: WinnerPrizeCode[];
   onDelete: (id: string) => void; 
   onDeleteMultiple: (ids: string[]) => void; 
   onClearAll: () => void; 
@@ -56,7 +56,7 @@ interface AdminPanelProps {
   onUnbanUser: (id: string) => void
   onRemoveWinner: (id: string) => void; 
   onRemoveMultipleWinners: (ids: string[]) => void;
-  onSaveWinnerPrizeCodes: (codes: WinnerPrizeCode[]) => Promise<void>;
+  onSaveWinnerPrizeCodes?: (codes: WinnerPrizeCode[]) => Promise<void>;
   penaltyMonths: number;
   setPenaltyMonths: (m: number) => void;
   penaltyPercent: number;
@@ -69,8 +69,8 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ 
-  participants, bannedUsers, recentWinners, onDelete, onDeleteMultiple, onClearAll, onStartRoulette, onBanUser, onUnbanUser,
-  winnerPrizeCodes, onRemoveWinner, onRemoveMultipleWinners, onSaveWinnerPrizeCodes,
+  participants = [], bannedUsers = [], recentWinners = [], onDelete, onDeleteMultiple, onClearAll, onStartRoulette, onBanUser, onUnbanUser,
+  winnerPrizeCodes = [], onRemoveWinner, onRemoveMultipleWinners, onSaveWinnerPrizeCodes,
   penaltyMonths, setPenaltyMonths, penaltyPercent, setPenaltyPercent,
   rouletteCodes, activeRouletteCode, onChangeRouletteCode,
   isSuperAdmin = false, adminUsername = '',
@@ -99,13 +99,13 @@ export function AdminPanel({
   useEffect(() => { setLocalPercent(penaltyPercent.toString()) }, [penaltyPercent])
 
   useEffect(() => {
-    setPrizeCodeInput(winnerPrizeCodes.map((entry) => entry.code).join('\n'))
+    setPrizeCodeInput((winnerPrizeCodes ?? []).map((entry) => entry.code).join('\n'))
   }, [winnerPrizeCodes])
 
   // Filtrado
   const filteredParticipants = useMemo(() => {
     const term = debouncedSearch.toLowerCase()
-    return participants.filter((p) => {
+    return (participants ?? []).filter((p) => {
       if (p.status !== 'active') return false
       const matchesSearch = !term || p.username.toLowerCase().includes(term)
       return matchesSearch
@@ -129,14 +129,14 @@ export function AdminPanel({
   }, [])
 
   const filteredWinners = useMemo(
-    () => recentWinners.filter((w) =>
+    () => (recentWinners ?? []).filter((w) =>
       w.username.toLowerCase().includes(searchWinnerTerm.toLowerCase()),
     ),
     [recentWinners, searchWinnerTerm],
   )
 
   const assignedPrizeCodeCount = useMemo(
-    () => winnerPrizeCodes.filter((entry) => Boolean(entry.assigned_to_participant_id)).length,
+    () => (winnerPrizeCodes ?? []).filter((entry) => Boolean(entry.assigned_to_participant_id)).length,
     [winnerPrizeCodes],
   )
 
@@ -184,8 +184,12 @@ export function AdminPanel({
   }
 
   const handleSavePrizeCodes = async () => {
+    if (!onSaveWinnerPrizeCodes) {
+      setPrizeCodeMessage('No se pudieron guardar los códigos. Intenta de nuevo.')
+      return
+    }
     const codes = parsePrizeCodeInput(prizeCodeInput)
-    const existingByCode = new Map(winnerPrizeCodes.map((entry) => [entry.code, entry]))
+    const existingByCode = new Map((winnerPrizeCodes ?? []).map((entry) => [entry.code, entry]))
     const nextCodes = codes.map((code) => {
       const existing = existingByCode.get(code)
       return existing ?? {
@@ -468,7 +472,7 @@ export function AdminPanel({
 
               <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
                 <p className="text-xs font-bold text-emerald-900">
-                  {winnerPrizeCodes.length}/10 cargados · {assignedPrizeCodeCount} asignados · {Math.max(0, winnerPrizeCodes.length - assignedPrizeCodeCount)} libres
+                  {(winnerPrizeCodes ?? []).length}/10 cargados · {assignedPrizeCodeCount} asignados · {Math.max(0, (winnerPrizeCodes ?? []).length - assignedPrizeCodeCount)} libres
                 </p>
                 <Button
                   type="button"
@@ -486,9 +490,9 @@ export function AdminPanel({
                 </p>
               )}
 
-              {winnerPrizeCodes.length > 0 && (
+              {(winnerPrizeCodes ?? []).length > 0 && (
                 <div className="rounded-xl border border-emerald-100 bg-white divide-y divide-emerald-50 overflow-hidden">
-                  {winnerPrizeCodes.map((entry, index) => (
+                  {(winnerPrizeCodes ?? []).map((entry, index) => (
                     <div key={entry.id} className="px-3 py-2 flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-[#1f2a44] truncate">
