@@ -311,6 +311,22 @@ function rotationForEqualWheel(
   return currentRotation + 5 * 360 + delta
 }
 
+/**
+ * Clave para cruzar participantes con el historial de ganadores. Solo baja a
+ * minúsculas y quita acentos y "@" inicial: no toca dígitos porque muchos
+ * nombres los usan de forma significativa (ARU518, LizRen95) y colapsarlos
+ * penalizaría a jugadores distintos.
+ */
+function winnerKey(username: string): string {
+  return username
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/^@+/, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+}
+
 export function WinnerRoulette({ 
   onBack: _onBack, participants = [], recentWinners = [], updateStatus, onResetGame, 
   isSpectator = false, embedded = false, incomingSpin, broadcastSpin,
@@ -455,7 +471,13 @@ export function WinnerRoulette({
 
   const recentWinnerByUsername = useMemo(() => {
     const map = new Map<string, RecentWinner>()
-    for (const rw of recentWinners) map.set(rw.username, rw)
+    for (const rw of recentWinners) {
+      const key = winnerKey(rw.username)
+      const prev = map.get(key)
+      // Con varias victorias manda la más reciente: es la que define si el
+      // jugador sigue dentro de la ventana de penalización.
+      if (!prev || new Date(rw.won_at) > new Date(prev.won_at)) map.set(key, rw)
+    }
     return map
   }, [recentWinners])
 
@@ -508,7 +530,7 @@ export function WinnerRoulette({
     const now = new Date();
     return eligiblePlayers.map(p => {
       let weight = 100;
-      const recent = recentWinnerByUsername.get(p.username);
+      const recent = recentWinnerByUsername.get(winnerKey(p.username));
       if (recent) {
         const wonAt = new Date(recent.won_at);
         const monthsDiff = (now.getTime() - wonAt.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
@@ -978,7 +1000,7 @@ export function WinnerRoulette({
     const now = new Date()
     const weighted: WheelPlayer[] = freshEligible.map((p) => {
       let weight = 100
-      const recent = recentWinnerByUsername.get(p.username)
+      const recent = recentWinnerByUsername.get(winnerKey(p.username))
       if (recent) {
         const wonAt = new Date(recent.won_at)
         const monthsDiff = (now.getTime() - wonAt.getTime()) / (1000 * 60 * 60 * 24 * 30.44)

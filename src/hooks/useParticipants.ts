@@ -124,6 +124,31 @@ function makePrizeCodeId() {
 const WINNER_PRIZE_CODES_KEY = (code: string) =>
   `winner_prize_codes:${sanitizeRouletteCode(code)}`
 
+/** La tabla public.app_settings todavía no existe en este proyecto de Supabase. */
+function isMissingSettingsTable(error: unknown): boolean {
+  const err = error as { code?: string; message?: string } | null
+  if (!err) return false
+  if (err.code === 'PGRST205' || err.code === '42P01') return true
+  return /could not find the table|does not exist/i.test(String(err.message ?? ''))
+}
+
+function readLocalPrizeCodes(key: string): WinnerPrizeCode[] {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? normalizeWinnerPrizeCodes(JSON.parse(raw)) : []
+  } catch {
+    return []
+  }
+}
+
+function writeLocalPrizeCodes(key: string, codes: WinnerPrizeCode[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(codes))
+  } catch {
+    /* sin espacio o modo privado: la copia en servidor sigue siendo la buena */
+  }
+}
+
 function normalizeWinnerPrizeCodes(raw: unknown): WinnerPrizeCode[] {
   if (!Array.isArray(raw)) return []
   const seen = new Set<string>()
@@ -194,7 +219,7 @@ export function useParticipants(
   /** false cuando la ruleta gira (o se recibió el giro). */
   const [showWaitingAnnouncement, setShowWaitingAnnouncement] = useState(true)
 
-  const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 2, penaltyPercent: 90 })
+  const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 12, penaltyPercent: 90 })
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const refetchTimerRef = useRef<number | null>(null)
   const loadWinnerPrizeCodesRef = useRef(loadWinnerPrizeCodes)
@@ -357,38 +382,55 @@ export function useParticipants(
       return
     }
     const gen = ++prizeCodeFetchGenRef.current
+    const key = WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current)
+    const apply = (codes: WinnerPrizeCode[]) => {
+      if (gen !== prizeCodeFetchGenRef.current) return
+      setWinnerPrizeCodes(codes)
+      winnerPrizeCodesRef.current = codes
+    }
+
     try {
       const { data, error } = await supabase
         .from('app_settings')
         .select('value')
-        .eq('key', WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current))
+        .eq('key', key)
         .maybeSingle()
       if (gen !== prizeCodeFetchGenRef.current) return
       if (error) throw error
-      const parsed = normalizeWinnerPrizeCodes(data?.value)
-      setWinnerPrizeCodes(parsed)
-      winnerPrizeCodesRef.current = parsed
+      apply(normalizeWinnerPrizeCodes(data?.value))
     } catch (error) {
+      if (isMissingSettingsTable(error)) {
+        apply(readLocalPrizeCodes(key))
+        return
+      }
       eventLog.error('winner_codes', 'fetch failed', {
         error: error instanceof Error ? error.message : String(error),
       })
-      if (gen === prizeCodeFetchGenRef.current) {
-        setWinnerPrizeCodes([])
-        winnerPrizeCodesRef.current = []
-      }
+      apply(readLocalPrizeCodes(key))
     }
   }, [])
 
   const persistWinnerPrizeCodes = useCallback(async (codes: WinnerPrizeCode[]) => {
     const normalized = normalizeWinnerPrizeCodes(codes)
     const key = WINNER_PRIZE_CODES_KEY(rouletteCodeRef.current)
+    // Copia local siempre: si la tabla de ajustes no está creada, los códigos
+    // siguen funcionando en este dispositivo en lugar de perderse al guardar.
+    writeLocalPrizeCodes(key, normalized)
+
     const { error } = await supabase
       .from('app_settings')
       .upsert(
         { key, value: normalized, updated_at: new Date().toISOString() },
         { onConflict: 'key' },
       )
-    if (error) throw error
+    if (!error) return
+    if (isMissingSettingsTable(error)) {
+      eventLog.warn('winner_codes', 'app_settings table missing; usando copia local', {
+        message: error.message,
+      })
+      return
+    }
+    throw error
   }, [])
 
   const saveWinnerPrizeCodes = useCallback(async (codes: WinnerPrizeCode[]) => {
@@ -1182,6 +1224,7 @@ export function useParticipants(
       await supabase.from('recent_winners').delete().in('id', winnerIds)
     }
 
+    writeLocalPrizeCodes(WINNER_PRIZE_CODES_KEY(targetCode), [])
     await supabase.from('app_settings').delete().eq('key', WINNER_PRIZE_CODES_KEY(targetCode))
 
     await syncParticipantsFresh('delete_roulette')

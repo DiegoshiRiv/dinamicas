@@ -62,23 +62,44 @@ type View = 'main' | 'roulette'
 
 /** Los ganadores recientes pierden un 90% de peso para dar sitio a los nuevos. */
 const DEFAULT_PENALTY_PERCENT = 90
+/**
+ * Ventana de penalización. El historial arranca en marzo de 2026, así que 12
+ * meses cubre a todos los ganadores registrados sin que vayan saliendo del
+ * castigo conforme pasan las semanas.
+ */
+const DEFAULT_PENALTY_MONTHS = 12
 const PENALTY_DEFAULTS_KEY = 'penaltyDefaultsVersion'
-const PENALTY_DEFAULTS_VERSION = '2'
+const PENALTY_DEFAULTS_VERSION = '3'
+
+/** true una sola vez por navegador cuando cambian los valores por defecto. */
+function shouldReapplyPenaltyDefaults(): boolean {
+  try {
+    if (localStorage.getItem(PENALTY_DEFAULTS_KEY) === PENALTY_DEFAULTS_VERSION) return false
+    localStorage.setItem(PENALTY_DEFAULTS_KEY, PENALTY_DEFAULTS_VERSION)
+    return true
+  } catch {
+    return false
+  }
+}
 
 /**
- * Reaplica el valor por defecto una sola vez, para que el ajuste llegue también
- * a quienes ya tenían guardado el porcentaje anterior.
+ * Reaplica los valores por defecto una sola vez, para que el ajuste llegue
+ * también a quienes ya tenían guardada la configuración anterior.
  */
-function readPenaltyPercent(): number {
+function readPenaltySettings(): { months: number; percent: number } {
+  const fallback = { months: DEFAULT_PENALTY_MONTHS, percent: DEFAULT_PENALTY_PERCENT }
   try {
-    if (localStorage.getItem(PENALTY_DEFAULTS_KEY) !== PENALTY_DEFAULTS_VERSION) {
-      localStorage.setItem(PENALTY_DEFAULTS_KEY, PENALTY_DEFAULTS_VERSION)
+    if (shouldReapplyPenaltyDefaults()) {
       localStorage.setItem('penaltyPercent', String(DEFAULT_PENALTY_PERCENT))
-      return DEFAULT_PENALTY_PERCENT
+      localStorage.setItem('penaltyMonths', String(DEFAULT_PENALTY_MONTHS))
+      return fallback
     }
-    return Number(localStorage.getItem('penaltyPercent')) || DEFAULT_PENALTY_PERCENT
+    return {
+      months: Number(localStorage.getItem('penaltyMonths')) || DEFAULT_PENALTY_MONTHS,
+      percent: Number(localStorage.getItem('penaltyPercent')) || DEFAULT_PENALTY_PERCENT,
+    }
   } catch {
-    return DEFAULT_PENALTY_PERCENT
+    return fallback
   }
 }
 
@@ -131,8 +152,8 @@ export default function App() {
   const [addingBanner, setAddingBanner] = useState(false)
   const [editingBannerId, setEditingBannerId] = useState<string | null>(null)
 
-  const [penaltyMonths, setPenaltyMonths] = useState(() => Number(localStorage.getItem('penaltyMonths')) || 2)
-  const [penaltyPercent, setPenaltyPercent] = useState(readPenaltyPercent)
+  const [penaltyMonths, setPenaltyMonths] = useState(() => readPenaltySettings().months)
+  const [penaltyPercent, setPenaltyPercent] = useState(() => readPenaltySettings().percent)
 
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => loadAdminSession())
   const isAdmin = Boolean(adminSession)
