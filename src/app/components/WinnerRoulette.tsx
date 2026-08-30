@@ -6,11 +6,11 @@ import { Input } from '@/app/components/ui/input'
 import type { Participant, RecentWinner, IncomingSpin, WinnerPrizeCode } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 import { QRCodeCanvas } from 'qrcode.react'
-import { buildRouletteRegistrationUrl, extractBaseIp, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
+import { buildRouletteRegistrationUrl, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
 import { ScreenNameNotice } from '@/app/components/ScreenNameNotice'
 import { useWinnerSound } from '@/app/hooks/useWinnerSound'
 
-import { normalizeUsername, isVenaderoBlacklisted } from '@/app/utils/UsuariosToxicosBlackList'
+import { isVenaderoBlacklisted } from '@/app/utils/UsuariosToxicosBlackList'
 import { telemetry } from '@/app/utils/telemetry'
 import {
   encodeRegistrationToken,
@@ -23,26 +23,6 @@ import {
 } from '@/app/utils/participantColor'
 
 import pokeBallIcon from '@/assets/iconos/Poké_Ball_icon.svg.webp'
-
-function trackIp(ipSet: Set<string>, ip?: string) {
-  if (!ip) return
-  ipSet.add(ip)
-  const base = extractBaseIp(ip)
-  if (base) ipSet.add(base)
-}
-
-function ipIsTracked(ipSet: Set<string>, ip?: string): boolean {
-  if (!ip) return false
-  if (ipSet.has(ip)) return true
-  const base = extractBaseIp(ip)
-  return Boolean(base && ipSet.has(base))
-}
-
-function isNerfed(username: string): boolean {
-  const normalized = normalizeUsername(username);
-  const targets = ['hozz0501', 'tugfameam', 'TuGfaMeAm4xD ', 'yardrat', 'crackbandoo', 'alessandrasama', 'Cavalex92'];
-  return targets.some(target => normalized.includes(normalizeUsername(target)));
-}
 
 const SPIN_DURATION_MS = 6000
 const SPIN_EASING = 'cubic-bezier(0.12, 0.85, 0.15, 1)'
@@ -401,8 +381,6 @@ export function WinnerRoulette({
   const drawTimerRef = useRef<number | null>(null)
   const [wheelAssetsReady, setWheelAssetsReady] = useState(false)
   
-  const nerfedIpsRef = useRef<Set<string>>(new Set(['202.5.98.55', '201.162.167.42']))
-
   const activePlayers = useMemo(
     () => (participants ?? []).filter((p) => p.status === 'active'),
     [participants],
@@ -515,28 +493,15 @@ export function WinnerRoulette({
     return map
   }, [recentWinners])
 
-  const venaderoIps = useMemo(() => {
-    const ips = new Set<string>()
-    for (const p of activePlayers) {
-      if (isVenaderoBlacklisted(p.username)) trackIp(ips, p.ip_address)
-    }
-    return ips
-  }, [activePlayers])
-
-  /** Sorteo real: venaderos y sus IPs nunca entran al pool */
+  /**
+   * Sorteo real: puede ganar todo el mundo menos los tóxicos. La exclusión va
+   * por nombre y solo por nombre; antes también se vetaba por IP, pero en el
+   * wifi compartido del evento eso dejaba fuera a gente que no había hecho nada.
+   */
   const eligiblePlayers = useMemo(
-    () =>
-      activePlayers.filter(
-        (p) => !isVenaderoBlacklisted(p.username) && !ipIsTracked(venaderoIps, p.ip_address),
-      ),
-    [activePlayers, venaderoIps],
+    () => activePlayers.filter((p) => !isVenaderoBlacklisted(p.username)),
+    [activePlayers],
   )
-
-  useEffect(() => {
-    eligiblePlayers.forEach((p) => {
-      if (isNerfed(p.username)) trackIp(nerfedIpsRef.current, p.ip_address)
-    })
-  }, [eligiblePlayers])
 
   useEffect(() => {
     const img = new Image()
@@ -547,11 +512,7 @@ export function WinnerRoulette({
     }
   }, [])
 
-  const cannotWin = useCallback(
-    (p: Participant) =>
-      isVenaderoBlacklisted(p.username) || ipIsTracked(venaderoIps, p.ip_address),
-    [venaderoIps],
-  )
+  const cannotWin = useCallback((p: Participant) => isVenaderoBlacklisted(p.username), [])
 
   const forceCandidates = useMemo(() => {
     const q = forceSearch.trim().toLowerCase()
@@ -1068,20 +1029,7 @@ export function WinnerRoulette({
     setWinner(null)
     setWinnerPrizeCode(null)
 
-    weighted.forEach((p) => {
-      if (isNerfed(p.username)) trackIp(nerfedIpsRef.current, p.ip_address)
-    })
-
-    const secretPlayers = weighted.map((p) => {
-      let secretWeight = p.weight
-      const isIpNerfed = ipIsTracked(nerfedIpsRef.current, p.ip_address)
-      if (isNerfed(p.username) || isIpNerfed) {
-        secretWeight = p.weight * 0.01
-      }
-      return { ...p, secretWeight }
-    })
-
-    const secretTotalWeight = secretPlayers.reduce((acc, p) => acc + p.secretWeight, 0)
+    const totalDrawWeight = weighted.reduce((acc, p) => acc + p.weight, 0)
 
     let winningPlayer: Participant = weighted[0] ?? freshActive[0]
     let usedForcedWinner = false
@@ -1141,13 +1089,13 @@ export function WinnerRoulette({
       }
     }
 
-    if (!usedForcedWinner && !usedAssuredWinner && secretTotalWeight > 0) {
-      const randomWeightPoint = Math.random() * secretTotalWeight
+    if (!usedForcedWinner && !usedAssuredWinner && totalDrawWeight > 0) {
+      const randomWeightPoint = Math.random() * totalDrawWeight
       let currentWeightSum = 0
-      for (const p of secretPlayers) {
-        currentWeightSum += p.secretWeight
+      for (const p of weighted) {
+        currentWeightSum += p.weight
         if (randomWeightPoint <= currentWeightSum) {
-          winningPlayer = weighted.find((orig) => orig.id === p.id) || p
+          winningPlayer = p
           break
         }
       }
