@@ -1,4 +1,4 @@
-import barbatacoAnuncioImg from '@/assets/barbatacoanuncio.webp'
+import siguienteAnuncioImg from '@/assets/siguiente.webp'
 import { X } from 'lucide-react'
 
 type Props = {
@@ -6,7 +6,7 @@ type Props = {
   onDismiss: () => void
 }
 
-/** Anuncio Barbataco a pantalla completa durante la espera de registros. */
+/** Anuncio del próximo evento a pantalla completa durante la espera de registros. */
 export function EventAnnouncementOverlay({ open, onDismiss }: Props) {
   if (!open) return null
 
@@ -15,7 +15,7 @@ export function EventAnnouncementOverlay({ open, onDismiss }: Props) {
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-3 sm:p-5"
       role="dialog"
       aria-modal="true"
-      aria-label="Anuncio Barbataco"
+      aria-label="Anuncio del próximo evento"
     >
       <div className="relative w-full max-w-md max-h-[92dvh]">
         <button
@@ -27,8 +27,8 @@ export function EventAnnouncementOverlay({ open, onDismiss }: Props) {
           <X className="h-5 w-5" strokeWidth={2.75} />
         </button>
         <img
-          src={barbatacoAnuncioImg}
-          alt="Anuncio Barbataco Parque Morelos"
+          src={siguienteAnuncioImg}
+          alt="Próximo evento"
           className="w-full max-h-[92dvh] object-contain rounded-2xl shadow-2xl select-none"
           draggable={false}
         />

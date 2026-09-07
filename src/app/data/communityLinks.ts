@@ -6,12 +6,12 @@ export const CAMPFIRE_JOIN_LABEL = '¡Únete a la comunidad en Campfire!'
 export const WHATSAPP_CHANNEL_URL =
   'https://www.whatsapp.com/channel/0029VbA3X858Pgs9nkwUSO1L'
 
-export const CAMPFIRE_MEMBER_COUNT = 12426
+export const CAMPFIRE_MEMBER_COUNT = 12598
 
-export const PREVIOUS_MEETUP_TRAINERS = 294
+export const PREVIOUS_MEETUP_TRAINERS = 682
 
 /**
  * Conteo confirmado a mano. WhatsApp publica la cifra redondeada ("1,8 mil"),
  * así que el scraping se queda corto y nunca debe bajar de este piso.
  */
-export const WHATSAPP_FOLLOWER_COUNT = 1820
+export const WHATSAPP_FOLLOWER_COUNT = 1950
