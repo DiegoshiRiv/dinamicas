@@ -31,6 +31,7 @@ const PARTICIPANT_COLUMNS =
   'id,username,team,status,ip_address,roulette_code,registration_token,username_key,device_fingerprint'
 const PARTICIPANT_COLUMNS_LEGACY = 'id,username,team,status,ip_address'
 const UPSERT_BATCH_MS = 200
+const IMPORT_BATCH_SIZE = 80
 
 const IDENTITY_COLUMN_MISSING =
   /registration_token|username_key|device_fingerprint|roulette_code/i
@@ -138,6 +139,20 @@ export interface WinnerPrizeCode {
   assigned_to_username?: string | null
   assigned_at?: string | null
 }
+export interface ParticipantImportSkipped {
+  username: string
+  reason: 'duplicate-input' | 'already-registered'
+}
+export interface ParticipantImportFailure {
+  username: string
+  message: string
+}
+export interface ParticipantImportResult {
+  requested: number
+  inserted: number
+  skipped: ParticipantImportSkipped[]
+  failed: ParticipantImportFailure[]
+}
 
 export type IncomingSpin = {
   rotation: number
@@ -159,6 +174,13 @@ function makePrizeCodeId() {
     return crypto.randomUUID()
   }
   return `code-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function makeAdminImportDeviceToken(seed: string, index: number): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `admin-import-${crypto.randomUUID()}`
+  }
+  return `admin-import-${seed}-${index}-${Math.random().toString(36).slice(2, 11)}`
 }
 
 const WINNER_PRIZE_CODES_KEY = (code: string) =>
@@ -1266,6 +1288,200 @@ export function useParticipants(
     finishOk(row, { optimistic: !insertedRow })
   }
 
+  const importParticipants = async (usernames: string[]): Promise<ParticipantImportResult> => {
+    const timer = eventLog.timed('admin', 'importParticipants')
+    const targetCode = rouletteCodeRef.current
+    const result: ParticipantImportResult = {
+      requested: 0,
+      inserted: 0,
+      skipped: [],
+      failed: [],
+    }
+    const candidates: { username: string; usernameKey: string }[] = []
+    const seenKeys = new Set<string>()
+
+    for (const rawUsername of usernames) {
+      const username = rawUsername.trim()
+      if (!username) continue
+      result.requested += 1
+
+      const usernameKey = encodeUsernameKey(username, targetCode)
+      if (seenKeys.has(usernameKey)) {
+        result.skipped.push({ username, reason: 'duplicate-input' })
+        continue
+      }
+
+      seenKeys.add(usernameKey)
+      candidates.push({ username, usernameKey })
+    }
+
+    if (candidates.length === 0) {
+      timer.end({ inserted: 0, requested: result.requested })
+      return result
+    }
+
+    const importSequentially = async (items: typeof candidates) => {
+      for (const candidate of items) {
+        try {
+          await addParticipant(candidate.username, 'admin-import', true)
+          result.inserted += 1
+        } catch (error) {
+          if (error instanceof RegisterError && error.reason === 'username-taken') {
+            result.skipped.push({ username: candidate.username, reason: 'already-registered' })
+            continue
+          }
+
+          result.failed.push({
+            username: candidate.username,
+            message: error instanceof Error ? error.message : 'No se pudo registrar.',
+          })
+        }
+      }
+    }
+
+    const existingKeys = new Set<string>()
+    let needsLegacySequentialImport = false
+
+    for (const batch of chunk(candidates.map((candidate) => candidate.usernameKey), IMPORT_BATCH_SIZE)) {
+      const { data, error } = await supabase
+        .from('participants')
+        .select('username_key')
+        .in('username_key', batch)
+
+      if (error && IDENTITY_COLUMN_MISSING.test(error.message)) {
+        needsLegacySequentialImport = true
+        break
+      }
+
+      if (error) {
+        eventLog.error('admin', 'import preflight failed', { error: error.message })
+        for (const candidate of candidates) {
+          result.failed.push({ username: candidate.username, message: friendlyRegisterError(error) })
+        }
+        timer.fail(error)
+        return result
+      }
+
+      for (const row of data ?? []) {
+        if (typeof row.username_key === 'string') existingKeys.add(row.username_key)
+      }
+    }
+
+    const insertCandidates = candidates.filter((candidate) => {
+      if (!existingKeys.has(candidate.usernameKey)) return true
+      result.skipped.push({ username: candidate.username, reason: 'already-registered' })
+      return false
+    })
+
+    if (needsLegacySequentialImport) {
+      await importSequentially(insertCandidates)
+      timer.end({
+        requested: result.requested,
+        inserted: result.inserted,
+        skipped: result.skipped.length,
+        failed: result.failed.length,
+        legacy: true,
+      })
+      return result
+    }
+
+    const seed = String(Date.now())
+    const recentColors = participantsRef.current.slice(-2).map((row) => row.team)
+    const rows = insertCandidates.map((candidate, index) => {
+      const deviceToken = makeAdminImportDeviceToken(seed, index)
+      const team = randomRegistrationColor(recentColors.slice(-2))
+      recentColors.push(team)
+      return {
+        candidate,
+        payload: {
+          username: candidate.username,
+          team,
+          status: 'active',
+          ip_address: encodeDeviceRoomKey(deviceToken, targetCode),
+          roulette_code: targetCode,
+          registration_token: encodeRegistrationToken(deviceToken, targetCode),
+          username_key: candidate.usernameKey,
+        },
+      }
+    })
+
+    const insertedRows: Participant[] = []
+
+    for (const batch of chunk(rows, IMPORT_BATCH_SIZE)) {
+      const { data, error } = await supabase
+        .from('participants')
+        .insert(batch.map((row) => row.payload))
+        .select(PARTICIPANT_COLUMNS)
+
+      if (error && IDENTITY_COLUMN_MISSING.test(error.message)) {
+        await importSequentially(batch.map((row) => row.candidate))
+        continue
+      }
+
+      if (error && error.code === '23505') {
+        for (const row of batch) {
+          const single = await supabase
+            .from('participants')
+            .insert([row.payload])
+            .select(PARTICIPANT_COLUMNS)
+            .maybeSingle()
+
+          if (single.error?.code === '23505') {
+            result.skipped.push({ username: row.candidate.username, reason: 'already-registered' })
+            continue
+          }
+
+          if (single.error) {
+            result.failed.push({
+              username: row.candidate.username,
+              message: friendlyRegisterError(single.error),
+            })
+            continue
+          }
+
+          result.inserted += 1
+          if (single.data) insertedRows.push(single.data as Participant)
+        }
+        continue
+      }
+
+      if (error) {
+        eventLog.error('admin', 'import batch failed', {
+          size: batch.length,
+          error: error.message,
+        })
+        for (const row of batch) {
+          result.failed.push({
+            username: row.candidate.username,
+            message: friendlyRegisterError(error),
+          })
+        }
+        continue
+      }
+
+      result.inserted += batch.length
+      insertedRows.push(...((data as Participant[] | null) ?? []))
+    }
+
+    if (insertedRows.length > 0) {
+      for (const row of insertedRows) pendingUpsertsRef.current.set(row.id, row)
+      flushPendingUpserts()
+      pendingUpsertsRef.current.clear()
+    }
+
+    if (result.inserted > 0) {
+      await syncParticipantsFresh('admin_import')
+    }
+
+    timer.end({
+      requested: result.requested,
+      inserted: result.inserted,
+      skipped: result.skipped.length,
+      failed: result.failed.length,
+    })
+    return result
+  }
+
   const deleteParticipant = async (id: string) => {
     await supabase.from('participants').delete().eq('id', id)
     setParticipants((prev) => prev.filter((p) => p.id !== id))
@@ -1488,6 +1704,7 @@ export function useParticipants(
     syncParticipantsFresh,
     verifyParticipantRegistered,
     addParticipant,
+    importParticipants,
     deleteParticipant,
     deleteMultiple,
     updateStatus,

@@ -174,7 +174,7 @@ export default function App() {
   const {
     participants, bannedUsers, recentWinners, winnerPrizeCodes, sponsors, banners, loading,
     syncError, realtimeReady, syncParticipantsFresh, verifyParticipantRegistered,
-    addParticipant, deleteParticipant, deleteMultiple, updateStatus, 
+    addParticipant, importParticipants, deleteParticipant, deleteMultiple, updateStatus,
     banUser, unbanUser, clearAll, resetGame, addSponsor, deleteSponsor, deleteMultipleSponsors, updateSponsorsOrder, updateSponsorDetails,
     addBanner, updateBanner, deleteBanner, removeRecentWinner, removeMultipleRecentWinners,
     saveWinnerPrizeCodes, assignWinnerPrizeCode, fetchAssignedPrizeCode,
@@ -794,6 +794,7 @@ export default function App() {
               recentWinners={recentWinners}
               winnerPrizeCodes={winnerPrizeCodes}
               onDelete={deleteParticipant}
+              onImportParticipants={importParticipants}
               onDeleteMultiple={deleteMultiple}
               onClearAll={clearAll}
               onStartRoulette={handleStartRoulette}

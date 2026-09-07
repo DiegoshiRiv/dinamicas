@@ -1,14 +1,20 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs'
-import { Trash2, AlertTriangle, Search, Ban, CheckSquare, ShieldCheck, Trophy, Settings2, RotateCcw, Check, MoreVertical, Users, Gift } from 'lucide-react'
+import { Trash2, AlertTriangle, Search, Ban, CheckSquare, ShieldCheck, Trophy, Settings2, RotateCcw, Check, MoreVertical, Users, Gift, Upload, FileText } from 'lucide-react'
 import { Input } from '@/app/components/ui/input'
 import { Checkbox } from '@/app/components/ui/checkbox'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
 import { Label } from '@/app/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/app/components/ui/dropdown-menu'
-import type { Participant, BannedUser, RecentWinner, WinnerPrizeCode } from '@/hooks/useParticipants'
+import type { Participant, BannedUser, RecentWinner, WinnerPrizeCode, ParticipantImportResult } from '@/hooks/useParticipants'
 import { participantSliceColor } from '@/app/utils/participantColor'
+import {
+  extractParticipantNamesFromFile,
+  MAX_PARTICIPANT_IMPORT_NAMES,
+  parseParticipantListText,
+  PARTICIPANT_IMPORT_ACCEPT,
+} from '@/app/utils/participantImport'
 
 const PARTICIPANT_ROW_HEIGHT = 56
 const PARTICIPANT_LIST_HEIGHT = 430
@@ -49,6 +55,7 @@ interface AdminPanelProps {
   recentWinners: RecentWinner[];
   winnerPrizeCodes?: WinnerPrizeCode[];
   onDelete: (id: string) => void; 
+  onImportParticipants?: (usernames: string[]) => Promise<ParticipantImportResult>;
   onDeleteMultiple: (ids: string[]) => void; 
   onClearAll: () => void; 
   onStartRoulette: () => void
@@ -70,7 +77,7 @@ interface AdminPanelProps {
 
 export function AdminPanel({ 
   participants = [], bannedUsers = [], recentWinners = [], onDelete, onDeleteMultiple, onClearAll, onStartRoulette, onBanUser, onUnbanUser,
-  winnerPrizeCodes = [], onRemoveWinner, onRemoveMultipleWinners, onSaveWinnerPrizeCodes,
+  winnerPrizeCodes = [], onImportParticipants, onRemoveWinner, onRemoveMultipleWinners, onSaveWinnerPrizeCodes,
   penaltyMonths, setPenaltyMonths, penaltyPercent, setPenaltyPercent,
   rouletteCodes, activeRouletteCode, onChangeRouletteCode,
   isSuperAdmin = false, adminUsername = '',
@@ -85,6 +92,14 @@ export function AdminPanel({
   const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [showBanModal, setShowBanModal] = useState<string | null>(null)
   const [banDuration, setBanDuration] = useState('7')
+  const [participantImportText, setParticipantImportText] = useState('')
+  const [participantImportFileName, setParticipantImportFileName] = useState('')
+  const [processingParticipantImport, setProcessingParticipantImport] = useState(false)
+  const [participantImportMessage, setParticipantImportMessage] = useState<{
+    type: 'success' | 'warning' | 'error'
+    text: string
+  } | null>(null)
+  const participantImportFileRef = useRef<HTMLInputElement>(null)
 
   // Estados para Ganadores
   const [searchWinnerTerm, setSearchWinnerTerm] = useState('')
@@ -123,6 +138,14 @@ export function AdminPanel({
     () => filteredParticipants.slice(virtualRange.start, virtualRange.end),
     [filteredParticipants, virtualRange.start, virtualRange.end],
   )
+
+  const participantImportNames = useMemo(
+    () => parseParticipantListText(participantImportText),
+    [participantImportText],
+  )
+
+  const canImportParticipants =
+    isSuperAdmin && adminUsername.trim().toLowerCase() === 'fuecoco'
 
   const handleListScroll = useCallback(() => {
     if (listRef.current) setListScrollTop(listRef.current.scrollTop)
@@ -214,6 +237,86 @@ export function AdminPanel({
     }
   }
 
+  const summarizeParticipantImport = (result: ParticipantImportResult) => {
+    const skipped = result.skipped.length
+    const failed = result.failed.length
+    const parts = [`${result.inserted} agregado${result.inserted === 1 ? '' : 's'}`]
+    if (skipped > 0) parts.push(`${skipped} omitido${skipped === 1 ? '' : 's'} por duplicado`)
+    if (failed > 0) parts.push(`${failed} con error`)
+    return parts.join(' · ')
+  }
+
+  const handleParticipantFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setProcessingParticipantImport(true)
+    setParticipantImportMessage(null)
+    try {
+      const names = await extractParticipantNamesFromFile(file)
+      setParticipantImportText(names.join('\n'))
+      setParticipantImportFileName(file.name)
+      setParticipantImportMessage({
+        type: names.length > 0 ? 'success' : 'warning',
+        text: names.length > 0
+          ? `Se leyeron ${names.length} nombre${names.length === 1 ? '' : 's'} de ${file.name}. Revisa y toca "Agregar".`
+          : `No encontré nombres en ${file.name}.`,
+      })
+    } catch (error) {
+      setParticipantImportFileName(file.name)
+      setParticipantImportMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'No se pudo leer el archivo.',
+      })
+    } finally {
+      setProcessingParticipantImport(false)
+    }
+  }
+
+  const handleImportParticipants = async () => {
+    if (!onImportParticipants) {
+      setParticipantImportMessage({
+        type: 'error',
+        text: 'No se pudo conectar con la importación. Recarga e intenta de nuevo.',
+      })
+      return
+    }
+
+    if (participantImportNames.length === 0) {
+      setParticipantImportMessage({
+        type: 'warning',
+        text: 'Pega una lista o carga un archivo con al menos un nombre.',
+      })
+      return
+    }
+
+    setProcessingParticipantImport(true)
+    setParticipantImportMessage(null)
+    try {
+      const result = await onImportParticipants(participantImportNames)
+      const failedPreview = result.failed.slice(0, 3).map((item) => item.username).join(', ')
+      const extra = failedPreview ? ` Revisa: ${failedPreview}${result.failed.length > 3 ? '...' : ''}.` : ''
+      setParticipantImportMessage({
+        type: result.failed.length > 0 ? 'warning' : 'success',
+        text: `${summarizeParticipantImport(result)}.${extra}`,
+      })
+      if (result.failed.length === 0) {
+        setParticipantImportText('')
+        setParticipantImportFileName('')
+      } else {
+        setParticipantImportText(result.failed.map((item) => item.username).join('\n'))
+      }
+    } catch {
+      setParticipantImportMessage({
+        type: 'error',
+        text: 'No se pudo completar la importación. Intenta de nuevo.',
+      })
+    } finally {
+      setProcessingParticipantImport(false)
+    }
+  }
+
   return (
     <div className="w-full mx-auto space-y-6">
       
@@ -272,6 +375,85 @@ export function AdminPanel({
 
         {/* PESTAÑA PARTICIPANTES */}
         <TabsContent value="participants" className="mt-0 space-y-4 outline-none">
+          {canImportParticipants && (
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-[#dce8ff] space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-xl bg-[#eaf3ff] text-[#2563eb] inline-flex items-center justify-center shrink-0">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-[#1f2a44]">Cargar lista de participantes</h3>
+                  <p className="text-xs font-semibold text-[#667091] leading-relaxed">
+                    Solo Fuecoco puede pegar nombres o leer archivos TXT, CSV, XLSX y PDF. Se agregan a la ruleta {activeRouletteCode}.
+                  </p>
+                </div>
+              </div>
+
+              <textarea
+                value={participantImportText}
+                onChange={(event) => {
+                  setParticipantImportText(event.target.value)
+                  setParticipantImportFileName('')
+                  setParticipantImportMessage(null)
+                }}
+                placeholder={'Pega un nombre por línea:\nPawmot923\nFuecocoGDL\nSprigatitoMx'}
+                className="min-h-36 w-full rounded-xl border border-[#dce3f2] bg-[#fbfcff] px-3 py-3 text-sm font-bold text-[#1f2a44] outline-none focus:ring-2 focus:ring-[#8ab6ff]/40"
+                disabled={processingParticipantImport}
+              />
+
+              <input
+                ref={participantImportFileRef}
+                type="file"
+                accept={PARTICIPANT_IMPORT_ACCEPT}
+                className="hidden"
+                onChange={(event) => void handleParticipantFileChange(event)}
+              />
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-xs font-bold text-[#667091]">
+                  {participantImportNames.length > 0
+                    ? `${participantImportNames.length} listo${participantImportNames.length === 1 ? '' : 's'} para agregar`
+                    : `Hasta ${MAX_PARTICIPANT_IMPORT_NAMES} nombres por carga`}
+                  {participantImportFileName ? ` · Archivo: ${participantImportFileName}` : ''}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => participantImportFileRef.current?.click()}
+                    disabled={processingParticipantImport}
+                    className="h-10 rounded-xl border-[#cdd9ef] font-black text-[#31507a]"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Elegir archivo
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => void handleImportParticipants()}
+                    disabled={processingParticipantImport || participantImportNames.length === 0}
+                    className="h-10 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-black"
+                  >
+                    {processingParticipantImport ? 'Procesando...' : 'Agregar participantes'}
+                  </Button>
+                </div>
+              </div>
+
+              {participantImportMessage && (
+                <p
+                  className={`rounded-xl px-3 py-2 text-xs font-bold ${
+                    participantImportMessage.type === 'error'
+                      ? 'bg-red-50 text-red-700'
+                      : participantImportMessage.type === 'warning'
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-green-50 text-green-700'
+                  }`}
+                >
+                  {participantImportMessage.text}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-[#e8ecf5] space-y-4">
             <div className="flex items-center gap-2 rounded-xl bg-white border border-[#dde3ef] p-2">
               <div className="relative flex-1">
