@@ -3,7 +3,7 @@ import { Button } from '@/app/components/ui/button'
 import { Check, Copy, Gift, RotateCcw, RefreshCw, Volume2, VolumeX } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/app/components/ui/alert-dialog'
 import { Input } from '@/app/components/ui/input'
-import type { Participant, RecentWinner, IncomingSpin, WinnerPrizeCode } from '@/hooks/useParticipants'
+import type { Participant, RecentWinner, IncomingSpin, WinnerPrizeCode, SharedForcedWinner } from '@/hooks/useParticipants'
 import confetti from 'canvas-confetti'
 import { QRCodeCanvas } from 'qrcode.react'
 import { buildRouletteRegistrationUrl, sanitizeRouletteCode } from '@/app/utils/rouletteCode'
@@ -16,6 +16,7 @@ import {
   encodeRegistrationToken,
   getOrCreateDeviceToken,
   readLastRegistrationToken,
+  readLastRegisteredUsername,
 } from '@/app/utils/registrationToken'
 import {
   participantSliceColor,
@@ -53,9 +54,35 @@ function writePendingPrizeCode(rouletteCode: string, code: string | null) {
 const SPIN_EASING = 'cubic-bezier(0.12, 0.85, 0.15, 1)'
 
 /**
+ * Identidad de un jugador para cruzarlo con el historial de ganadores y con la
+ * lista de ganadores forzados. Solo baja a minúsculas y quita acentos y "@"
+ * inicial.
+ *
+ * No usar normalizeUsername aquí: esa colapsa dígitos en letras para cazar
+ * leetspeak (ARU518 -> arusib), lo que fusiona personas distintas. Es correcto
+ * para la blacklist de venaderos, donde un falso positivo solo bloquea, pero
+ * aquí decidiría quién gana y castigaría o premiaría al jugador equivocado.
+ */
+function winnerKey(username: unknown): string {
+  if (typeof username !== 'string' || !username) return ''
+  try {
+    return username
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .replace(/^@+/, '')
+      .replace(/\s+/g, ' ')
+      .toLowerCase()
+  } catch {
+    return String(username).trim().toLowerCase()
+  }
+}
+
+/**
  * Localiza al espectador en la lista por token de dispositivo. Si ese token se
  * regeneró después de registrarse (modo privado, limpieza de datos), cae al
- * token con el que realmente quedó guardada su fila.
+ * token con el que realmente quedó guardada su fila. Último recurso: el nombre
+ * con el que se registró en esta sala.
  */
 function findSelfParticipant(
   players: Participant[],
@@ -72,7 +99,33 @@ function findSelfParticipant(
     const found = players.find((player) => player.registration_token === token)
     if (found) return found
   }
+
+  const lastName = readLastRegisteredUsername(code)
+  if (lastName) {
+    const key = winnerKey(lastName)
+    const byName = players.find((player) => winnerKey(player.username) === key)
+    if (byName) return byName
+  }
   return null
+}
+
+function isSameSelfPlayer(
+  player: { id?: string; registration_token?: string | null; username?: string },
+  self: Participant | null,
+): boolean {
+  if (!self || !player) return false
+  if (player.id && self.id && player.id === self.id) return true
+  if (
+    player.registration_token &&
+    self.registration_token &&
+    player.registration_token === self.registration_token
+  ) {
+    return true
+  }
+  if (player.username && self.username && winnerKey(player.username) === winnerKey(self.username)) {
+    return true
+  }
+  return false
 }
 
 function shadeColor(hex: string, amount: number): string {
@@ -204,6 +257,10 @@ interface WinnerRouletteProps {
   syncError?: string | null
   /** Solo Fuecoco / super: puede fijar quién gana (animación natural). */
   canForceWinner?: boolean
+  /** Ganador fijado por Fuecoco y sincronizado a todos los admins. */
+  sharedForcedWinner?: SharedForcedWinner | null
+  /** Publica el forzado para que cualquier admin que gire lo aplique. */
+  onShareForcedWinner?: (forced: SharedForcedWinner | null) => void | Promise<void>
 }
 
 type WheelPlayer = Participant & { weight: number }
@@ -366,26 +423,6 @@ function rotationForEqualWheel(
   return currentRotation + 5 * 360 + delta
 }
 
-/**
- * Identidad de un jugador para cruzarlo con el historial de ganadores y con la
- * lista de ganadores forzados. Solo baja a minúsculas y quita acentos y "@"
- * inicial.
- *
- * No usar normalizeUsername aquí: esa colapsa dígitos en letras para cazar
- * leetspeak (ARU518 -> arusib), lo que fusiona personas distintas. Es correcto
- * para la blacklist de venaderos, donde un falso positivo solo bloquea, pero
- * aquí decidiría quién gana y castigaría o premiaría al jugador equivocado.
- */
-function winnerKey(username: string): string {
-  return username
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .replace(/^@+/, '')
-    .replace(/\s+/g, ' ')
-    .toLowerCase()
-}
-
 export function WinnerRoulette({ 
   onBack: _onBack, participants = [], recentWinners = [], updateStatus, onResetGame, 
   isSpectator = false, embedded = false, incomingSpin, broadcastSpin,
@@ -399,6 +436,8 @@ export function WinnerRoulette({
   realtimeReady = false,
   syncError = null,
   canForceWinner = false,
+  sharedForcedWinner = null,
+  onShareForcedWinner,
 }: WinnerRouletteProps) {
   
   const [rotation, setRotation] = useState(0)
@@ -484,6 +523,12 @@ export function WinnerRoulette({
     () => (isSpectator ? findSelfParticipant(participants ?? [], activeRouletteCode) : null),
     [isSpectator, participants, activeRouletteCode],
   )
+  // Nombre con el que se registró: prioridad a la fila sync, si no al guardado local.
+  const selfDisplayName = useMemo(() => {
+    const fromRow = selfParticipant?.username?.trim()
+    if (fromRow) return fromRow
+    return readLastRegisteredUsername(activeRouletteCode)?.trim() || null
+  }, [selfParticipant, activeRouletteCode])
   // Sin filtrar por estado: al ganar, la fila pasa a 'winner' y exigir 'active'
   // borraba el resaltado justo en el momento del premio. La rueda solo pinta a
   // los activos, así que un descartado no aparece de todas formas.
@@ -491,17 +536,19 @@ export function WinnerRoulette({
   /** Para leerlo dentro de temporizadores sin recrear el efecto del giro. */
   const selfPlayerIdRef = useRef<string | null>(selfPlayerId)
   selfPlayerIdRef.current = selfPlayerId
+  const selfParticipantRef = useRef<Participant | null>(selfParticipant)
+  selfParticipantRef.current = selfParticipant
   const [selfFlashActive, setSelfFlashActive] = useState(false)
   const selfFlashTimerRef = useRef<number | null>(null)
   const isSelfWinner = Boolean(
     winner &&
       selfParticipant &&
-      winner.id === selfParticipant.id &&
+      isSameSelfPlayer(winner, selfParticipant) &&
       !isVenaderoBlacklisted(winner.username),
   )
 
   const flashSelfSpace = () => {
-    if (!selfPlayerId) return
+    if (!selfPlayerId && !selfDisplayName) return
     setSelfFlashActive(true)
     if (selfFlashTimerRef.current) window.clearTimeout(selfFlashTimerRef.current)
     selfFlashTimerRef.current = window.setTimeout(() => {
@@ -554,6 +601,23 @@ export function WinnerRoulette({
     setAssuredWinners(loadAssuredWinners(activeRouletteCode))
     setAssuredCompleted(loadAssuredCompleted(activeRouletteCode))
   }, [activeRouletteCode])
+
+  // Cualquier admin recibe el forzado que Fuecoco publicó.
+  useEffect(() => {
+    if (!sharedForcedWinner) return
+    setForcedWinnerId(sharedForcedWinner.id)
+    setForcedWinnerName(sharedForcedWinner.username)
+  }, [sharedForcedWinner])
+
+  const publishForcedWinner = useCallback(
+    (id: string | null, username: string | null) => {
+      setForcedWinnerId(id)
+      setForcedWinnerName(username)
+      setSpinError(null)
+      void onShareForcedWinner?.(id || username ? { id, username } : null)
+    },
+    [onShareForcedWinner],
+  )
 
   const saveAssuredWinners = (next: AssuredWinnerEntry[]) => {
     setAssuredWinners(next)
@@ -854,10 +918,10 @@ export function WinnerRoulette({
         const sliceAngle = totalWeight > 0 ? (player.weight / totalWeight) * (2 * Math.PI) : 0
         if (sliceAngle === 0) return
         const endAngle = currentAngle + sliceAngle
-        const isSelf = Boolean(selfPlayerId && player.id === selfPlayerId)
+        const isSelf = isSameSelfPlayer(player, selfParticipant)
         const base = participantSliceColor(player)
         let altShade = idx % 2 === 0 ? 0 : -18
-        if (selfPlayerId && !isSelf) altShade -= 28
+        if (selfParticipant && !isSelf) altShade -= 28
         if (isSelf) altShade += 28
 
         ctx.beginPath()
@@ -941,10 +1005,16 @@ export function WinnerRoulette({
         ctx.shadowBlur = isSelf ? (selfFlashActive ? 4 : 8) : n > 80 ? 2 : 4
         const selfFont = Math.min(22, fontSize + (n > 50 ? 2 : 4))
         ctx.font = `bold ${isSelf ? selfFont : fontSize}px sans-serif`
+        // En el segmento propio siempre el nombre con el que se registró.
+        const displayName = String(
+          (isSelf ? selfDisplayName || selfParticipant?.username : null) ||
+            player.username ||
+            '',
+        )
         let rawLabel =
-          player.username.length > maxChars
-            ? `${player.username.substring(0, maxChars)}…`
-            : player.username
+          displayName.length > maxChars
+            ? `${displayName.substring(0, maxChars)}…`
+            : displayName
         let label = isSelf ? `★ ${rawLabel}` : rawLabel
         while (ctx.measureText(label).width > labelSpace) {
           const trimmed = rawLabel.replace(/…$/, '').slice(0, -1)
@@ -997,7 +1067,7 @@ export function WinnerRoulette({
     return () => {
       if (drawTimerRef.current) window.clearTimeout(drawTimerRef.current)
     }
-  }, [playersForWheel, totalWeight, isSpinning, wheelAssetsReady, listLoading, isSyncing, selfPlayerId, selfFlashActive])
+  }, [playersForWheel, totalWeight, isSpinning, wheelAssetsReady, listLoading, isSyncing, selfParticipant, selfDisplayName, selfFlashActive])
 
   useEffect(() => {
     if (!isSpectator || !incomingSpin) return
@@ -1072,16 +1142,22 @@ export function WinnerRoulette({
           setWinner(winningPlayer)
           celebrate(
             participantSliceColor(winningPlayer),
-            selfPlayerIdRef.current === winningPlayer.id,
+            isSameSelfPlayer(winningPlayer, selfParticipantRef.current),
           )
         }
       }, spinDuration)
     }
 
-    // Si la lista aún no cargó, sincroniza una vez y luego gira (evita ruleta incompleta).
-    if (activePlayers.length === 0 && syncParticipantsFresh) {
+    // Si la lista aún no cargó o el ganador no está, sincroniza y luego gira.
+    const winnerMissing =
+      Boolean(incomingSpin?.winnerId) &&
+      !activePlayers.some((p) => p.id === incomingSpin!.winnerId)
+
+    if ((activePlayers.length === 0 || winnerMissing) && syncParticipantsFresh) {
       let cancelled = false
-      void syncParticipantsFresh('spectator_spin_wait')
+      void syncParticipantsFresh(
+        activePlayers.length === 0 ? 'spectator_spin_wait' : 'spectator_spin_winner_missing',
+      )
         .then((fresh) => {
           if (cancelled) return
           const actives = fresh.filter((p) => p.status === 'active')
@@ -1226,12 +1302,14 @@ export function WinnerRoulette({
       return { ...p, weight }
     })
     if (weighted.length === 0) {
+      const forceId = forcedWinnerId ?? sharedForcedWinner?.id ?? null
+      const forceName = forcedWinnerName ?? sharedForcedWinner?.username ?? null
       const canForceFromWheel =
-        canForceWinner &&
+        Boolean(forceId || forceName) &&
         freshActive.some(
           (p) =>
-            p.id === forcedWinnerId ||
-            (forcedWinnerName != null && winnerKey(p.username) === winnerKey(forcedWinnerName)),
+            p.id === forceId ||
+            (forceName != null && winnerKey(p.username) === winnerKey(forceName)),
         )
       if (!canForceFromWheel) {
         console.warn('[dinamicas:roulette] spin aborted: no eligible players after sync', {
@@ -1257,16 +1335,19 @@ export function WinnerRoulette({
     let usedForcedWinner = false
     let usedAssuredWinner = false
 
-    if (canForceWinner && (forcedWinnerId || forcedWinnerName)) {
+    // Forzado de Fuecoco: cualquier admin que gire debe aplicarlo.
+    const forceId = forcedWinnerId ?? sharedForcedWinner?.id ?? null
+    const forceName = forcedWinnerName ?? sharedForcedWinner?.username ?? null
+    if (forceId || forceName) {
       // Por id primero; si esa persona se reregistró su fila es otra, así que
       // se reintenta por nombre antes de rendirse y dejarlo al azar.
       const forced =
-        freshActive.find((p) => p.id === forcedWinnerId) ??
-        (forcedWinnerName
-          ? freshActive.find((p) => winnerKey(p.username) === winnerKey(forcedWinnerName))
+        freshActive.find((p) => p.id === forceId) ??
+        (forceName
+          ? freshActive.find((p) => winnerKey(p.username) === winnerKey(forceName))
           : undefined) ??
-        (forcedWinnerName
-          ? activePlayers.find((p) => winnerKey(p.username) === winnerKey(forcedWinnerName))
+        (forceName
+          ? activePlayers.find((p) => winnerKey(p.username) === winnerKey(forceName))
           : undefined)
       if (forced) {
         winningPlayer = forced
@@ -1275,12 +1356,13 @@ export function WinnerRoulette({
         // Elegido por el master pero ya no está en la sala: mejor no girar que
         // premiar a otra persona sin avisar.
         console.warn('[dinamicas:roulette] forced winner no longer in room', {
-          forcedWinnerId,
-          forcedWinnerName,
+          forceId,
+          forceName,
         })
         setIsSpinning(false)
+        spinLockRef.current = false
         setSpinError(
-          `${forcedWinnerName ?? 'El elegido'} ya no está en la ruleta. Quita la selección o vuelve a elegir.`,
+          `${forceName ?? 'El elegido'} ya no está en la ruleta. Quita la selección o vuelve a elegir.`,
         )
         return
       }
@@ -1325,6 +1407,7 @@ export function WinnerRoulette({
 
     if (!winningPlayer || (!usedForcedWinner && cannotWin(winningPlayer))) {
       setIsSpinning(false)
+      spinLockRef.current = false
       return
     }
 
@@ -1353,6 +1436,9 @@ export function WinnerRoulette({
     setForcedWinnerName(null)
     setForcePickerOpen(false)
     setForceSearch('')
+    if (usedForcedWinner) {
+      void onShareForcedWinner?.(null)
+    }
 
     if (usedAssuredWinner) {
       const nextCompleted = new Set(assuredCompleted)
@@ -1582,7 +1668,7 @@ export function WinnerRoulette({
                   ? 'Cargando nombres…'
                   : `${activePlayers.length} participante${activePlayers.length === 1 ? '' : 's'}`}
               </p>
-              {selfParticipant && (
+              {selfParticipant && selfDisplayName && (
                 <button
                   type="button"
                   onClick={flashSelfSpace}
@@ -1595,8 +1681,8 @@ export function WinnerRoulette({
                 >
                   <span aria-hidden>★</span>
                   {selfFlashActive
-                    ? `¡Tu espacio se resalta! · ${selfParticipant.username}`
-                    : `Tu espacio ahora se resalta · ${selfParticipant.username}`}
+                    ? `¡Tu espacio se resalta! · ${selfDisplayName}`
+                    : `Tu espacio ahora se resalta · ${selfDisplayName}`}
                 </button>
               )}
 
@@ -1727,11 +1813,7 @@ export function WinnerRoulette({
                   {forcedWinner && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setForcedWinnerId(null)
-                        setForcedWinnerName(null)
-                        setSpinError(null)
-                      }}
+                      onClick={() => publishForcedWinner(null, null)}
                       disabled={isSpinning}
                       className="text-[10px] font-semibold text-red-500 underline"
                     >
@@ -1758,9 +1840,7 @@ export function WinnerRoulette({
                               key={p.id}
                               type="button"
                               onClick={() => {
-                                setForcedWinnerId(p.id)
-                                setForcedWinnerName(p.username)
-                                setSpinError(null)
+                                publishForcedWinner(p.id, p.username)
                                 setForcePickerOpen(false)
                                 setForceSearch('')
                               }}
@@ -1779,7 +1859,7 @@ export function WinnerRoulette({
                         )}
                       </div>
                       <p className="text-[10px] text-[#94a3b8] font-medium leading-snug">
-                        Al girar, la ruleta caerá en esa persona de forma natural. Los espectadores no ven esta opción.
+                        Al girar (tú u otro admin), la ruleta caerá en esa persona. Los espectadores no ven esta opción.
                       </p>
                     </div>
                   )}

@@ -15,40 +15,80 @@ function formatPart(date: Date, options: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat('es-MX', { ...options, timeZone: TZ }).format(date)
 }
 
-export function formatEventDateLine(startsAt: string, endsAt: string): string {
-  const start = parseISO(startsAt)
-  const end = parseISO(endsAt)
-  const weekday = formatPart(start, { weekday: 'long' })
-  const day = formatPart(start, { day: 'numeric' })
-  const month = formatPart(start, { month: 'long' })
-  const year = formatPart(start, { year: 'numeric' })
-  const startHour = Number(formatPart(start, { hour: 'numeric', hour12: false }))
-  const startMinute = Number(formatPart(start, { minute: '2-digit' }))
-  const endHour = Number(formatPart(end, { hour: 'numeric', hour12: false }))
-  const endMinute = Number(formatPart(end, { minute: '2-digit' }))
+/** parseISO / format lanzan o producen Invalid Date con null/basura de la DB. */
+function safeParseIso(value: unknown): Date | null {
+  if (typeof value !== 'string' || !value.trim()) return null
+  try {
+    const date = parseISO(value)
+    if (Number.isNaN(date.getTime())) return null
+    return date
+  } catch {
+    return null
+  }
+}
 
-  const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1)
-  return `${capitalizedWeekday}, ${day} de ${month} de ${year}, de ${formatClockLabel(startHour, startMinute)} a ${formatClockLabel(endHour, endMinute)} (hora local)`
+export function formatEventDateLine(startsAt: string, endsAt: string): string {
+  const start = safeParseIso(startsAt)
+  const end = safeParseIso(endsAt)
+  if (!start || !end) return 'Fecha no disponible'
+  try {
+    const weekday = formatPart(start, { weekday: 'long' })
+    const day = formatPart(start, { day: 'numeric' })
+    const month = formatPart(start, { month: 'long' })
+    const year = formatPart(start, { year: 'numeric' })
+    const startHour = Number(formatPart(start, { hour: 'numeric', hour12: false }))
+    const startMinute = Number(formatPart(start, { minute: '2-digit' }))
+    const endHour = Number(formatPart(end, { hour: 'numeric', hour12: false }))
+    const endMinute = Number(formatPart(end, { minute: '2-digit' }))
+
+    const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1)
+    return `${capitalizedWeekday}, ${day} de ${month} de ${year}, de ${formatClockLabel(startHour, startMinute)} a ${formatClockLabel(endHour, endMinute)} (hora local)`
+  } catch {
+    return 'Fecha no disponible'
+  }
 }
 
 export function isEventLive(startsAt: string, endsAt: string, now = new Date()): boolean {
-  return isWithinInterval(now, { start: parseISO(startsAt), end: parseISO(endsAt) })
+  const start = safeParseIso(startsAt)
+  const end = safeParseIso(endsAt)
+  if (!start || !end || start > end) return false
+  try {
+    return isWithinInterval(now, { start, end })
+  } catch {
+    return false
+  }
 }
 
 export function isEventUpcoming(startsAt: string, now = new Date()): boolean {
-  return parseISO(startsAt) > now
+  const start = safeParseIso(startsAt)
+  if (!start) return false
+  return start > now
 }
 
 export function eventDayKey(iso: string): string {
-  return format(parseISO(iso), 'yyyy-MM-dd')
+  const date = safeParseIso(iso)
+  if (!date) return ''
+  try {
+    return format(date, 'yyyy-MM-dd')
+  } catch {
+    return ''
+  }
 }
 
 export function dateToDayKey(date: Date): string {
-  return format(date, 'yyyy-MM-dd')
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return ''
+  try {
+    return format(date, 'yyyy-MM-dd')
+  } catch {
+    return ''
+  }
 }
 
 export function pokemonGoEventDurationDays(event: PokemonGoEvent): number {
-  return differenceInCalendarDays(parseISO(event.endDate), parseISO(event.startDate)) + 1
+  const start = safeParseIso(event.startDate)
+  const end = safeParseIso(event.endDate)
+  if (!start || !end) return 1
+  return Math.max(1, differenceInCalendarDays(end, start) + 1)
 }
 
 export function isShortPokemonGoEvent(event: PokemonGoEvent): boolean {
@@ -107,12 +147,18 @@ export function getCalendarMarkerGoEvents(dayEvents: PokemonGoEvent[]): PokemonG
 export function buildPokemonGoEventsByDay(events: PokemonGoEvent[]): Map<string, PokemonGoEvent[]> {
   const map = new Map<string, PokemonGoEvent[]>()
   for (const ev of events) {
-    const days = eachDayOfInterval({
-      start: parseISO(ev.startDate),
-      end: parseISO(ev.endDate),
-    })
+    const start = safeParseIso(ev.startDate)
+    const end = safeParseIso(ev.endDate)
+    if (!start || !end || start > end) continue
+    let days: Date[]
+    try {
+      days = eachDayOfInterval({ start, end })
+    } catch {
+      continue
+    }
     for (const day of days) {
       const key = dateToDayKey(day)
+      if (!key) continue
       const list = map.get(key) ?? []
       list.push(ev)
       map.set(key, list)
@@ -157,9 +203,14 @@ export function getPokemonGoDayStyle(dayEvents: PokemonGoEvent[]): PokemonGoDayS
 }
 
 export function formatPokemonGoEventRange(event: PokemonGoEvent): string {
-  const start = parseISO(event.startDate)
-  const end = parseISO(event.endDate)
-  const sameDay = event.startDate === event.endDate
-  if (sameDay) return format(start, "d 'de' MMMM yyyy", { locale: es })
-  return `${format(start, 'd MMM', { locale: es })} – ${format(end, 'd MMM yyyy', { locale: es })}`
+  const start = safeParseIso(event.startDate)
+  const end = safeParseIso(event.endDate)
+  if (!start || !end) return 'Fecha no disponible'
+  try {
+    const sameDay = event.startDate === event.endDate
+    if (sameDay) return format(start, "d 'de' MMMM yyyy", { locale: es })
+    return `${format(start, 'd MMM', { locale: es })} – ${format(end, 'd MMM yyyy', { locale: es })}`
+  } catch {
+    return 'Fecha no disponible'
+  }
 }

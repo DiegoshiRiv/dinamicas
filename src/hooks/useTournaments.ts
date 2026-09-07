@@ -18,7 +18,14 @@ export function useTournaments(enabled = true) {
       supabase.from('tournament_matches').select('*')
     ])
     if (t.data) setTournaments(t.data as Tournament[])
-    if (p.data) setPlayers(p.data as TournamentPlayer[])
+    if (p.data) {
+      setPlayers(
+        (p.data as TournamentPlayer[]).map((player) => ({
+          ...player,
+          team: Array.isArray(player.team) ? player.team : [],
+        })),
+      )
+    }
     if (m.data) setMatches(m.data as TournamentMatch[])
   }
 
@@ -57,19 +64,34 @@ export function useTournaments(enabled = true) {
   }
 
   const generateRound = async (tournament_id: string, round: number) => {
-    let eligiblePlayers = [];
+    // Snapshot fresco: el state de React puede ir atrasado si alguien se
+    // acaba de inscribir o confirmar un ganador.
+    const [pRes, mRes] = await Promise.all([
+      supabase.from('tournament_players').select('*').eq('tournament_id', tournament_id),
+      supabase.from('tournament_matches').select('*').eq('tournament_id', tournament_id),
+    ])
+    const freshPlayers = ((pRes.data ?? []) as TournamentPlayer[]).map((player) => ({
+      ...player,
+      team: Array.isArray(player.team) ? player.team : [],
+    }))
+    const freshMatches = (mRes.data ?? []) as TournamentMatch[]
+
+    let eligiblePlayers: TournamentPlayer[] = []
     
     if (round === 1) {
-      eligiblePlayers = players.filter(p => p.tournament_id === tournament_id);
+      eligiblePlayers = freshPlayers
+      if (eligiblePlayers.length === 0) {
+        return { error: 'No hay jugadores inscritos.' }
+      }
     } else {
-      const prevMatches = matches.filter(m => m.tournament_id === tournament_id && m.round === round - 1);
+      const prevMatches = freshMatches.filter(m => m.round === round - 1);
       
       if (prevMatches.some(m => !m.winner_id)) {
         return { error: "Todavía hay combates sin ganador en la ronda actual. Confirma todos los resultados antes de avanzar." };
       }
 
       const winnerIds = prevMatches.map(m => m.winner_id).filter(id => id !== null);
-      eligiblePlayers = players.filter(p => winnerIds.includes(p.id));
+      eligiblePlayers = freshPlayers.filter(p => winnerIds.includes(p.id));
 
       if (eligiblePlayers.length <= 1) {
         await updateTournamentStatus(tournament_id, 'finished');

@@ -181,8 +181,12 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
       setDevicePlayerId(null)
       return
     }
-    const stored = localStorage.getItem(`tournament_player_${selectedT}`)
-    setDevicePlayerId(stored || null)
+    try {
+      const stored = localStorage.getItem(`tournament_player_${selectedT}`)
+      setDevicePlayerId(stored || null)
+    } catch {
+      setDevicePlayerId(null)
+    }
   }, [selectedT])
 
   useEffect(() => {
@@ -193,13 +197,17 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
         const res = await fetch('https://api.ipify.org?format=json')
         if (!res.ok) return
         const json = (await res.json()) as { ip?: string }
-        if (!cancelled && json.ip) {
-          setDeviceIp(json.ip)
-          if (selectedT) {
-            const mappedPlayerId = localStorage.getItem(`tournament_player_ip_${selectedT}_${json.ip}`)
-            if (mappedPlayerId) setDevicePlayerId(mappedPlayerId)
+          if (!cancelled && json.ip) {
+            setDeviceIp(json.ip)
+            if (selectedT) {
+              try {
+                const mappedPlayerId = localStorage.getItem(`tournament_player_ip_${selectedT}_${json.ip}`)
+                if (mappedPlayerId) setDevicePlayerId(mappedPlayerId)
+              } catch {
+                /* ignore private/quota storage */
+              }
+            }
           }
-        }
       } catch {
         // Ignore IP lookup errors, fallback to local player id only.
       }
@@ -240,22 +248,37 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
       }
     }
 
-    if (team.some(p => Number(p.cp) < 1)) {
-      setAlertInfo({ title: "PC inválido", message: "El PC de cada Pokémon debe ser mayor o igual a 1.", type: 'error' })
+    if (team.some((p) => {
+      const cp = Number(p.cp)
+      return !Number.isFinite(cp) || !Number.isInteger(cp) || cp < 1
+    })) {
+      setAlertInfo({ title: "PC inválido", message: "El PC de cada Pokémon debe ser un número entero mayor o igual a 1.", type: 'error' })
       return
     }
 
     const maxCP = activeT?.league === 'super' ? 1500 : activeT?.league === 'ultra' ? 2500 : 99999;
-    if (team.some(p => parseInt(p.cp || '0') > maxCP)) { setAlertInfo({ title: "Límite Excedido", message: `PC máximo permitido: ${maxCP}.`, type: 'error' }); return; }
+    if (team.some((p) => {
+      const cp = Number(p.cp)
+      return Number.isFinite(cp) && cp > maxCP
+    })) { setAlertInfo({ title: "Límite Excedido", message: `PC máximo permitido: ${maxCP}.`, type: 'error' }); return; }
 
     setIsSubmitting(true)
-    const insertedPlayer = await registerPlayer(selectedT, playerName, avatarDex, team)
-    localStorage.setItem(`tournament_player_${selectedT}`, insertedPlayer.id)
-    if (deviceIp) localStorage.setItem(`tournament_player_ip_${selectedT}_${deviceIp}`, insertedPlayer.id)
-    setDevicePlayerId(insertedPlayer.id)
-    setIsSubmitting(false)
-    setPlayerName(''); setAvatarDex(''); setTeam(Array.from({ length: 6 }, createEmptyPokemon))
-    setAlertInfo({ title: "¡Inscripción Exitosa!", message: "Ya estás participando en el torneo, ¡suerte!", type: 'success' });
+    try {
+      const insertedPlayer = await registerPlayer(selectedT, playerName, avatarDex, team)
+      try {
+        localStorage.setItem(`tournament_player_${selectedT}`, insertedPlayer.id)
+        if (deviceIp) localStorage.setItem(`tournament_player_ip_${selectedT}_${deviceIp}`, insertedPlayer.id)
+      } catch {
+        /* ignore private/quota storage */
+      }
+      setDevicePlayerId(insertedPlayer.id)
+      setPlayerName(''); setAvatarDex(''); setTeam(Array.from({ length: 6 }, createEmptyPokemon))
+      setAlertInfo({ title: "¡Inscripción Exitosa!", message: "Ya estás participando en el torneo, ¡suerte!", type: 'success' });
+    } catch {
+      setAlertInfo({ title: "Error", message: "No se pudo completar la inscripción. Revisa la conexión e intenta de nuevo.", type: 'error' })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleLoadAdminTestTeam = () => {
@@ -1037,7 +1060,7 @@ export function TournamentBoard({ isAdmin }: { isAdmin: boolean }) {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              {viewPlayer.team.map((poke, i) => {
+              {(Array.isArray(viewPlayer.team) ? viewPlayer.team : []).map((poke, i) => {
                 const sprite = getPokemonDBSprite(poke.species, poke.regional);
                 const fType = POKEMON_TYPES.find(t => t.name === poke.fastType)?.icon || typeNormal;
                 const c1Type = POKEMON_TYPES.find(t => t.name === poke.charge1Type)?.icon || typeNormal;

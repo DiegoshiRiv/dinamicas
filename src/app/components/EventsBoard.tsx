@@ -80,7 +80,11 @@ const EMPTY_FORM = {
 }
 
 function buildIso(date: string, time: string) {
-  return new Date(`${date}T${time}:00`).toISOString()
+  const parsed = new Date(`${date}T${time}:00`)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('Fecha u hora inválida')
+  }
+  return parsed.toISOString()
 }
 
 function EventDetailModal({
@@ -326,6 +330,8 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
       const dataUrl = await optimizeImageFile(file)
       setForm((f) => ({ ...f, pokemon_image_url: dataUrl }))
       setImageName(file.name)
+    } catch {
+      alert('No se pudo procesar la imagen. Prueba con otro archivo.')
     } finally {
       setProcessingImage(false)
       e.target.value = ''
@@ -353,6 +359,10 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
 
   const handleSave = async () => {
     if (!form.title.trim() || !form.date || !form.description.trim()) return
+    if (form.endTime <= form.startTime) {
+      alert('La hora de fin debe ser posterior a la de inicio.')
+      return
+    }
     setSaving(true)
     try {
       const payload = buildPayload()
@@ -383,7 +393,9 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
               key={ev.id}
               type="button"
               onClick={() => {
-                setInfographicDay(parseISO(eventDayKey(ev.starts_at) + 'T12:00:00'))
+                const dayKey = eventDayKey(ev.starts_at)
+                if (!dayKey) return
+                setInfographicDay(parseISO(dayKey + 'T12:00:00'))
               }}
               className="w-full text-left rounded-2xl border-2 border-[#2563eb] bg-gradient-to-r from-teal-50 to-white p-4 shadow-md shadow-[#2563eb]/15"
             >

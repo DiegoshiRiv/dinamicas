@@ -34,7 +34,18 @@ export function useEvents() {
       .select('*')
       .order('starts_at', { ascending: true })
 
-    if (!error && data) setEvents(data as CommunityEvent[])
+    if (!error && data) {
+      setEvents(
+        (data as CommunityEvent[]).map((event) => ({
+          ...event,
+          starts_at: typeof event.starts_at === 'string' ? event.starts_at : '',
+          ends_at: typeof event.ends_at === 'string' ? event.ends_at : '',
+          special_research_tasks: Array.isArray(event.special_research_tasks)
+            ? event.special_research_tasks
+            : [],
+        })),
+      )
+    }
     else if (error) console.error('community_events:', error.message)
     setLoading(false)
   }, [])

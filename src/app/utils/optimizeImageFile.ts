@@ -1,4 +1,11 @@
 export function optimizeImageFile(file: File, maxDimension = 1200, quality = 0.85): Promise<string> {
+  if (!file || file.size === 0) {
+    return Promise.reject(new Error('Archivo vacío'))
+  }
+  if (file.type && !file.type.startsWith('image/')) {
+    return Promise.reject(new Error('El archivo no es una imagen'))
+  }
+
   if (file.type === 'image/gif' || file.type === 'image/svg+xml') {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -13,9 +20,9 @@ export function optimizeImageFile(file: File, maxDimension = 1200, quality = 0.8
     reader.onload = () => {
       const image = new Image()
       image.onload = () => {
-        const ratio = Math.min(1, maxDimension / Math.max(image.width, image.height))
-        const width = Math.max(1, Math.round(image.width * ratio))
-        const height = Math.max(1, Math.round(image.height * ratio))
+        const ratio = Math.min(1, maxDimension / Math.max(image.width || 1, image.height || 1, 1))
+        const width = Math.max(1, Math.round((image.width || 1) * ratio))
+        const height = Math.max(1, Math.round((image.height || 1) * ratio))
         const canvas = document.createElement('canvas')
         canvas.width = width
         canvas.height = height

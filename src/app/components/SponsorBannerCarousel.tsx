@@ -14,7 +14,11 @@ export function SponsorBannerCarousel({
   const [index, setIndex] = useState(0)
 
   useEffect(() => {
-    if (banners.length === 0) return
+    if (banners.length === 0) {
+      setIndex(0)
+      return
+    }
+    setIndex((prev) => prev % banners.length)
     preloadSponsorBannerImages(banners)
   }, [banners])
 
@@ -29,10 +33,12 @@ export function SponsorBannerCarousel({
 
   if (banners.length === 0) return null
 
+  const safeIndex = index % banners.length
+
   return (
     <div className={`relative w-full h-32 rounded-xl overflow-hidden bg-gray-100 ${className}`}>
       {banners.map((banner, i) => {
-        const isActive = i === index
+        const isActive = i === safeIndex
         const cls = `absolute inset-0 w-full h-full transition-opacity duration-1000 ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0'}`
         const img = (
           <img

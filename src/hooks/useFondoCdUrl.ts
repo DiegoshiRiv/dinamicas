@@ -13,9 +13,13 @@ export function useFondoCdUrl(overrideId?: FondoCdId) {
     const id = overrideId ?? getActiveFondoCdId()
     // Retraso corto: prioriza pintar el formulario antes del fondo.
     const timeoutId = window.setTimeout(() => {
-      void resolveFondoCdUrl(id).then((resolved) => {
-        if (!cancelled) setUrl(resolved)
-      })
+      void resolveFondoCdUrl(id)
+        .then((resolved) => {
+          if (!cancelled) setUrl(resolved)
+        })
+        .catch(() => {
+          if (!cancelled) setUrl(null)
+        })
     }, 120)
 
     return () => {

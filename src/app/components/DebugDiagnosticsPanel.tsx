@@ -59,9 +59,9 @@ export function DebugDiagnosticsPanel({
     diagnostics.patch({
       participantCount,
       realtimeStatus: realtimeReady ? 'SUBSCRIBED' : snap.realtimeStatus || 'connecting',
-      lastError: syncError ?? snap.lastError,
+      lastError: syncError ?? null,
     })
-  }, [enabled, participantCount, realtimeReady, syncError, snap.realtimeStatus, snap.lastError])
+  }, [enabled, participantCount, realtimeReady, syncError, snap.realtimeStatus])
 
   if (!enabled || !open) {
     if (!enabled) return null

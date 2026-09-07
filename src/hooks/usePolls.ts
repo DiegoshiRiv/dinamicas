@@ -10,7 +10,14 @@ export function usePolls(enabled = true) {
 
   const fetchData = useCallback(async () => {
     const { data: pData } = await supabase.from('polls').select('*').order('created_at', { ascending: false })
-    if (pData) setPolls(pData as Poll[])
+    if (pData) {
+      setPolls(
+        (pData as Poll[]).map((poll) => ({
+          ...poll,
+          options: Array.isArray(poll.options) ? poll.options : [],
+        })),
+      )
+    }
     const { data: vData } = await supabase.from('poll_votes').select('*')
     if (vData) setVotes(vData as PollVote[])
   }, [])

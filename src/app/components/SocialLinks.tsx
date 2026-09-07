@@ -40,8 +40,8 @@ export function SocialLinks({ installPrompt, onInstall, compact = false }: Socia
         if (!res.ok) throw new Error('rss unavailable')
         const data = await res.json()
         if (data?.status !== 'ok' || !Array.isArray(data?.items)) throw new Error('invalid rss')
-        const posts = data.items.slice(0, 5).map((item: any) => ({
-          id: item.guid || item.link,
+        const posts = data.items.slice(0, 5).map((item: any, index: number) => ({
+          id: String(item.guid || item.link || `x-${index}`),
           title: item.title || 'Publicación',
           link: item.link || 'https://x.com/PokemonGo_GDL',
           image: item.thumbnail || parseFirstImage(item.content),

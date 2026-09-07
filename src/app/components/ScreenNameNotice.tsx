@@ -20,9 +20,13 @@ export function ScreenNameNotice({ className = '' }: { className?: string }) {
     void Promise.all([
       import('@/assets/capturas de pantalla/Pogo.webp'),
       import('@/assets/capturas de pantalla/Camf.webp'),
-    ]).then(([pogo, camf]) => {
-      if (!cancelled) setShots({ pogo: pogo.default, camf: camf.default })
-    })
+    ])
+      .then(([pogo, camf]) => {
+        if (!cancelled) setShots({ pogo: pogo.default, camf: camf.default })
+      })
+      .catch(() => {
+        if (!cancelled) setShots({})
+      })
     return () => {
       cancelled = true
     }

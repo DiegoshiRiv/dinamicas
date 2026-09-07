@@ -1,13 +1,14 @@
 export const DEFAULT_ROULETTE_CODE = 'general'
 const ROOM_MARKER = '::r:'
 
-export function sanitizeRouletteCode(value: string): string {
-  const cleaned = value
+export function sanitizeRouletteCode(value: unknown): string {
+  const cleaned = String(value ?? '')
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
+    .slice(0, 64)
   return cleaned || DEFAULT_ROULETTE_CODE
 }
 

@@ -162,7 +162,7 @@ export function AdminPanel({
 
   const handleBanSubmit = () => {
     if (showBanModal) {
-      onBanUser(showBanModal, parseInt(banDuration) || 7)
+      onBanUser(showBanModal, Math.max(1, parseInt(banDuration, 10) || 7))
       setShowBanModal(null)
     }
   }

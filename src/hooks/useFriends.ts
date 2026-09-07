@@ -18,7 +18,17 @@ export function useFriends() {
 
   const fetchFriends = async () => {
     const { data } = await supabase.from('friend_board').select('*').order('created_at', { ascending: false })
-    if (data) setFriends(data)
+    if (data) {
+      setFriends(
+        (data as FriendProfile[]).map((friend) => ({
+          ...friend,
+          game_codes:
+            friend.game_codes && typeof friend.game_codes === 'object' && !Array.isArray(friend.game_codes)
+              ? friend.game_codes
+              : {},
+        })),
+      )
+    }
   }
 
   useEffect(() => {

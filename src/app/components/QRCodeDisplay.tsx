@@ -46,23 +46,27 @@ export function QRCodeDisplay({
   const downloadQrAsPdf = async () => {
     const canvas = getQrCanvas();
     if (!canvas) return;
-    const { jsPDF } = await import('jspdf');
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    try {
+      const { jsPDF } = await import('jspdf');
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
 
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const qrSize = 260;
-    const x = (pageWidth - qrSize) / 2;
-    let y = 72;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const qrSize = 260;
+      const x = (pageWidth - qrSize) / 2;
+      let y = 72;
 
-    pdf.setFontSize(14);
-    pdf.text(`QR de ruleta: ${activeCode === 'general' ? 'General' : activeCode}`, pageWidth / 2, y, { align: 'center' });
-    y += 24;
-    pdf.addImage(imgData, 'PNG', x, y, qrSize, qrSize);
-    y += qrSize + 24;
-    pdf.setFontSize(10);
-    pdf.text(activeUrl, pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - 48 });
-    pdf.save(`qr-${fileSafeCode}.pdf`);
+      pdf.setFontSize(14);
+      pdf.text(`QR de ruleta: ${activeCode === 'general' ? 'General' : activeCode}`, pageWidth / 2, y, { align: 'center' });
+      y += 24;
+      pdf.addImage(imgData, 'PNG', x, y, qrSize, qrSize);
+      y += qrSize + 24;
+      pdf.setFontSize(10);
+      pdf.text(activeUrl, pageWidth / 2, y, { align: 'center', maxWidth: pageWidth - 48 });
+      pdf.save(`qr-${fileSafeCode}.pdf`);
+    } catch {
+      alert('No se pudo generar el PDF del QR. Intenta de nuevo.');
+    }
   };
 
   return (

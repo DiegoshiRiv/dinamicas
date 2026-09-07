@@ -65,8 +65,24 @@ export function FriendBoard({ isAdmin }: { isAdmin: boolean }) {
   const [showFilterMenu, setShowFilterMenu] = useState(false)
   const [contactFriendId, setContactFriendId] = useState<string | null>(null)
 
-  const handleCopy = (code: string) => {
-    navigator.clipboard.writeText(code)
+  const handleCopy = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code)
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = code
+      textarea.setAttribute('readonly', 'true')
+      textarea.style.position = 'fixed'
+      textarea.style.left = '-9999px'
+      document.body.appendChild(textarea)
+      textarea.select()
+      try {
+        document.execCommand('copy')
+      } catch {
+        /* ignore */
+      }
+      document.body.removeChild(textarea)
+    }
     setCopiedCode(code)
     setTimeout(() => setCopiedCode(null), 2000)
   }
@@ -74,31 +90,35 @@ export function FriendBoard({ isAdmin }: { isAdmin: boolean }) {
   const handleSubmit = async () => {
     if (!username.trim() || Object.keys(codes).length === 0) return
     const cleanContact = contactValue.trim()
-    await addFriendProfile({
-      username: username.trim(),
-      avatar_dex: avatarDex ? avatarDex.padStart(4, '0') : undefined,
-      game_codes: codes,
-      social_ig: contactMethod === 'ig' ? cleanContact.replace('@', '') : '',
-      social_x: contactMethod === 'x' ? cleanContact.replace('@', '') : '',
-      social_other_type:
-        contactMethod === 'discord'
-          ? 'Discord'
-          : contactMethod === 'campfire'
-            ? 'Campfire'
-            : contactMethod === 'other'
-              ? 'Personalizado'
-              : undefined,
-      social_other_value:
-        contactMethod === 'discord' || contactMethod === 'campfire' || contactMethod === 'other'
-          ? cleanContact
-          : '',
-    })
-    setShowForm(false)
-    setUsername('')
-    setAvatarDex('')
-    setCodes({})
-    setContactMethod(null)
-    setContactValue('')
+    try {
+      await addFriendProfile({
+        username: username.trim().slice(0, 40),
+        avatar_dex: avatarDex ? avatarDex.padStart(4, '0') : undefined,
+        game_codes: codes,
+        social_ig: contactMethod === 'ig' ? cleanContact.replace('@', '') : '',
+        social_x: contactMethod === 'x' ? cleanContact.replace('@', '') : '',
+        social_other_type:
+          contactMethod === 'discord'
+            ? 'Discord'
+            : contactMethod === 'campfire'
+              ? 'Campfire'
+              : contactMethod === 'other'
+                ? 'Personalizado'
+                : undefined,
+        social_other_value:
+          contactMethod === 'discord' || contactMethod === 'campfire' || contactMethod === 'other'
+            ? cleanContact
+            : '',
+      })
+      setShowForm(false)
+      setUsername('')
+      setAvatarDex('')
+      setCodes({})
+      setContactMethod(null)
+      setContactValue('')
+    } catch {
+      alert('No se pudo publicar el perfil. Revisa la conexión e intenta de nuevo.')
+    }
   }
 
   const filteredFriends =

@@ -18,6 +18,7 @@ import {
   encodeRegistrationToken,
   encodeUsernameKey,
   getOrCreateDeviceToken,
+  saveLastRegisteredUsername,
   saveLastRegistrationToken,
 } from '@/app/utils/registrationToken'
 import {
@@ -150,6 +151,19 @@ export type IncomingSpin = {
   localReceivedAt: number
 }
 
+/** Ganador fijado por Fuecoco; cualquier admin que gire debe usarlo. */
+export type SharedForcedWinner = {
+  id: string | null
+  username: string | null
+}
+
+export type RouletteSyncConfig = {
+  penaltyMonths: number
+  penaltyPercent: number
+  forcedWinnerId?: string | null
+  forcedWinnerUsername?: string | null
+}
+
 function makeTempId() {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
@@ -163,6 +177,36 @@ function makePrizeCodeId() {
 
 const WINNER_PRIZE_CODES_KEY = (code: string) =>
   `winner_prize_codes:${sanitizeRouletteCode(code)}`
+
+const FORCED_WINNER_KEY = (code: string) =>
+  `forced_winner:${sanitizeRouletteCode(code)}`
+
+function normalizeForcedWinner(raw: unknown): SharedForcedWinner {
+  if (!raw || typeof raw !== 'object') return { id: null, username: null }
+  const row = raw as { id?: unknown; username?: unknown }
+  const id = typeof row.id === 'string' && row.id.trim() ? row.id.trim() : null
+  const username =
+    typeof row.username === 'string' && row.username.trim() ? row.username.trim() : null
+  return { id, username }
+}
+
+function readLocalForcedWinner(key: string): SharedForcedWinner {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? normalizeForcedWinner(JSON.parse(raw)) : { id: null, username: null }
+  } catch {
+    return { id: null, username: null }
+  }
+}
+
+function writeLocalForcedWinner(key: string, forced: SharedForcedWinner) {
+  try {
+    if (!forced.id && !forced.username) localStorage.removeItem(key)
+    else localStorage.setItem(key, JSON.stringify(forced))
+  } catch {
+    /* ignore */
+  }
+}
 
 /** La tabla public.app_settings todavía no existe en este proyecto de Supabase. */
 function isMissingSettingsTable(error: unknown): boolean {
@@ -261,7 +305,14 @@ export function useParticipants(
   /** false cuando la ruleta gira (o se recibió el giro). */
   const [showWaitingAnnouncement, setShowWaitingAnnouncement] = useState(true)
 
-  const [rouletteConfig, setRouletteConfig] = useState({ penaltyMonths: 12, penaltyPercent: 90 })
+  const [rouletteConfig, setRouletteConfig] = useState<RouletteSyncConfig>({
+    penaltyMonths: 12,
+    penaltyPercent: 90,
+  })
+  const [sharedForcedWinner, setSharedForcedWinner] = useState<SharedForcedWinner>({
+    id: null,
+    username: null,
+  })
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const refetchTimerRef = useRef<number | null>(null)
   const loadWinnerPrizeCodesRef = useRef(loadWinnerPrizeCodes)
@@ -554,16 +605,22 @@ export function useParticipants(
       assigned_at: new Date().toISOString(),
     }
     const next = current.map((entry) => (entry.id === available.id ? assigned : entry))
+    const previous = current
     setWinnerPrizeCodes(next)
     winnerPrizeCodesRef.current = next
 
     try {
       await persistWinnerPrizeCodes(next)
     } catch (error) {
+      // Si el servidor no guardó, revertir: si no, el admin ve el código como
+      // usado y el ganador no puede recuperarlo desde su teléfono.
+      setWinnerPrizeCodes(previous)
+      winnerPrizeCodesRef.current = previous
       eventLog.error('winner_codes', 'assign failed', {
         error: error instanceof Error ? error.message : String(error),
         winnerId: winner.id,
       })
+      return null
     }
 
     return assigned
@@ -723,22 +780,57 @@ export function useParticipants(
       // Se valida porque un móvil con la app vieja puede mandar otra cosa y
       // dejaría al espectador en una vista que no existe.
       setSpectatorView(payload.payload?.view === 'roulette' ? 'roulette' : 'main')
-      if (payload.payload?.config) setRouletteConfig(payload.payload.config)
+      const cfg = payload.payload?.config as RouletteSyncConfig | undefined
+      if (cfg) {
+        setRouletteConfig({
+          penaltyMonths: Number(cfg.penaltyMonths) || 12,
+          penaltyPercent: Number(cfg.penaltyPercent) || 90,
+          forcedWinnerId: cfg.forcedWinnerId ?? null,
+          forcedWinnerUsername: cfg.forcedWinnerUsername ?? null,
+        })
+        if (cfg.forcedWinnerId != null || cfg.forcedWinnerUsername != null) {
+          setSharedForcedWinner({
+            id: cfg.forcedWinnerId ?? null,
+            username: cfg.forcedWinnerUsername ?? null,
+          })
+        }
+      }
       if (payload.payload?.view === 'roulette') {
         setLoading(true)
         void syncParticipantsFresh('broadcast_set_view').finally(() => setLoading(false))
       }
     })
 
+    syncChannel.on('broadcast', { event: 'set_forced_winner' }, (payload) => {
+      const data = payload?.payload
+      const next = normalizeForcedWinner(data)
+      setSharedForcedWinner(next)
+      setRouletteConfig((prev) => ({
+        ...prev,
+        forcedWinnerId: next.id,
+        forcedWinnerUsername: next.username,
+      }))
+      writeLocalForcedWinner(FORCED_WINNER_KEY(rouletteCode), next)
+    })
+
     syncChannel.on('broadcast', { event: 'spin' }, (payload) => {
+      const data = payload?.payload
+      if (
+        !data ||
+        typeof data.rotation !== 'number' ||
+        typeof data.winnerId !== 'string' ||
+        !Number.isFinite(data.rotation)
+      ) {
+        return
+      }
       setShowWaitingAnnouncement(false)
       setIncomingSpin({
-        rotation: payload.payload.rotation,
-        winnerId: payload.payload.winnerId,
-        winnerUsername: payload.payload.winnerUsername,
-        winnerTeam: payload.payload.winnerTeam,
-        winnerPrizeCode: payload.payload.winnerPrizeCode ?? null,
-        sentAt: typeof payload.payload.at === 'number' ? payload.payload.at : undefined,
+        rotation: data.rotation,
+        winnerId: data.winnerId,
+        winnerUsername: typeof data.winnerUsername === 'string' ? data.winnerUsername : undefined,
+        winnerTeam: typeof data.winnerTeam === 'string' ? data.winnerTeam : undefined,
+        winnerPrizeCode: data.winnerPrizeCode ?? null,
+        sentAt: typeof data.at === 'number' ? data.at : undefined,
         localReceivedAt: Date.now(),
       })
     })
@@ -989,6 +1081,82 @@ export function useParticipants(
     }
   }
 
+  const persistForcedWinner = useCallback(async (forced: SharedForcedWinner) => {
+    const key = FORCED_WINNER_KEY(rouletteCodeRef.current)
+    writeLocalForcedWinner(key, forced)
+    const { error } = await supabase.from('app_settings').upsert(
+      { key, value: forced, updated_at: new Date().toISOString() },
+      { onConflict: 'key' },
+    )
+    if (!error || isMissingSettingsTable(error)) return
+    eventLog.warn('roulette', 'persist forced winner failed', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }, [])
+
+  const fetchForcedWinner = useCallback(async () => {
+    const key = FORCED_WINNER_KEY(rouletteCodeRef.current)
+    try {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle()
+      if (error) throw error
+      const next = normalizeForcedWinner(data?.value)
+      setSharedForcedWinner(next)
+      setRouletteConfig((prev) => ({
+        ...prev,
+        forcedWinnerId: next.id,
+        forcedWinnerUsername: next.username,
+      }))
+      writeLocalForcedWinner(key, next)
+    } catch (error) {
+      if (isMissingSettingsTable(error)) {
+        const local = readLocalForcedWinner(key)
+        setSharedForcedWinner(local)
+        setRouletteConfig((prev) => ({
+          ...prev,
+          forcedWinnerId: local.id,
+          forcedWinnerUsername: local.username,
+        }))
+        return
+      }
+      const local = readLocalForcedWinner(key)
+      setSharedForcedWinner(local)
+    }
+  }, [])
+
+  /**
+   * Fuecoco fija el ganador: se guarda y se anuncia a todos los admins.
+   * Cualquier admin que gire usará este resultado.
+   */
+  const shareForcedWinner = useCallback(
+    async (forced: SharedForcedWinner | null) => {
+      const next = forced ?? { id: null, username: null }
+      setSharedForcedWinner(next)
+      setRouletteConfig((prev) => ({
+        ...prev,
+        forcedWinnerId: next.id,
+        forcedWinnerUsername: next.username,
+      }))
+      await persistForcedWinner(next)
+      if (channelRef.current) {
+        await channelRef.current.send({
+          type: 'broadcast',
+          event: 'set_forced_winner',
+          payload: next,
+        })
+      }
+    },
+    [persistForcedWinner],
+  )
+
+  useEffect(() => {
+    setSharedForcedWinner({ id: null, username: null })
+    void fetchForcedWinner()
+  }, [rouletteCode, fetchForcedWinner])
+
   const broadcastSpin = async (
     rotation: number,
     winnerId: string,
@@ -1110,6 +1278,7 @@ export function useParticipants(
       // la persona en la ruleta y le permite ver su código de premio.
       if (!isAdminBypass) {
         saveLastRegistrationToken(rouletteCode, row.registration_token || roomToken)
+        saveLastRegisteredUsername(rouletteCode, row.username || username)
       }
       timer.end({ id: row.id, username, ...extra })
       diagnostics.patch({
@@ -1127,6 +1296,24 @@ export function useParticipants(
         finishOk(alreadyLocal, { idempotent: 'local-token' })
         return
       }
+
+      // Fila local inmediata: la ruleta del propio dispositivo ya puede
+      // resaltar el nombre aunque el INSERT aún no haya vuelto.
+      upsertParticipant(
+        {
+          id: `local-${roomToken}`,
+          username,
+          team,
+          status: 'active',
+          ip_address: finalIp,
+          roulette_code: rouletteCode,
+          registration_token: roomToken,
+          username_key: usernameKey,
+        },
+        true,
+      )
+      saveLastRegistrationToken(rouletteCode, roomToken)
+      saveLastRegisteredUsername(rouletteCode, username)
     }
 
     const payload: Record<string, string> = {
@@ -1225,6 +1412,16 @@ export function useParticipants(
           telemetry.uniqueConflict('unknown')
           timer.fail(error, { code: '23505-username' })
           diagnostics.patch({ lastRegisterOk: false, lastError: 'username taken' })
+          // Quita la fila optimista de este dispositivo: el nombre no es suyo.
+          setParticipants((prev) =>
+            prev.filter(
+              (row) =>
+                !(
+                  row.id.startsWith('local-') &&
+                  row.registration_token === roomToken
+                ),
+            ),
+          )
           throw new RegisterError(
             'username-taken',
             'Ese nombre de entrenador ya está registrado. Usa el tuyo.',
@@ -1328,8 +1525,9 @@ export function useParticipants(
   const banUser = async (id: string, durationInDays: number, bannedBy?: string) => {
     const user = participantsByIdRef.current.get(id)
     if (!user || !user.ip_address) return
+    const days = Math.max(1, Math.min(3650, Math.floor(Number(durationInDays)) || 7))
     const expirationDate = new Date()
-    expirationDate.setDate(expirationDate.getDate() + durationInDays)
+    expirationDate.setDate(expirationDate.getDate() + days)
     const payload: Record<string, string> = {
       ip_address: user.ip_address,
       roulette_code: extractRoomCode(user),
@@ -1517,5 +1715,7 @@ export function useParticipants(
     broadcastSpin,
     broadcastRoundReset,
     rouletteConfig,
+    sharedForcedWinner,
+    shareForcedWinner,
   }
 }

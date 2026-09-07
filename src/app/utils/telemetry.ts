@@ -15,6 +15,7 @@ const buffer: Metric[] = []
 
 function emit(metric: Metric) {
   buffer.push({ ...metric, tags: { ...metric.tags, t: Date.now() } })
+  if (buffer.length > 100) buffer.splice(0, buffer.length - 50)
   if (import.meta.env.DEV) {
     console.debug('[telemetry]', metric.name, metric.value ?? '', metric.tags ?? {})
   }

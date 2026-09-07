@@ -95,8 +95,8 @@ function readPenaltySettings(): { months: number; percent: number } {
       return fallback
     }
     return {
-      months: Number(localStorage.getItem('penaltyMonths')) || DEFAULT_PENALTY_MONTHS,
-      percent: Number(localStorage.getItem('penaltyPercent')) || DEFAULT_PENALTY_PERCENT,
+      months: Math.max(0, Math.min(120, Number(localStorage.getItem('penaltyMonths')) || DEFAULT_PENALTY_MONTHS)),
+      percent: Math.max(0, Math.min(100, Number(localStorage.getItem('penaltyPercent')) || DEFAULT_PENALTY_PERCENT)),
     }
   } catch {
     return fallback
@@ -179,9 +179,11 @@ export default function App() {
     addBanner, updateBanner, deleteBanner, removeRecentWinner, removeMultipleRecentWinners,
     saveWinnerPrizeCodes, assignWinnerPrizeCode, fetchAssignedPrizeCode,
     deleteRouletteData, spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig,
+    sharedForcedWinner, shareForcedWinner,
     roundVersion, showWaitingAnnouncement,
   } = useParticipants(activeRouletteCode, {
-    // Solo admin/ruleta hacen fetch inicial completo; realtime INSERT siempre está activo.
+    // Fetch + realtime de participantes solo en admin/ruleta (arranca más rápido
+    // el registro en 3G). Al abrir la ruleta se sincroniza la lista completa.
     loadParticipants: isAdmin || currentView === 'roulette' || activeTab === 'ruleta',
     loadWinnerPrizeCodes: isAdmin,
   })
@@ -346,8 +348,17 @@ export default function App() {
 
   const handleStartRoulette = () => {
     const effectiveConfig = canManageProbability
-      ? { penaltyMonths, penaltyPercent }
-      : rouletteConfig
+      ? {
+          penaltyMonths,
+          penaltyPercent,
+          forcedWinnerId: sharedForcedWinner.id,
+          forcedWinnerUsername: sharedForcedWinner.username,
+        }
+      : {
+          ...rouletteConfig,
+          forcedWinnerId: sharedForcedWinner.id ?? rouletteConfig.forcedWinnerId,
+          forcedWinnerUsername: sharedForcedWinner.username ?? rouletteConfig.forcedWinnerUsername,
+        }
     setCurrentView('roulette')
     void syncParticipantsFresh('admin_open_roulette')
     void broadcastView('roulette', effectiveConfig)
@@ -409,6 +420,8 @@ export default function App() {
       const dataUrl = await optimizeImageFile(file)
       setNewSponsorImage(dataUrl)
       setNewSponsorImageName(file.name)
+    } catch {
+      alert('No se pudo procesar la imagen. Prueba con otro archivo.')
     } finally {
       setProcessingSponsorImage(false)
       event.target.value = ''
@@ -423,6 +436,8 @@ export default function App() {
       const dataUrl = await optimizeImageFile(file)
       setEditSponsorImgUrl(dataUrl)
       setEditSponsorImageName(file.name)
+    } catch {
+      alert('No se pudo procesar la imagen. Prueba con otro archivo.')
     } finally {
       setProcessingEditSponsorImage(false)
       event.target.value = ''
@@ -437,6 +452,8 @@ export default function App() {
       const dataUrl = await optimizeImageFile(file)
       setBannerImgInput(dataUrl)
       setBannerImageName(file.name)
+    } catch {
+      alert('No se pudo procesar la imagen. Prueba con otro archivo.')
     } finally {
       setProcessingBannerImage(false)
       event.target.value = ''
@@ -554,6 +571,8 @@ export default function App() {
             realtimeReady={realtimeReady}
             syncError={syncError}
             canForceWinner={canManageProbability}
+            sharedForcedWinner={sharedForcedWinner}
+            onShareForcedWinner={shareForcedWinner}
           />
           </ErrorBoundary>
         </Suspense>
@@ -566,10 +585,13 @@ export default function App() {
             saveRegistration={addParticipant}
             verifyRegistration={verifyParticipantRegistered}
             isAdmin={isAdmin}
+            isSuperAdmin={canManageProbability}
             sponsorBanners={banners}
             alreadyRegistered={alreadyRegistered}
             onViewRoulette={openRoulette}
             onRegistered={() => setAlreadyRegistered(true)}
+            onRegisterFailed={() => setAlreadyRegistered(false)}
+            rouletteCode={activeRouletteCode}
           />
         )
       case 'friends':
@@ -834,10 +856,13 @@ export default function App() {
             saveRegistration={addParticipant}
             verifyRegistration={verifyParticipantRegistered}
             isAdmin={isAdmin}
+            isSuperAdmin={canManageProbability}
             sponsorBanners={banners}
             alreadyRegistered={alreadyRegistered}
             onViewRoulette={openRoulette}
             onRegistered={() => setAlreadyRegistered(true)}
+            onRegisterFailed={() => setAlreadyRegistered(false)}
+            rouletteCode={activeRouletteCode}
           />
         )
     }

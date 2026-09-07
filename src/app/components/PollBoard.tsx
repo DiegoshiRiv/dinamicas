@@ -33,8 +33,12 @@ export function PollBoard({ isAdmin }: { isAdmin: boolean }) {
   const handleCreate = async () => {
     const validOptions = options.filter(o => o.trim() !== '')
     if (!question.trim() || validOptions.length < 2) return
-    await createPoll(question, validOptions)
-    setQuestion(''); setOptions(['', ''])
+    try {
+      await createPoll(question.trim(), validOptions.map((o) => o.trim()))
+      setQuestion(''); setOptions(['', ''])
+    } catch {
+      alert('No se pudo crear la encuesta. Revisa la conexión e intenta de nuevo.')
+    }
   }
 
   const handleConfirmVote = async (pollId: string) => {

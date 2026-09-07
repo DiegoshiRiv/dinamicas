@@ -208,6 +208,39 @@ export function readLastRegistrationToken(rouletteCode: string): string | null {
   }
 }
 
+const LAST_USERNAME_PREFIX = 'dinamicas-last-registered-username-v1'
+
+function lastRegisteredUsernameKey(rouletteCode: string): string {
+  return `${LAST_USERNAME_PREFIX}:${sanitizeRouletteCode(rouletteCode)}`
+}
+
+/** Nombre con el que se registró en esta sala (para resaltar en la ruleta). */
+export function saveLastRegisteredUsername(rouletteCode: string, username: string) {
+  const clean = username.trim()
+  if (!clean) return
+  try {
+    localStorage.setItem(lastRegisteredUsernameKey(rouletteCode), clean)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readLastRegisteredUsername(rouletteCode: string): string | null {
+  try {
+    return localStorage.getItem(lastRegisteredUsernameKey(rouletteCode))?.trim() || null
+  } catch {
+    return null
+  }
+}
+
+export function clearLastRegisteredUsername(rouletteCode: string) {
+  try {
+    localStorage.removeItem(lastRegisteredUsernameKey(rouletteCode))
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Clave estable del username de Pokémon GO dentro de la sala. */
 export function normalizeRegistrationUsername(username: string): string {
   return username
