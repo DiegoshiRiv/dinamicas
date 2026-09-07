@@ -1257,8 +1257,15 @@ export function useParticipants(
     isAdminBypass: boolean = false,
   ) => {
     const timer = eventLog.timed('register', 'addParticipant')
-    const deviceToken = isAdminBypass ? `admin-${Date.now()}` : getOrCreateDeviceToken()
-    const roomToken = encodeRegistrationToken(deviceToken, rouletteCode)
+    // Admin masivo: NUNCA Date.now() solo — con 4 altas en paralelo el mismo ms
+    // reutilizaba el token, el 2º/3º creían “ya soy yo” y no insertaban fila.
+    const newAdminToken = () =>
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? `admin-${crypto.randomUUID()}`
+        : `admin-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+
+    let deviceToken = isAdminBypass ? newAdminToken() : getOrCreateDeviceToken()
+    let roomToken = encodeRegistrationToken(deviceToken, rouletteCode)
     const usernameKey = encodeUsernameKey(username, rouletteCode)
     // Se evitan el color de la última alta de este dispositivo y los de las dos
     // más recientes que conoce este cliente, para que no salgan seguidos.
@@ -1402,6 +1409,30 @@ export function useParticipants(
         // evita acusar a alguien de usar un nombre que en realidad es suyo.
         const mine = await loadParticipantByToken(roomToken)
         if (mine) {
+          const samePerson =
+            (mine.username_key != null && mine.username_key === usernameKey) ||
+            mine.username.trim().toLowerCase() === username.trim().toLowerCase()
+          // Carga masiva admin: mismo token por colisión ≠ misma persona.
+          if (isAdminBypass && !samePerson) {
+            deviceToken = newAdminToken()
+            roomToken = encodeRegistrationToken(deviceToken, rouletteCode)
+            payload.registration_token = roomToken
+            payload.ip_address = encodeDeviceRoomKey(deviceToken, rouletteCode)
+            const retry = await supabase
+              .from('participants')
+              .insert([payload])
+              .select(PARTICIPANT_COLUMNS)
+              .maybeSingle()
+            if (!retry.error && retry.data) {
+              finishOk(retry.data as Participant, { retriedAfterTokenCollision: true })
+              return
+            }
+            timer.fail(retry.error ?? error, { code: '23505-admin-token-collision' })
+            throw new RegisterError(
+              'generic',
+              'No se pudo completar el registro. Intenta de nuevo.',
+            )
+          }
           telemetry.uniqueConflict(/registration_token/i.test(detail) ? 'token' : 'unknown')
           finishOk(mine, { idempotent: '23505-mine' })
           return

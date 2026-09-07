@@ -151,10 +151,20 @@ export function RegistrationForm({
       })
       await Promise.all(workers)
 
-      setSuccess(true)
-      setRegisteredAs(`${ok} inscritos`)
-      if (failed > 0) {
-        setError(`Carga terminada con ${failed} error(es). Revisados: ${names.length}.`)
+      const summary = `ok ${ok}` +
+        (skipped > 0 ? ` · ya estaban ${skipped}` : '') +
+        (failed > 0 ? ` · fallaron ${failed}` : '')
+      setRegisteredAs(summary)
+      setSuccess(ok > 0)
+      if (ok < names.length) {
+        setError(
+          `De ${names.length} nombres del archivo: ${summary}. ` +
+            (failed > 0 || skipped > 0
+              ? 'Revisa el panel: solo cuentan los “ok” nuevos.'
+              : ''),
+        )
+      } else {
+        setError('')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo leer el archivo.')
