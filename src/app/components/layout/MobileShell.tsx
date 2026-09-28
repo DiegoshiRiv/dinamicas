@@ -19,6 +19,7 @@ import {
   HelpCircle,
   Stamp,
   ImageIcon,
+  ImagePlus,
 } from 'lucide-react'
 import { TabFallback } from '@/app/components/TabFallback'
 import {
@@ -30,6 +31,7 @@ import { HeaderFondoCover } from '@/app/components/layout/HeaderFondoCover'
 import { loadHeaderLayoutsFromStorage, logoMaxHeight } from '@/app/config/headerLayout'
 import { useHeaderLayout } from '@/hooks/useHeaderLayout'
 import { useFondoCdUrl } from '@/hooks/useFondoCdUrl'
+import { useBrandingImages } from '@/hooks/useBrandingImages'
 import {
   getActiveFondoCdId,
   getFondoCdUrl,
@@ -44,6 +46,9 @@ const FaqPanel = lazy(() =>
 )
 const StampRecoveryPanel = lazy(() =>
   import('@/app/components/StampRecoveryPanel').then((m) => ({ default: m.StampRecoveryPanel })),
+)
+const BrandingImagesPanel = lazy(() =>
+  import('@/app/components/BrandingImagesPanel').then((m) => ({ default: m.BrandingImagesPanel })),
 )
 
 export type NavTab =
@@ -133,10 +138,13 @@ export function MobileShell({
   const [faqOpen, setFaqOpen] = useState(false)
   const [stampRecoveryOpen, setStampRecoveryOpen] = useState(false)
   const [headerEditOpen, setHeaderEditOpen] = useState(false)
+  const [brandingOpen, setBrandingOpen] = useState(false)
   const [headerEditMode, setHeaderEditMode] = useState<HeaderEditMode>('fondo')
   const [editingFondoId, setEditingFondoId] = useState<FondoCdId>(() => getActiveFondoCdId())
   const [draftStore, setDraftStore] = useState(() => loadHeaderLayoutsFromStorage())
   const { store, persistStore } = useHeaderLayout()
+  // Sync branding overrides early so la portada y el anuncio usen lo remoto.
+  useBrandingImages()
   const [isSmViewport, setIsSmViewport] = useState(false)
   const activeFondoId = getActiveFondoCdId()
   const fondoCdUrl = useFondoCdUrl(headerEditOpen ? editingFondoId : undefined)
@@ -469,6 +477,20 @@ export function MobileShell({
                 </button>
               )}
 
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setBrandingOpen(true)
+                  }}
+                  className="w-full flex items-center gap-4 px-5 py-4 text-left font-bold text-[#0d3b66] hover:bg-gray-50"
+                >
+                  <ImagePlus className="w-5 h-5 shrink-0" />
+                  Actualizar imágenes
+                </button>
+              )}
+
               {isAdmin && onAdminLogout && (
                 <>
                   <button
@@ -514,6 +536,11 @@ export function MobileShell({
       {faqOpen && (
         <Suspense fallback={<TabFallback />}>
           <FaqPanel open onClose={() => setFaqOpen(false)} />
+        </Suspense>
+      )}
+      {brandingOpen && (
+        <Suspense fallback={<TabFallback />}>
+          <BrandingImagesPanel open onClose={() => setBrandingOpen(false)} />
         </Suspense>
       )}
     </div>

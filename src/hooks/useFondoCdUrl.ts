@@ -4,6 +4,7 @@ import {
   resolveFondoCdUrl,
   type FondoCdId,
 } from '@/app/utils/alternatingFondoCd'
+import { subscribeBrandingImages } from '@/app/utils/brandingImages'
 
 export function useFondoCdUrl(overrideId?: FondoCdId) {
   const [url, setUrl] = useState<string | null>(null)
@@ -11,20 +12,30 @@ export function useFondoCdUrl(overrideId?: FondoCdId) {
   useEffect(() => {
     let cancelled = false
     const id = overrideId ?? getActiveFondoCdId()
-    // Retraso corto: prioriza pintar el formulario antes del fondo.
-    const timeoutId = window.setTimeout(() => {
-      void resolveFondoCdUrl(id)
-        .then((resolved) => {
-          if (!cancelled) setUrl(resolved)
-        })
-        .catch(() => {
-          if (!cancelled) setUrl(null)
-        })
-    }, 120)
+
+    const load = () => {
+      const timeoutId = window.setTimeout(() => {
+        void resolveFondoCdUrl(id)
+          .then((resolved) => {
+            if (!cancelled) setUrl(resolved)
+          })
+          .catch(() => {
+            if (!cancelled) setUrl(null)
+          })
+      }, 120)
+      return timeoutId
+    }
+
+    let timeoutId = load()
+    const unsubscribe = subscribeBrandingImages(() => {
+      window.clearTimeout(timeoutId)
+      timeoutId = load()
+    })
 
     return () => {
       cancelled = true
       window.clearTimeout(timeoutId)
+      unsubscribe()
     }
   }, [overrideId])
 

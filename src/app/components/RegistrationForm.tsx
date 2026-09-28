@@ -14,6 +14,7 @@ import { AnimatedCounter } from '@/app/components/AnimatedCounter'
 import { SponsorBannerCarousel } from '@/app/components/SponsorBannerCarousel'
 import type { Banner } from '@/hooks/useParticipants'
 import { useWhatsAppFollowers } from '@/app/hooks/useWhatsAppFollowers'
+import { useBrandingImages } from '@/hooks/useBrandingImages'
 import { eventLog } from '@/app/utils/eventLog'
 import { registerFailureReason } from '@/app/utils/registerError'
 import {
@@ -92,6 +93,7 @@ export function RegistrationForm({
   const inputRef = useRef<HTMLInputElement>(null)
   const bulkInputRef = useRef<HTMLInputElement>(null)
   const whatsappFollowers = useWhatsAppFollowers()
+  const { images: brandingImages } = useBrandingImages()
   const submittingRef = useRef(false)
   const [registeredAs, setRegisteredAs] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -419,7 +421,7 @@ export function RegistrationForm({
                 </p>
                 <div className="w-20 h-20 shrink-0 flex items-center justify-center overflow-hidden rounded-xl bg-[#0d3b66]/5 p-3">
                   <img
-                    src={anteriorImg}
+                    src={brandingImages.anterior || anteriorImg}
                     alt=""
                     className="max-w-full max-h-full object-contain"
                     decoding="async"

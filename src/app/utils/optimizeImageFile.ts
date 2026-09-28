@@ -1,4 +1,9 @@
-export function optimizeImageFile(file: File, maxDimension = 1200, quality = 0.85): Promise<string> {
+export function optimizeImageFile(
+  file: File,
+  maxDimension = 1200,
+  quality = 0.85,
+  options?: { forceJpeg?: boolean },
+): Promise<string> {
   if (!file || file.size === 0) {
     return Promise.reject(new Error('Archivo vacío'))
   }
@@ -6,7 +11,9 @@ export function optimizeImageFile(file: File, maxDimension = 1200, quality = 0.8
     return Promise.reject(new Error('El archivo no es una imagen'))
   }
 
-  if (file.type === 'image/gif' || file.type === 'image/svg+xml') {
+  const forceJpeg = Boolean(options?.forceJpeg)
+
+  if (!forceJpeg && (file.type === 'image/gif' || file.type === 'image/svg+xml')) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(String(reader.result || ''))
@@ -31,7 +38,16 @@ export function optimizeImageFile(file: File, maxDimension = 1200, quality = 0.8
           reject(new Error('No se pudo preparar la imagen'))
           return
         }
+        // Fondo blanco: JPEG no tiene transparencia y evita “agujeros” negros.
+        if (forceJpeg) {
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, width, height)
+        }
         ctx.drawImage(image, 0, 0, width, height)
+        if (forceJpeg) {
+          resolve(canvas.toDataURL('image/jpeg', quality))
+          return
+        }
         const usePng = file.type === 'image/png' || file.type === 'image/webp'
         resolve(canvas.toDataURL(usePng ? 'image/png' : 'image/jpeg', quality))
       }

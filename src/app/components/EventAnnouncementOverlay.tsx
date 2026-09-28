@@ -1,5 +1,6 @@
 import siguienteAnuncioImg from '@/assets/siguiente.webp'
 import { X } from 'lucide-react'
+import { useBrandingImages } from '@/hooks/useBrandingImages'
 
 type Props = {
   open: boolean
@@ -8,7 +9,10 @@ type Props = {
 
 /** Anuncio del próximo evento a pantalla completa durante la espera de registros. */
 export function EventAnnouncementOverlay({ open, onDismiss }: Props) {
+  const { images } = useBrandingImages()
   if (!open) return null
+
+  const src = images.siguiente || siguienteAnuncioImg
 
   return (
     <div
@@ -27,7 +31,7 @@ export function EventAnnouncementOverlay({ open, onDismiss }: Props) {
           <X className="h-5 w-5" strokeWidth={2.75} />
         </button>
         <img
-          src={siguienteAnuncioImg}
+          src={src}
           alt="Próximo evento"
           className="w-full max-h-[92dvh] object-contain rounded-2xl shadow-2xl select-none"
           draggable={false}
