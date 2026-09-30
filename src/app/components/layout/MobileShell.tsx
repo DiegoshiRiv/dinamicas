@@ -28,7 +28,11 @@ import {
   type HeaderEditMode,
 } from '@/app/components/layout/HeaderLayoutEditor'
 import { HeaderFondoCover } from '@/app/components/layout/HeaderFondoCover'
-import { loadHeaderLayoutsFromStorage, logoMaxHeight } from '@/app/config/headerLayout'
+import {
+  createDefaultHeaderLayoutsStore,
+  loadHeaderLayoutsFromStorage,
+  logoMaxHeight,
+} from '@/app/config/headerLayout'
 import { useHeaderLayout } from '@/hooks/useHeaderLayout'
 import { useFondoCdUrl } from '@/hooks/useFondoCdUrl'
 import { useBrandingImages } from '@/hooks/useBrandingImages'
@@ -49,6 +53,9 @@ const StampRecoveryPanel = lazy(() =>
 )
 const BrandingImagesPanel = lazy(() =>
   import('@/app/components/BrandingImagesPanel').then((m) => ({ default: m.BrandingImagesPanel })),
+)
+const CommunityStatsPanel = lazy(() =>
+  import('@/app/components/CommunityStatsPanel').then((m) => ({ default: m.CommunityStatsPanel })),
 )
 
 export type NavTab =
@@ -139,6 +146,7 @@ export function MobileShell({
   const [stampRecoveryOpen, setStampRecoveryOpen] = useState(false)
   const [headerEditOpen, setHeaderEditOpen] = useState(false)
   const [brandingOpen, setBrandingOpen] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
   const [headerEditMode, setHeaderEditMode] = useState<HeaderEditMode>('fondo')
   const [editingFondoId, setEditingFondoId] = useState<FondoCdId>(() => getActiveFondoCdId())
   const [draftStore, setDraftStore] = useState(() => loadHeaderLayoutsFromStorage())
@@ -287,8 +295,8 @@ export function MobileShell({
               onFondoChange={setEditingFondoId}
               layout={draftStore.fondos[editingFondoId]}
               onChange={updateDraftLayout}
-              onSave={() => {
-                void persistStore(draftStore)
+              onSave={async () => {
+                await persistStore(draftStore)
                 setHeaderEditOpen(false)
                 setHeaderEditMode('fondo')
               }}
@@ -296,6 +304,10 @@ export function MobileShell({
                 setDraftStore(store)
                 setHeaderEditOpen(false)
                 setHeaderEditMode('fondo')
+              }}
+              onResetCurrent={() => {
+                const defaults = createDefaultHeaderLayoutsStore()
+                updateDraftLayout({ ...defaults.fondos[editingFondoId] })
               }}
             />
           )}
@@ -305,14 +317,16 @@ export function MobileShell({
           <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-cyan-100/50 pointer-events-none" />
         )}
 
-        <button
-          type="button"
-          onClick={() => setMenuOpen(true)}
-          className="absolute top-3 left-4 z-20 p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
-          aria-label="Abrir menú"
-        >
-          <Menu className="w-7 h-7" strokeWidth={2.5} />
-        </button>
+        {!headerEditOpen && (
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            className="absolute top-3 left-4 z-20 p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
+            aria-label="Abrir menú"
+          >
+            <Menu className="w-7 h-7" strokeWidth={2.5} />
+          </button>
+        )}
 
         {isSuperAdmin && !headerEditOpen && (
           <button
@@ -323,7 +337,7 @@ export function MobileShell({
               setDraftStore(store)
               setHeaderEditOpen(true)
             }}
-            className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-full bg-black/45 backdrop-blur-sm px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-white hover:bg-black/55"
+            className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-full bg-black/45 backdrop-blur-sm px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white hover:bg-black/55 min-h-10"
           >
             <ImageIcon className="w-3.5 h-3.5" />
             Editar portada
@@ -491,6 +505,20 @@ export function MobileShell({
                 </button>
               )}
 
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setStatsOpen(true)
+                  }}
+                  className="w-full flex items-center gap-4 px-5 py-4 text-left font-bold text-[#0d3b66] hover:bg-gray-50"
+                >
+                  <Users className="w-5 h-5 shrink-0" />
+                  Editar números
+                </button>
+              )}
+
               {isAdmin && onAdminLogout && (
                 <>
                   <button
@@ -541,6 +569,11 @@ export function MobileShell({
       {brandingOpen && (
         <Suspense fallback={<TabFallback />}>
           <BrandingImagesPanel open onClose={() => setBrandingOpen(false)} />
+        </Suspense>
+      )}
+      {statsOpen && (
+        <Suspense fallback={<TabFallback />}>
+          <CommunityStatsPanel open onClose={() => setStatsOpen(false)} />
         </Suspense>
       )}
     </div>

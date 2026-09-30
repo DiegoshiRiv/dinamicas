@@ -7,14 +7,13 @@ import wpIcon from '@/assets/iconos/w.webp'
 import {
   CAMPFIRE_JOIN_URL,
   WHATSAPP_CHANNEL_URL,
-  CAMPFIRE_MEMBER_COUNT,
-  PREVIOUS_MEETUP_TRAINERS,
 } from '@/app/data/communityLinks'
 import { AnimatedCounter } from '@/app/components/AnimatedCounter'
 import { SponsorBannerCarousel } from '@/app/components/SponsorBannerCarousel'
 import type { Banner } from '@/hooks/useParticipants'
 import { useWhatsAppFollowers } from '@/app/hooks/useWhatsAppFollowers'
 import { useBrandingImages } from '@/hooks/useBrandingImages'
+import { useCommunityStats } from '@/hooks/useCommunityStats'
 import { eventLog } from '@/app/utils/eventLog'
 import { registerFailureReason } from '@/app/utils/registerError'
 import {
@@ -93,6 +92,7 @@ export function RegistrationForm({
   const inputRef = useRef<HTMLInputElement>(null)
   const bulkInputRef = useRef<HTMLInputElement>(null)
   const whatsappFollowers = useWhatsAppFollowers()
+  const { stats: communityStats } = useCommunityStats()
   const { images: brandingImages } = useBrandingImages()
   const submittingRef = useRef(false)
   const [registeredAs, setRegisteredAs] = useState('')
@@ -411,13 +411,13 @@ export function RegistrationForm({
 
               <p className="text-center text-[13px] font-bold text-[#0d3b66]/90">
                 Miembros actuales en Campfire{' '}
-                <AnimatedCounter value={CAMPFIRE_MEMBER_COUNT} />
+                <AnimatedCounter value={communityStats.campfireMembers} />
               </p>
 
               <div className="flex items-center gap-3 rounded-[15px] border border-[#0d3b66]/10 bg-white p-3.5 shadow-sm">
                 <p className="flex-1 text-[13px] font-bold text-[#0d3b66] leading-snug">
                   En la quedada anterior se reunieron{' '}
-                  <AnimatedCounter value={PREVIOUS_MEETUP_TRAINERS} /> entrenadores
+                  <AnimatedCounter value={communityStats.previousMeetupTrainers} /> entrenadores
                 </p>
                 <div className="w-20 h-20 shrink-0 flex items-center justify-center overflow-hidden rounded-xl bg-[#0d3b66]/5 p-3">
                   <img

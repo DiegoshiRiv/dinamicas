@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
-import { WHATSAPP_CHANNEL_URL, WHATSAPP_FOLLOWER_COUNT } from '@/app/data/communityLinks'
+import { WHATSAPP_CHANNEL_URL } from '@/app/data/communityLinks'
 import { parseFollowerCount } from '@/app/utils/parseFollowerCount'
+import {
+  getLiveCommunityStats,
+  subscribeCommunityStats,
+} from '@/app/utils/communityStats'
 
 const CACHE_KEY = 'whatsapp-follower-count'
 const CACHE_TTL_MS = 60 * 60 * 1000
@@ -34,14 +38,19 @@ async function fetchWhatsAppFollowers(): Promise<number | null> {
 }
 
 export function useWhatsAppFollowers() {
-  const [count, setCount] = useState(() =>
-    Math.max(readCachedCount() ?? 0, WHATSAPP_FOLLOWER_COUNT),
-  )
+  const [floor, setFloor] = useState(() => getLiveCommunityStats().whatsappFollowers)
+  const [scraped, setScraped] = useState(() => readCachedCount())
+
+  useEffect(() => {
+    return subscribeCommunityStats(() => {
+      setFloor(getLiveCommunityStats().whatsappFollowers)
+    })
+  }, [])
 
   useEffect(() => {
     const cached = readCachedCount()
     if (cached != null) {
-      setCount(Math.max(cached, WHATSAPP_FOLLOWER_COUNT))
+      setScraped(cached)
       return
     }
 
@@ -50,11 +59,8 @@ export function useWhatsAppFollowers() {
     void fetchWhatsAppFollowers()
       .then((live) => {
         if (cancelled || live == null) return
-        // El canal muestra la cifra redondeada, así que el valor leído puede
-        // quedar por debajo del conteo real ya confirmado.
-        const next = Math.max(live, WHATSAPP_FOLLOWER_COUNT)
-        writeCachedCount(next)
-        setCount(next)
+        writeCachedCount(live)
+        setScraped(live)
       })
       .catch(() => {
         // keep fallback count
@@ -65,5 +71,5 @@ export function useWhatsAppFollowers() {
     }
   }, [])
 
-  return count
+  return Math.max(scraped ?? 0, floor)
 }

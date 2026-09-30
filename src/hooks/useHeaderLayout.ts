@@ -34,22 +34,31 @@ export function useHeaderLayout() {
       }
     }
 
-    const schedule =
-      typeof window.requestIdleCallback === 'function'
-        ? window.requestIdleCallback(() => {
-            if (!cancelled) void syncFromRemote()
-          }, { timeout: 3000 })
-        : window.setTimeout(() => {
-            if (!cancelled) void syncFromRemote()
-          }, 1500)
+    void syncFromRemote()
+
+    const channel = supabase
+      .channel('header_layout_sync')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'app_settings',
+          filter: `key=eq.${HEADER_LAYOUT_SETTINGS_KEY}`,
+        },
+        (payload) => {
+          const value = (payload.new as { value?: unknown } | null)?.value
+          if (value == null) return
+          const remote = parseHeaderLayoutsStore(value)
+          setStore(remote)
+          saveHeaderLayoutsToStorage(remote)
+        },
+      )
+      .subscribe()
 
     return () => {
       cancelled = true
-      if (typeof schedule === 'number') {
-        window.clearTimeout(schedule)
-      } else if (typeof window.cancelIdleCallback === 'function') {
-        window.cancelIdleCallback(schedule)
-      }
+      void supabase.removeChannel(channel)
     }
   }, [])
 
