@@ -1,474 +1,323 @@
-import { useCallback, useRef, useState, type ReactNode, type TouchList } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, ImagePlus, RotateCcw, Type, Upload, X } from 'lucide-react'
+import logoImg from '@/assets/logos/Logo.webp'
+import { logoMaxHeight, type HeaderLayoutConfig } from '@/app/config/headerLayout'
 import {
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  ImageIcon,
-  RotateCcw,
-  Type,
-  ZoomIn,
-  ZoomOut,
-  X,
-} from 'lucide-react'
+  ImageCropEditor,
+  type ImageCropEditorHandle,
+} from '@/app/components/ImageCropEditor'
+import { optimizeImageFile } from '@/app/utils/optimizeImageFile'
 import {
-  clampFondoLayout,
-  DEFAULT_HEADER_LAYOUT,
-  type HeaderLayoutConfig,
-} from '@/app/config/headerLayout'
+  exportCroppedImage,
+  PORTADA_ASPECT_RATIO,
+  PORTADA_EXPORT_HEIGHT,
+  PORTADA_EXPORT_WIDTH,
+} from '@/app/utils/imageCrop'
 import { FONDO_CD_IDS, FONDO_CD_LABELS, type FondoCdId } from '@/app/utils/alternatingFondoCd'
 
 export type HeaderEditMode = 'fondo' | 'logo'
 
 type HeaderLayoutEditorProps = {
+  open: boolean
   fondoUrl: string
   fondoId: FondoCdId
-  editMode: HeaderEditMode
-  onEditModeChange: (mode: HeaderEditMode) => void
   onFondoChange: (id: FondoCdId) => void
   layout: HeaderLayoutConfig
-  onChange: (layout: HeaderLayoutConfig) => void
-  onSave: () => void | Promise<void>
+  onLayoutChange: (layout: HeaderLayoutConfig) => void
+  onApply: (result: {
+    fondoId: FondoCdId
+    imageDataUrl: string
+    layout: HeaderLayoutConfig
+  }) => void | Promise<void>
   onClose: () => void
-  onResetCurrent: () => void
-}
-
-function touchDistance(touches: TouchList): number {
-  if (touches.length < 2) return 0
-  const dx = touches[0].clientX - touches[1].clientX
-  const dy = touches[0].clientY - touches[1].clientY
-  return Math.hypot(dx, dy)
 }
 
 export function HeaderLayoutEditor({
+  open,
   fondoUrl,
   fondoId,
-  editMode,
-  onEditModeChange,
   onFondoChange,
   layout,
-  onChange,
-  onSave,
+  onLayoutChange,
+  onApply,
   onClose,
-  onResetCurrent,
 }: HeaderLayoutEditorProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const imageMetricsRef = useRef({ w: 1600, h: 800 })
-  const dragRef = useRef({
-    active: false,
-    pointerId: -1,
-    startX: 0,
-    startY: 0,
-    startOffsetX: 0,
-    startOffsetY: 0,
-  })
-  const pinchRef = useRef({
-    active: false,
-    startDistance: 0,
-    startSize: 100,
-  })
-  const [saving, setSaving] = useState(false)
+  const cropRef = useRef<ImageCropEditorHandle | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [mode, setMode] = useState<HeaderEditMode>('fondo')
+  const [workingSrc, setWorkingSrc] = useState(fondoUrl)
+  const [cropReady, setCropReady] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isSm, setIsSm] = useState(false)
 
-  const clampAndApply = useCallback(
-    (next: HeaderLayoutConfig) => {
-      const el = containerRef.current
-      if (!el) {
-        onChange(next)
-        return
-      }
-      onChange(
-        clampFondoLayout(
-          next,
-          el.clientWidth,
-          el.clientHeight,
-          imageMetricsRef.current.w,
-          imageMetricsRef.current.h,
-        ),
-      )
-    },
-    [onChange],
-  )
+  useEffect(() => {
+    if (!open) return
+    setWorkingSrc(fondoUrl)
+    setMode('fondo')
+    setError(null)
+    setBusy(false)
+    setCropReady(false)
+  }, [open, fondoUrl, fondoId])
 
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const img = e.currentTarget
-    imageMetricsRef.current = { w: img.naturalWidth, h: img.naturalHeight }
-    clampAndApply(layout)
-  }
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 640px)')
+    const update = () => setIsSm(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
 
-  const applyDrag = (dx: number, dy: number) => {
-    clampAndApply({
-      ...layout,
-      bgOffsetX: dragRef.current.startOffsetX + dx,
-      bgOffsetY: dragRef.current.startOffsetY + dy,
-    })
-  }
+  if (!open) return null
 
-  const nudge = (dx: number, dy: number) => {
-    clampAndApply({
-      ...layout,
-      bgOffsetX: layout.bgOffsetX + dx,
-      bgOffsetY: layout.bgOffsetY + dy,
-    })
-  }
-
-  const adjustZoom = (delta: number) => {
-    clampAndApply({
-      ...layout,
-      bgSizePercent: layout.bgSizePercent + delta,
-    })
-  }
-
-  const adjustLogo = (delta: number) => {
-    const nextScale = Math.min(1.4, Math.max(0.6, Math.round((layout.logoScale + delta) * 100) / 100))
-    onChange({ ...layout, logoScale: nextScale })
-  }
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (editMode !== 'fondo' || pinchRef.current.active) return
-    dragRef.current = {
-      active: true,
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      startOffsetX: layout.bgOffsetX,
-      startOffsetY: layout.bgOffsetY,
-    }
-    e.currentTarget.setPointerCapture(e.pointerId)
-  }
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (editMode !== 'fondo' || !dragRef.current.active || dragRef.current.pointerId !== e.pointerId) {
-      return
-    }
-    applyDrag(e.clientX - dragRef.current.startX, e.clientY - dragRef.current.startY)
-  }
-
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current.pointerId !== e.pointerId) return
-    dragRef.current.active = false
-    dragRef.current.pointerId = -1
-    e.currentTarget.releasePointerCapture(e.pointerId)
-  }
-
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (editMode !== 'fondo' || e.touches.length !== 2) return
-    pinchRef.current = {
-      active: true,
-      startDistance: touchDistance(e.touches),
-      startSize: layout.bgSizePercent,
-    }
-    dragRef.current.active = false
-  }
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (editMode !== 'fondo' || !pinchRef.current.active || e.touches.length < 2) return
-    e.preventDefault()
-    const distance = touchDistance(e.touches)
-    if (!pinchRef.current.startDistance) return
-    const ratio = distance / pinchRef.current.startDistance
-    clampAndApply({
-      ...layout,
-      bgSizePercent: Math.round(pinchRef.current.startSize * ratio),
-    })
-  }
-
-  const handleTouchEnd = () => {
-    pinchRef.current.active = false
-    pinchRef.current.startDistance = 0
-  }
-
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (editMode !== 'fondo') return
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? -4 : 4
-    clampAndApply({
-      ...layout,
-      bgSizePercent: layout.bgSizePercent + delta,
-    })
-  }
-
-  const handleSave = async () => {
-    if (saving) return
-    setSaving(true)
+  const handlePick = async (file: File | undefined) => {
+    if (!file) return
+    setError(null)
+    setBusy(true)
     try {
-      await onSave()
+      const dataUrl = await optimizeImageFile(file, 2200, 0.92, { forceJpeg: true })
+      setWorkingSrc(dataUrl)
+      setMode('fondo')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar la imagen')
     } finally {
-      setSaving(false)
+      setBusy(false)
     }
   }
 
-  const hint =
-    editMode === 'fondo'
-      ? 'Arrastra · pellizca · o usa los botones de abajo'
-      : 'Pellizca el logo o ajusta el tamaño abajo'
-
-  const isDefault =
-    layout.bgOffsetX === DEFAULT_HEADER_LAYOUT.bgOffsetX &&
-    layout.bgOffsetY === DEFAULT_HEADER_LAYOUT.bgOffsetY &&
-    layout.bgSizePercent === DEFAULT_HEADER_LAYOUT.bgSizePercent &&
-    layout.logoScale === DEFAULT_HEADER_LAYOUT.logoScale
+  const handleApply = async () => {
+    if (busy) return
+    setError(null)
+    setBusy(true)
+    try {
+      const handle = cropRef.current
+      const transform = handle?.getTransform()
+      const frame = handle?.getFrameSize()
+      const imageEl = handle?.getImageElement()
+      if (!transform || !frame || !imageEl) {
+        throw new Error('Espera a que cargue la imagen')
+      }
+      const imageDataUrl = exportCroppedImage(imageEl, transform, frame, {
+        exportWidth: PORTADA_EXPORT_WIDTH,
+        exportHeight: PORTADA_EXPORT_HEIGHT,
+        mimeType: 'image/jpeg',
+        quality: 0.88,
+      })
+      await onApply({
+        fondoId,
+        imageDataUrl,
+        layout: {
+          bgOffsetX: 0,
+          bgOffsetY: 0,
+          bgSizePercent: 100,
+          logoScale: layout.logoScale,
+        },
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar el recorte')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
-    <div className="absolute inset-0 z-[15]">
-      <div className="absolute top-0 inset-x-0 z-30 bg-gradient-to-b from-black/80 via-black/55 to-transparent px-2 pt-2 pb-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="flex items-center gap-1 rounded-full bg-white/20 px-3 py-2 text-[11px] font-bold text-white shrink-0 min-h-10"
-          >
-            <X className="w-3.5 h-3.5" />
-            Cancelar
-          </button>
+    <div className="fixed inset-0 z-[100] flex flex-col bg-[#0b1220] text-white">
+      <header className="shrink-0 flex items-center gap-2 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 border-b border-white/10">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={busy}
+          className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-2 text-[12px] font-bold min-h-10"
+        >
+          <X className="w-4 h-4" />
+          Cancelar
+        </button>
 
-          <div className="flex-1 flex justify-center gap-1 min-w-0">
-            {FONDO_CD_IDS.map((id) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => onFondoChange(id)}
-                className={`rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wide truncate min-h-10 ${
-                  fondoId === id ? 'bg-white text-[#0d3b66]' : 'bg-white/20 text-white'
-                }`}
-              >
-                {FONDO_CD_LABELS[id]}
-              </button>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={saving}
-            className="flex items-center gap-1 rounded-full bg-[#2563eb] px-3 py-2 text-[11px] font-black text-white shadow-lg shrink-0 min-h-10 disabled:opacity-70"
-          >
-            <Check className="w-3.5 h-3.5" />
-            {saving ? '…' : 'Guardar'}
-          </button>
+        <div className="flex-1 flex justify-center gap-1 min-w-0">
+          {FONDO_CD_IDS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              disabled={busy}
+              onClick={() => onFondoChange(id)}
+              className={`rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wide min-h-10 ${
+                fondoId === id ? 'bg-white text-[#0d3b66]' : 'bg-white/10 text-white'
+              }`}
+            >
+              {FONDO_CD_LABELS[id]}
+            </button>
+          ))}
         </div>
 
-        <div className="flex gap-1 p-0.5 rounded-full bg-white/15">
+        <button
+          type="button"
+          onClick={() => void handleApply()}
+          disabled={busy || !cropReady}
+          className="inline-flex items-center gap-1 rounded-full bg-[#2563eb] px-3 py-2 text-[12px] font-black min-h-10 disabled:opacity-50 shadow-lg"
+        >
+          <Check className="w-4 h-4" />
+          {busy ? '…' : 'Aplicar'}
+        </button>
+      </header>
+
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="flex gap-1 p-0.5 rounded-full bg-white/10">
           <button
             type="button"
-            onClick={() => onEditModeChange('fondo')}
-            className={`flex-1 flex items-center justify-center gap-1 rounded-full py-2 text-[10px] font-black uppercase tracking-wide min-h-10 ${
-              editMode === 'fondo' ? 'bg-white text-[#0d3b66]' : 'text-white'
+            onClick={() => setMode('fondo')}
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-full py-2.5 text-[11px] font-black uppercase tracking-wide min-h-11 ${
+              mode === 'fondo' ? 'bg-white text-[#0d3b66]' : 'text-white/80'
             }`}
           >
-            <ImageIcon className="w-3.5 h-3.5" />
-            Fondo
+            <ImagePlus className="w-4 h-4" />
+            Recortar
           </button>
           <button
             type="button"
-            onClick={() => onEditModeChange('logo')}
-            className={`flex-1 flex items-center justify-center gap-1 rounded-full py-2 text-[10px] font-black uppercase tracking-wide min-h-10 ${
-              editMode === 'logo' ? 'bg-white text-[#0d3b66]' : 'text-white'
+            onClick={() => setMode('logo')}
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-full py-2.5 text-[11px] font-black uppercase tracking-wide min-h-11 ${
+              mode === 'logo' ? 'bg-white text-[#0d3b66]' : 'text-white/80'
             }`}
           >
-            <Type className="w-3.5 h-3.5" />
+            <Type className="w-4 h-4" />
             Logo
           </button>
         </div>
 
-        <p className="text-center text-[10px] font-semibold text-white/95 pointer-events-none">{hint}</p>
-      </div>
+        <p className="text-center text-[12px] text-white/70 font-semibold leading-relaxed">
+          {mode === 'fondo'
+            ? 'Arrastra para mover · pellizca o rueda para zoom · sin bordes vacíos'
+            : 'Ajusta el tamaño del logo sobre la portada'}
+        </p>
 
-      <div className="absolute inset-0 z-20 pointer-events-none">
-        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/40" />
-        <div className="absolute left-0 right-0 top-1/2 h-px bg-white/40" />
-        <div className="absolute inset-3 border border-white/35 rounded-lg" />
-      </div>
+        {error && (
+          <p className="text-[12px] font-bold text-amber-100 bg-amber-500/20 border border-amber-400/30 rounded-xl px-3 py-2">
+            {error}
+          </p>
+        )}
 
-      <div
-        ref={containerRef}
-        className={`absolute inset-0 z-[18] touch-none ${
-          editMode === 'fondo' ? 'cursor-grab active:cursor-grabbing' : 'pointer-events-none'
-        }`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-        onWheel={handleWheel}
-      >
-        <img
-          src={fondoUrl}
-          alt=""
-          onLoad={handleImageLoad}
-          className="absolute left-1/2 top-0 max-w-none select-none pointer-events-none"
-          draggable={false}
-          style={{
-            width: `${layout.bgSizePercent}%`,
-            transform: `translate(calc(-50% + ${layout.bgOffsetX}px), ${layout.bgOffsetY}px)`,
-          }}
-        />
-      </div>
-
-      {editMode === 'logo' && (
-        <div className="absolute inset-0 z-[17] bg-black/20 pointer-events-none" />
-      )}
-
-      <div className="absolute bottom-0 inset-x-0 z-30 bg-gradient-to-t from-black/85 via-black/65 to-transparent px-3 pt-8 pb-3 space-y-2">
-        {editMode === 'fondo' ? (
+        {mode === 'fondo' ? (
           <>
-            <div className="flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => adjustZoom(-6)}
-                className="w-11 h-11 rounded-full bg-white/20 text-white inline-flex items-center justify-center"
-                aria-label="Alejar"
-              >
-                <ZoomOut className="w-5 h-5" />
-              </button>
-              <div className="min-w-[4.5rem] text-center text-[12px] font-black text-white tabular-nums">
-                {Math.round(layout.bgSizePercent)}%
-              </div>
-              <button
-                type="button"
-                onClick={() => adjustZoom(6)}
-                className="w-11 h-11 rounded-full bg-white/20 text-white inline-flex items-center justify-center"
-                aria-label="Acercar"
-              >
-                <ZoomIn className="w-5 h-5" />
-              </button>
-            </div>
+            <ImageCropEditor
+              key={`${fondoId}:${workingSrc.slice(0, 64)}`}
+              imageSrc={workingSrc}
+              aspectRatio={PORTADA_ASPECT_RATIO}
+              editorRef={cropRef}
+              onReadyChange={setCropReady}
+            />
 
-            <div className="flex items-center justify-center gap-1">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                e.target.value = ''
+                void handlePick(file)
+              }}
+            />
+
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => nudge(-12, 0)}
-                className="w-10 h-10 rounded-xl bg-white/15 text-white inline-flex items-center justify-center"
-                aria-label="Mover izquierda"
+                disabled={busy}
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-xl bg-white text-[#0d3b66] text-sm font-black py-3 inline-flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <Upload className="w-4 h-4" />
+                Subir foto
               </button>
-              <div className="flex flex-col gap-1">
-                <button
-                  type="button"
-                  onClick={() => nudge(0, -12)}
-                  className="w-10 h-10 rounded-xl bg-white/15 text-white inline-flex items-center justify-center"
-                  aria-label="Mover arriba"
-                >
-                  <ChevronUp className="w-5 h-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => nudge(0, 12)}
-                  className="w-10 h-10 rounded-xl bg-white/15 text-white inline-flex items-center justify-center"
-                  aria-label="Mover abajo"
-                >
-                  <ChevronDown className="w-5 h-5" />
-                </button>
-              </div>
               <button
                 type="button"
-                onClick={() => nudge(12, 0)}
-                className="w-10 h-10 rounded-xl bg-white/15 text-white inline-flex items-center justify-center"
-                aria-label="Mover derecha"
+                disabled={busy || !cropReady}
+                onClick={() => cropRef.current?.resetView()}
+                className="rounded-xl bg-white/10 text-white text-sm font-bold py-3 inline-flex items-center justify-center gap-2 disabled:opacity-40"
               >
-                <ChevronRight className="w-5 h-5" />
+                <RotateCcw className="w-4 h-4" />
+                Centrar
               </button>
             </div>
           </>
         ) : (
-          <div className="flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => adjustLogo(-0.05)}
-              className="w-11 h-11 rounded-full bg-white/20 text-white inline-flex items-center justify-center text-lg font-black"
-              aria-label="Logo más pequeño"
+          <div className="rounded-2xl overflow-hidden bg-[#1e3a5f] ring-1 ring-white/15">
+            <div
+              className="relative w-full overflow-hidden"
+              style={{ aspectRatio: String(PORTADA_ASPECT_RATIO) }}
             >
-              −
-            </button>
-            <div className="min-w-[4.5rem] text-center text-[12px] font-black text-white tabular-nums">
-              {Math.round(layout.logoScale * 100)}%
+              <img
+                src={workingSrc}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+                draggable={false}
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/30 pointer-events-none" />
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center px-6">
+                <img
+                  src={logoImg}
+                  alt="Logo"
+                  className="w-auto max-w-[88%] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+                  style={{ maxHeight: `${logoMaxHeight(layout.logoScale, isSm)}px` }}
+                  draggable={false}
+                />
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => adjustLogo(0.05)}
-              className="w-11 h-11 rounded-full bg-white/20 text-white inline-flex items-center justify-center text-lg font-black"
-              aria-label="Logo más grande"
-            >
-              +
-            </button>
+            <div className="px-4 py-4 space-y-3 bg-[#0f1b2d]">
+              <div className="flex items-center justify-between text-[12px] font-bold text-white/80">
+                <span>Tamaño del logo</span>
+                <span className="tabular-nums">{Math.round(layout.logoScale * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min={60}
+                max={140}
+                step={1}
+                value={Math.round(layout.logoScale * 100)}
+                onChange={(e) =>
+                  onLayoutChange({
+                    ...layout,
+                    logoScale: Number(e.target.value) / 100,
+                  })
+                }
+                className="w-full accent-[#2563eb]"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onLayoutChange({
+                      ...layout,
+                      logoScale: Math.max(0.6, Math.round((layout.logoScale - 0.05) * 100) / 100),
+                    })
+                  }
+                  className="flex-1 rounded-xl bg-white/10 py-2.5 text-sm font-black"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onLayoutChange({ ...layout, logoScale: 1 })}
+                  className="flex-1 rounded-xl bg-white/10 py-2.5 text-sm font-bold"
+                >
+                  100%
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onLayoutChange({
+                      ...layout,
+                      logoScale: Math.min(1.4, Math.round((layout.logoScale + 0.05) * 100) / 100),
+                    })
+                  }
+                  className="flex-1 rounded-xl bg-white/10 py-2.5 text-sm font-black"
+                >
+                  +
+                </button>
+              </div>
+            </div>
           </div>
         )}
-
-        <button
-          type="button"
-          disabled={isDefault}
-          onClick={onResetCurrent}
-          className="w-full rounded-xl bg-white/15 text-white text-[11px] font-bold py-2.5 inline-flex items-center justify-center gap-1.5 disabled:opacity-40"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          Restablecer {FONDO_CD_LABELS[fondoId]}
-        </button>
       </div>
-    </div>
-  )
-}
-
-type LogoScaleEditorProps = {
-  enabled: boolean
-  layout: HeaderLayoutConfig
-  onChange: (layout: HeaderLayoutConfig) => void
-  children: ReactNode
-}
-
-export function LogoScaleEditor({ enabled, layout, onChange, children }: LogoScaleEditorProps) {
-  const pinchRef = useRef({ active: false, startDistance: 0, startScale: 1 })
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (!enabled || e.touches.length !== 2) return
-    e.stopPropagation()
-    pinchRef.current = {
-      active: true,
-      startDistance: touchDistance(e.touches),
-      startScale: layout.logoScale,
-    }
-  }
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!enabled || !pinchRef.current.active || e.touches.length < 2) return
-    e.preventDefault()
-    e.stopPropagation()
-    const distance = touchDistance(e.touches)
-    if (!pinchRef.current.startDistance) return
-    const ratio = distance / pinchRef.current.startDistance
-    const nextScale = Math.min(1.4, Math.max(0.6, pinchRef.current.startScale * ratio))
-    onChange({ ...layout, logoScale: Math.round(nextScale * 100) / 100 })
-  }
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!enabled) return
-    e.stopPropagation()
-    pinchRef.current.active = false
-  }
-
-  const handleWheel = (e: React.WheelEvent) => {
-    if (!enabled) return
-    e.preventDefault()
-    e.stopPropagation()
-    const delta = e.deltaY > 0 ? -0.03 : 0.03
-    const nextScale = Math.min(1.4, Math.max(0.6, layout.logoScale + delta))
-    onChange({ ...layout, logoScale: Math.round(nextScale * 100) / 100 })
-  }
-
-  return (
-    <div
-      className={`relative touch-none ${enabled ? 'pointer-events-auto' : 'pointer-events-none'}`}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
-      onWheel={handleWheel}
-    >
-      {children}
     </div>
   )
 }

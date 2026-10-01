@@ -22,14 +22,9 @@ import {
   ImagePlus,
 } from 'lucide-react'
 import { TabFallback } from '@/app/components/TabFallback'
-import {
-  HeaderLayoutEditor,
-  LogoScaleEditor,
-  type HeaderEditMode,
-} from '@/app/components/layout/HeaderLayoutEditor'
+import { HeaderLayoutEditor } from '@/app/components/layout/HeaderLayoutEditor'
 import { HeaderFondoCover } from '@/app/components/layout/HeaderFondoCover'
 import {
-  createDefaultHeaderLayoutsStore,
   loadHeaderLayoutsFromStorage,
   logoMaxHeight,
 } from '@/app/config/headerLayout'
@@ -38,7 +33,6 @@ import { useFondoCdUrl } from '@/hooks/useFondoCdUrl'
 import { useBrandingImages } from '@/hooks/useBrandingImages'
 import {
   getActiveFondoCdId,
-  getFondoCdUrl,
   type FondoCdId,
 } from '@/app/utils/alternatingFondoCd'
 import logoImg from '@/assets/logos/Logo.webp'
@@ -147,17 +141,14 @@ export function MobileShell({
   const [headerEditOpen, setHeaderEditOpen] = useState(false)
   const [brandingOpen, setBrandingOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
-  const [headerEditMode, setHeaderEditMode] = useState<HeaderEditMode>('fondo')
   const [editingFondoId, setEditingFondoId] = useState<FondoCdId>(() => getActiveFondoCdId())
   const [draftStore, setDraftStore] = useState(() => loadHeaderLayoutsFromStorage())
   const { store, persistStore } = useHeaderLayout()
-  // Sync branding overrides early so la portada y el anuncio usen lo remoto.
-  useBrandingImages()
+  const { setSlot } = useBrandingImages()
   const [isSmViewport, setIsSmViewport] = useState(false)
   const activeFondoId = getActiveFondoCdId()
-  const fondoCdUrl = useFondoCdUrl(headerEditOpen ? editingFondoId : undefined)
-  const editorFondoUrl = headerEditOpen ? getFondoCdUrl(editingFondoId) || fondoCdUrl : null
-  const resolvedFondoUrl = headerEditOpen ? editorFondoUrl : fondoCdUrl
+  const resolvedFondoUrl = useFondoCdUrl()
+  const editorFondoUrl = useFondoCdUrl(editingFondoId)
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 640px)')
@@ -171,17 +162,22 @@ export function MobileShell({
     if (!headerEditOpen) setDraftStore(store)
   }, [store, headerEditOpen])
 
-  const displayStore = headerEditOpen ? draftStore : store
-  const displayFondoId = headerEditOpen ? editingFondoId : activeFondoId
-  const activeLayout = displayStore.fondos[displayFondoId]
+  const activeLayout = store.fondos[activeFondoId]
+  const draftLayout = draftStore.fondos[editingFondoId]
 
-  const updateDraftLayout = (next: typeof activeLayout) => {
+  const updateDraftLayout = (next: typeof draftLayout) => {
     setDraftStore((prev) => ({
       fondos: {
         ...prev.fondos,
         [editingFondoId]: next,
       },
     }))
+  }
+
+  const openHeaderEditor = () => {
+    setEditingFondoId(activeFondoId)
+    setDraftStore(store)
+    setHeaderEditOpen(true)
   }
 
   const handleMenuSelect = (id: NavTab | 'roulette-action') => {
@@ -278,65 +274,30 @@ export function MobileShell({
     <div className="min-h-[100dvh] bg-[#e8f4fc] flex flex-col max-w-md mx-auto relative shadow-xl overflow-x-hidden">
       <header className="relative shrink-0 z-0">
         <div className="relative h-[clamp(210px,36dvh,268px)] overflow-hidden bg-[#b8dff5]">
-          {!headerEditOpen && resolvedFondoUrl && (
+          {resolvedFondoUrl && (
             <HeaderFondoCover
               url={resolvedFondoUrl}
-              fondoId={displayFondoId}
+              fondoId={activeFondoId}
               layout={activeLayout}
-            />
-          )}
-
-          {headerEditOpen && isSuperAdmin && resolvedFondoUrl && (
-            <HeaderLayoutEditor
-              fondoUrl={resolvedFondoUrl}
-              fondoId={editingFondoId}
-              editMode={headerEditMode}
-              onEditModeChange={setHeaderEditMode}
-              onFondoChange={setEditingFondoId}
-              layout={draftStore.fondos[editingFondoId]}
-              onChange={updateDraftLayout}
-              onSave={async () => {
-                await persistStore(draftStore)
-                setHeaderEditOpen(false)
-                setHeaderEditMode('fondo')
-              }}
-              onClose={() => {
-                setDraftStore(store)
-                setHeaderEditOpen(false)
-                setHeaderEditMode('fondo')
-              }}
-              onResetCurrent={() => {
-                const defaults = createDefaultHeaderLayoutsStore()
-                updateDraftLayout({ ...defaults.fondos[editingFondoId] })
-              }}
             />
           )}
         </div>
 
-        {!headerEditOpen && (
-          <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-cyan-100/50 pointer-events-none" />
-        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-cyan-100/50 pointer-events-none" />
 
-        {!headerEditOpen && (
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          className="absolute top-3 left-4 z-20 p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
+          aria-label="Abrir menú"
+        >
+          <Menu className="w-7 h-7" strokeWidth={2.5} />
+        </button>
+
+        {isSuperAdmin && (
           <button
             type="button"
-            onClick={() => setMenuOpen(true)}
-            className="absolute top-3 left-4 z-20 p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
-            aria-label="Abrir menú"
-          >
-            <Menu className="w-7 h-7" strokeWidth={2.5} />
-          </button>
-        )}
-
-        {isSuperAdmin && !headerEditOpen && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditingFondoId(activeFondoId)
-              setHeaderEditMode('fondo')
-              setDraftStore(store)
-              setHeaderEditOpen(true)
-            }}
+            onClick={openHeaderEditor}
             className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-full bg-black/45 backdrop-blur-sm px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white hover:bg-black/55 min-h-10"
           >
             <ImageIcon className="w-3.5 h-3.5" />
@@ -344,40 +305,15 @@ export function MobileShell({
           </button>
         )}
 
-        <div
-          className={`absolute inset-x-0 top-[52%] sm:top-[48%] -translate-y-1/2 flex flex-col items-center z-[25] px-6 ${
-            headerEditOpen ? '' : 'pointer-events-none'
-          }`}
-        >
-          {headerEditOpen && isSuperAdmin ? (
-            <LogoScaleEditor
-              enabled={headerEditMode === 'logo'}
-              layout={draftStore.fondos[editingFondoId]}
-              onChange={updateDraftLayout}
-            >
-              <img
-                src={logoImg}
-                alt="Pokémon GO Community"
-                className={`w-auto max-w-[min(280px,88%)] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)] mx-auto transition-shadow ${
-                  headerEditMode === 'logo'
-                    ? 'ring-2 ring-amber-300 ring-offset-2 ring-offset-transparent rounded-lg'
-                    : 'opacity-90'
-                }`}
-                style={{
-                  maxHeight: `${logoMaxHeight(draftStore.fondos[editingFondoId].logoScale, isSmViewport)}px`,
-                }}
-              />
-            </LogoScaleEditor>
-          ) : (
-            <img
-              src={logoImg}
-              alt="Pokémon GO Community"
-              className="w-auto max-w-[min(280px,88%)] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
-              style={{ maxHeight: `${logoMaxHeight(activeLayout.logoScale, isSmViewport)}px` }}
-              decoding="async"
-              fetchPriority="high"
-            />
-          )}
+        <div className="absolute inset-x-0 top-[52%] sm:top-[48%] -translate-y-1/2 flex flex-col items-center z-[25] px-6 pointer-events-none">
+          <img
+            src={logoImg}
+            alt="Pokémon GO Community"
+            className="w-auto max-w-[min(280px,88%)] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+            style={{ maxHeight: `${logoMaxHeight(activeLayout.logoScale, isSmViewport)}px` }}
+            decoding="async"
+            fetchPriority="high"
+          />
         </div>
       </header>
 
@@ -479,10 +415,7 @@ export function MobileShell({
                   type="button"
                   onClick={() => {
                     setMenuOpen(false)
-                    setEditingFondoId(activeFondoId)
-                    setHeaderEditMode('fondo')
-                    setDraftStore(store)
-                    setHeaderEditOpen(true)
+                    openHeaderEditor()
                   }}
                   className="w-full flex items-center gap-4 px-5 py-4 text-left font-bold text-[#0d3b66] hover:bg-gray-50"
                 >
@@ -575,6 +508,40 @@ export function MobileShell({
         <Suspense fallback={<TabFallback />}>
           <CommunityStatsPanel open onClose={() => setStatsOpen(false)} />
         </Suspense>
+      )}
+      {headerEditOpen && isSuperAdmin && (
+        <HeaderLayoutEditor
+          open
+          fondoUrl={editorFondoUrl || ''}
+          fondoId={editingFondoId}
+          onFondoChange={(id) => {
+            setEditingFondoId(id)
+            setDraftStore((prev) => ({
+              fondos: {
+                ...prev.fondos,
+                [id]: prev.fondos[id] ?? store.fondos[id],
+              },
+            }))
+          }}
+          layout={draftLayout}
+          onLayoutChange={updateDraftLayout}
+          onClose={() => {
+            setDraftStore(store)
+            setHeaderEditOpen(false)
+          }}
+          onApply={async ({ fondoId, imageDataUrl, layout }) => {
+            await setSlot(fondoId, imageDataUrl)
+            const nextStore = {
+              fondos: {
+                ...draftStore.fondos,
+                [fondoId]: layout,
+              },
+            }
+            setDraftStore(nextStore)
+            await persistStore(nextStore)
+            setHeaderEditOpen(false)
+          }}
+        />
       )}
     </div>
   )
