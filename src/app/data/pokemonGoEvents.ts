@@ -143,6 +143,16 @@ export const POKEMON_GO_EVENTS: PokemonGoEvent[] = [
     calendarMarker: true,
   },
   {
+    id: 'max-battles-jan-2027',
+    title: 'Día de Combates Max',
+    description: '14:00 a 17:00 hora local',
+    startDate: '2027-01-23',
+    endDate: '2027-01-23',
+    ...AFTERNOON,
+    ...MAX,
+    calendarMarker: true,
+  },
+  {
     id: 'raid-jan-30-2027',
     title: 'Día de Incursiones',
     description: '14:00 a 17:00 hora local',
