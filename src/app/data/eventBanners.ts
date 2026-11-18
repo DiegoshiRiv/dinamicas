@@ -1,17 +1,12 @@
 import type { PokemonGoEvent } from '@/app/data/pokemonGoEvents'
 import type { CommunityEvent } from '@/hooks/useEvents'
-import { FONDO_CD_DYNAMIC } from '@/app/utils/alternatingFondoCd'
 import {
   getEventThemeImage,
   themeIdForGoCategory,
 } from '@/app/utils/eventTheme'
 import {
-  cdLogo,
   tiempoLibreLogo,
   misterhomieLogo,
-  fondoRelleno,
-  pokeIcon,
-  megaEvIcon,
   sellodexImg,
   campfireImg,
   pokeparadaImg,
@@ -99,15 +94,7 @@ export function bannerForGoEvent(event: PokemonGoEvent, schedule: string): Event
       description: base.description ?? event.description ?? '',
     }
   }
-  const badgeByCategory: Partial<Record<PokemonGoEvent['category'], string>> = {
-    'community-day': 'Día de la Comunidad',
-    'raid-day': 'Día de Incursiones',
-    mega: 'Día de Incursiones Mega',
-    'max-battle': 'Día de Combates Max',
-    tour: 'Tour',
-    special: 'Especial',
-  }
-
+  // Fondo fijo por tipo de evento (no el tema que tenga elegido Fuecoco en portada).
   const themeBanner = getEventThemeImage(themeIdForGoCategory(event.category))
 
   return {
@@ -115,12 +102,11 @@ export function bannerForGoEvent(event: PokemonGoEvent, schedule: string): Event
     title: event.title,
     duration: schedule,
     schedule,
-    description: event.description ?? 'Evento en Pokémon GO.',
-    banner:
-      event.category === 'community-day' ? FONDO_CD_DYNAMIC : themeBanner || fondoRelleno,
-    heroImage: event.logo ?? megaEvIcon,
-    badge: badgeByCategory[event.category] ?? 'Pokémon GO',
+    description: event.description ?? '',
+    banner: themeBanner,
+    // Solo texto + fondo en el calendario GO (sin SelloDex ni icono Mega).
     accent: event.accent,
+    photoHero: true,
   }
 }
 
@@ -132,16 +118,17 @@ export function bannerForCommunityEvent(
   return {
     id: `community-${event.id}`,
     title: event.title,
-    subtitle: event.has_stamp ? 'SelloDex' : 'Comunidad GDL',
+    subtitle: event.has_stamp ? undefined : 'Comunidad GDL',
     duration: schedule,
     schedule,
     description: event.description,
-    banner: isCd ? FONDO_CD_DYNAMIC : tiempoLibreLogo,
-    heroImage: event.pokemon_image_url || (isCd ? cdLogo : misterhomieLogo),
-    heroImageSecondary: isCd ? pokeIcon : tiempoLibreLogo,
-    badge: isCd ? 'Día de la Comunidad' : 'Comunidad',
+    banner: isCd ? getEventThemeImage('community_day') : tiempoLibreLogo,
+    heroImage: event.pokemon_image_url || (isCd ? undefined : misterhomieLogo),
+    heroImageSecondary: isCd ? undefined : tiempoLibreLogo,
+    badge: isCd ? undefined : 'Comunidad',
     accent: '#f97316',
-    selloDex: event.has_stamp,
+    selloDex: false,
+    photoHero: isCd,
     perks: event.has_stamp
       ? [
           { icon: sellodexImg, label: 'Trae tu SelloDex', tone: 'dark' },

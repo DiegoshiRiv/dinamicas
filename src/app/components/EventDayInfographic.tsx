@@ -4,10 +4,6 @@ import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ExternalLink, MapPin, X } from 'lucide-react'
 import { type EventBannerConfig, type BannerPerk } from '@/app/data/eventBanners'
-import { FONDO_CD_DYNAMIC } from '@/app/utils/alternatingFondoCd'
-import { useEventTheme } from '@/hooks/useEventTheme'
-import sellodexImg from '@/assets/recursos/sellodex.webp'
-import { CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
 import {
   modalOverlayClass,
   modalSheetBodyClass,
@@ -29,22 +25,16 @@ function PerkTile({ perk, accent }: { perk: BannerPerk; accent: string }) {
 }
 
 function EventBannerCard({ config }: { config: EventBannerConfig }) {
-  const { imageUrl: eventThemeUrl } = useEventTheme()
-  const bannerSrc =
-    config.banner === FONDO_CD_DYNAMIC ? eventThemeUrl : config.banner
-  const isSelloDex =
-    config.selloDex === true ||
-    config.subtitle?.includes('SelloDex') ||
-    config.badge === 'Día de la Comunidad'
   const scheduleColor = config.scheduleColor ?? '#2563eb'
   const photoHero = config.photoHero === true
   const hasDualHero = Boolean(config.heroImage && config.heroImageSecondary)
+  const textOnly = photoHero && !config.heroImage && !config.badge && !config.selloDex
 
   return (
     <article className="rounded-2xl overflow-hidden border border-[#0d3b66]/10 shadow-lg bg-white">
-      <div className="relative h-36 sm:h-44">
+      <div className={`relative ${textOnly ? 'h-40 sm:h-48' : 'h-36 sm:h-44'}`}>
         <img
-          src={bannerSrc}
+          src={config.banner}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
           loading="lazy"
@@ -57,6 +47,9 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
               background: `linear-gradient(to top, ${config.accent}ee 0%, ${config.accent}60 45%, ${config.accent}22 100%)`,
             }}
           />
+        )}
+        {photoHero && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/20 to-transparent" />
         )}
         {hasDualHero ? (
           <div className="absolute bottom-0 right-0 z-[5] flex h-full w-[62%] items-end justify-end pointer-events-none pr-0.5">
@@ -82,30 +75,19 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
             <img
               src={config.heroImage}
               alt=""
-              className={`absolute bottom-0 right-2 z-[5] object-contain object-bottom drop-shadow-lg ${
-                photoHero ? 'h-14 w-14 sm:h-16 sm:w-16' : 'h-[88%] max-w-[48%]'
-              }`}
+              className="absolute bottom-0 right-2 z-[5] object-contain object-bottom drop-shadow-lg h-[88%] max-w-[48%]"
               loading="lazy"
             />
           )
         )}
-        <div className="absolute top-2 left-2 right-2 flex flex-wrap gap-1.5">
-          {config.badge && config.badge !== 'Día de la Comunidad' && (
+        {config.badge && (
+          <div className="absolute top-2 left-2 right-2 flex flex-wrap gap-1.5">
             <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/95 text-[#0d3b66] shadow">
               {config.badge}
             </span>
-          )}
-          {isSelloDex && (
-            <span
-              className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full text-white shadow"
-              style={{ backgroundColor: config.selloDexBadgeColor ?? '#2563eb' }}
-            >
-              <img src={sellodexImg} alt="" className="w-3.5 h-3.5 object-contain" />
-              SELLODEX
-            </span>
-          )}
-        </div>
-        <div className="absolute bottom-2.5 left-3 z-10 right-[38%]">
+          </div>
+        )}
+        <div className={`absolute bottom-2.5 left-3 z-10 ${textOnly ? 'right-3' : 'right-[38%]'}`}>
           {config.subtitle && (
             <p className="text-[10px] font-bold text-white/90 uppercase tracking-wide">
               {config.subtitle}
@@ -117,55 +99,47 @@ function EventBannerCard({ config }: { config: EventBannerConfig }) {
         </div>
       </div>
 
-      <div className="p-3 sm:p-4 space-y-2.5">
-        {config.badge !== 'Día de la Comunidad' && (
-          <p className="text-[12px] font-black leading-snug" style={{ color: scheduleColor }}>
-            {config.schedule}
-          </p>
-        )}
-        <p className="text-[13px] text-[#0d3b66]/90 leading-relaxed font-medium">
-          {config.description}
-        </p>
+      {(config.schedule || config.description || config.perks?.length || config.mapsUrl) && (
+        <div className="p-3 sm:p-4 space-y-2.5">
+          {config.schedule && (
+            <p className="text-[12px] font-black leading-snug" style={{ color: scheduleColor }}>
+              {config.schedule}
+            </p>
+          )}
+          {config.description ? (
+            <p className="text-[13px] text-[#0d3b66]/90 leading-relaxed font-medium">
+              {config.description}
+            </p>
+          ) : null}
 
-        {config.perks && config.perks.length > 0 && (
-          <div className="grid grid-cols-2 gap-2 p-0.5 rounded-2xl bg-[#e8f4fc]/50">
-            {config.perks.map((perk) => (
-              <PerkTile key={perk.label} perk={perk} accent={config.accent} />
-            ))}
-          </div>
-        )}
+          {config.perks && config.perks.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 p-0.5 rounded-2xl bg-[#e8f4fc]/50">
+              {config.perks.map((perk) => (
+                <PerkTile key={perk.label} perk={perk} accent={config.accent} />
+              ))}
+            </div>
+          )}
 
-        {config.footerNote && (
-          <p className="text-[11px] font-bold text-[#0d3b66]/70 bg-slate-50 rounded-lg px-3 py-2">
-            {config.footerNote}
-          </p>
-        )}
+          {config.footerNote && (
+            <p className="text-[11px] font-bold text-[#0d3b66]/70 bg-slate-50 rounded-lg px-3 py-2">
+              {config.footerNote}
+            </p>
+          )}
 
-        {isSelloDex && (
-          <a
-            href={CAMPFIRE_JOIN_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-black text-white text-sm bg-[#f97316] hover:opacity-95"
-          >
-            Registro en Campfire
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        )}
-
-        {config.mapsUrl && config.locationName && (
-          <a
-            href={config.mapsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-xl border border-[#0d3b66]/10 p-3 hover:border-teal-500 transition-colors"
-          >
-            <MapPin className="w-4 h-4 text-[#2563eb] shrink-0" />
-            <span className="text-[12px] font-bold text-[#0d3b66]">{config.locationName}</span>
-            <ExternalLink className="w-3.5 h-3.5 text-gray-400 ml-auto shrink-0" />
-          </a>
-        )}
-      </div>
+          {config.mapsUrl && config.locationName && (
+            <a
+              href={config.mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-xl border border-[#0d3b66]/10 p-3 hover:border-teal-500 transition-colors"
+            >
+              <MapPin className="w-4 h-4 text-[#2563eb] shrink-0" />
+              <span className="text-[12px] font-bold text-[#0d3b66]">{config.locationName}</span>
+              <ExternalLink className="w-3.5 h-3.5 text-gray-400 ml-auto shrink-0" />
+            </a>
+          )}
+        </div>
+      )}
     </article>
   )
 }
