@@ -175,8 +175,21 @@ function drawPokeball(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: 
   ctx.restore()
 }
 
-function fireWinnerConfetti(color: string, full = true) {
-  const colors = [color, shadeColor(color, 45), '#ffffff', '#ee1515']
+const RAINBOW_CONFETTI_COLORS = [
+  '#ff3b30',
+  '#ff9500',
+  '#ffcc00',
+  '#34c759',
+  '#00c7be',
+  '#007aff',
+  '#5856d6',
+  '#af52de',
+  '#ff2d55',
+  '#ffffff',
+]
+
+function fireWinnerConfetti(full = true) {
+  const colors = RAINBOW_CONFETTI_COLORS
 
   // Versión reducida para quien no ganó: la celebración completa (bucle de rAF
   // de casi tres segundos) trababa la interfaz en gama baja justo cuando además
@@ -187,8 +200,8 @@ function fireWinnerConfetti(color: string, full = true) {
   }
 
   confetti({
-    particleCount: 120,
-    spread: 90,
+    particleCount: 140,
+    spread: 100,
     origin: { y: 0.55 },
     colors,
     startVelocity: 42,
@@ -200,8 +213,8 @@ function fireWinnerConfetti(color: string, full = true) {
   let frame = 0
   const burst = () => {
     if (cancelled) return
-    confetti({ particleCount: 4, angle: 60, spread: 65, origin: { x: 0, y: 0.65 }, colors })
-    confetti({ particleCount: 4, angle: 120, spread: 65, origin: { x: 1, y: 0.65 }, colors })
+    confetti({ particleCount: 5, angle: 60, spread: 70, origin: { x: 0, y: 0.65 }, colors })
+    confetti({ particleCount: 5, angle: 120, spread: 70, origin: { x: 1, y: 0.65 }, colors })
     if (Date.now() < end) frame = requestAnimationFrame(burst)
   }
   burst()
@@ -209,13 +222,13 @@ function fireWinnerConfetti(color: string, full = true) {
   const finale = window.setTimeout(() => {
     if (cancelled) return
     confetti({
-      particleCount: 80,
+      particleCount: 100,
       spread: 360,
       origin: { y: 0.45, x: 0.5 },
       colors,
       startVelocity: 28,
       ticks: 80,
-      scalar: 1.1,
+      scalar: 1.05,
     })
   }, 400)
 
@@ -502,11 +515,11 @@ export function WinnerRoulette({
   const [wheelAssetsReady, setWheelAssetsReady] = useState(false)
   const confettiStopRef = useRef<(() => void) | null>(null)
 
-  /** Dispara el confeti recordando cómo pararlo si el componente se desmonta. */
-  const celebrate = useCallback((color: string, full = true) => {
+  /** Dispara el confeti arcoíris; se puede cancelar si el componente se desmonta. */
+  const celebrate = useCallback((full = true) => {
     try {
       confettiStopRef.current?.()
-      confettiStopRef.current = fireWinnerConfetti(color, full)
+      confettiStopRef.current = fireWinnerConfetti(full)
     } catch {
       /* el confeti es decorativo */
     }
@@ -1140,10 +1153,7 @@ export function WinnerRoulette({
         setIsSpinning(false)
         if (winningPlayer) {
           setWinner(winningPlayer)
-          celebrate(
-            participantSliceColor(winningPlayer),
-            isSameSelfPlayer(winningPlayer, selfParticipantRef.current),
-          )
+          celebrate(isSameSelfPlayer(winningPlayer, selfParticipantRef.current))
         }
       }, spinDuration)
     }
@@ -1521,7 +1531,7 @@ export function WinnerRoulette({
           }
         }
       }
-      celebrate(participantSliceColor(winningPlayer))
+      celebrate(true)
       spinLockRef.current = false
     }, SPIN_DURATION_MS)
   }
@@ -1706,8 +1716,8 @@ export function WinnerRoulette({
                 </button>
                 <p className="mt-1 text-[11px] text-[#5b6483] font-semibold">
                   {winnerSound.enabled
-                    ? 'Sonará una melodía si ganas.'
-                    : 'Actívalo y sonará una melodía si ganas.'}
+                    ? 'Sonará una canción si ganas.'
+                    : 'Actívalo y sonará una canción si ganas.'}
                 </p>
               </div>
             </div>
@@ -2063,21 +2073,6 @@ export function WinnerRoulette({
                 background: `conic-gradient(from 0deg, transparent, ${winnerStyle.border}33, transparent, ${winnerStyle.border}22, transparent)`,
               }}
             />
-
-            {['⚡', '✦', '🔥'].map((star, i) => (
-              <span
-                key={i}
-                className="absolute text-lg winner-sparkle pointer-events-none"
-                style={{
-                  top: `${18 + i * 22}%`,
-                  left: i === 0 ? '12%' : i === 1 ? '82%' : '50%',
-                  animationDelay: `${i * 0.4}s`,
-                  color: winnerStyle.border,
-                }}
-              >
-                {star}
-              </span>
-            ))}
 
             <div className="relative z-10">
               <div className="flex justify-center mb-6">
