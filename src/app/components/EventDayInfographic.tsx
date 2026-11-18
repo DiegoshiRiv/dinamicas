@@ -5,7 +5,7 @@ import { es } from 'date-fns/locale'
 import { ExternalLink, MapPin, X } from 'lucide-react'
 import { type EventBannerConfig, type BannerPerk } from '@/app/data/eventBanners'
 import { FONDO_CD_DYNAMIC } from '@/app/utils/alternatingFondoCd'
-import { useFondoCdUrl } from '@/hooks/useFondoCdUrl'
+import { useEventTheme } from '@/hooks/useEventTheme'
 import sellodexImg from '@/assets/recursos/sellodex.webp'
 import { CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
 import {
@@ -29,9 +29,9 @@ function PerkTile({ perk, accent }: { perk: BannerPerk; accent: string }) {
 }
 
 function EventBannerCard({ config }: { config: EventBannerConfig }) {
-  const fondoCdUrl = useFondoCdUrl()
+  const { imageUrl: eventThemeUrl } = useEventTheme()
   const bannerSrc =
-    config.banner === FONDO_CD_DYNAMIC ? (fondoCdUrl ?? config.banner) : config.banner
+    config.banner === FONDO_CD_DYNAMIC ? eventThemeUrl : config.banner
   const isSelloDex =
     config.selloDex === true ||
     config.subtitle?.includes('SelloDex') ||

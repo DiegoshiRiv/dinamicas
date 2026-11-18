@@ -1,15 +1,15 @@
-import type { FondoCdId } from '@/app/utils/alternatingFondoCd'
-
 export const BRANDING_IMAGES_KEY = 'branding_images'
 const LOCAL_CACHE_KEY = 'dinamicas-branding-images-v1'
 
-export type BrandingImageSlot = FondoCdId | 'siguiente' | 'anterior'
+/** Solo queda la miniatura de “quedada anterior”; los fondos van por tipo de evento. */
+export type BrandingImageSlot = 'anterior'
 
 export type BrandingImages = {
+  anterior?: string | null
+  /** Legados: se ignoran al leer/escribir nuevos valores */
   fondoCD?: string | null
   fondoCD2?: string | null
   siguiente?: string | null
-  anterior?: string | null
 }
 
 export const BRANDING_SLOTS: {
@@ -19,27 +19,6 @@ export const BRANDING_SLOTS: {
   maxDimension: number
   quality: number
 }[] = [
-  {
-    id: 'fondoCD',
-    label: 'Fondo 1',
-    hint: 'Portada del encabezado (variante A)',
-    maxDimension: 1600,
-    quality: 0.82,
-  },
-  {
-    id: 'fondoCD2',
-    label: 'Fondo 2',
-    hint: 'Portada del encabezado (variante B)',
-    maxDimension: 1600,
-    quality: 0.82,
-  },
-  {
-    id: 'siguiente',
-    label: 'Anuncio siguiente',
-    hint: 'Pantalla completa al abrir (próximo evento)',
-    maxDimension: 1400,
-    quality: 0.84,
-  },
   {
     id: 'anterior',
     label: 'Quedada anterior',
@@ -51,9 +30,6 @@ export const BRANDING_SLOTS: {
 
 export function emptyBrandingImages(): BrandingImages {
   return {
-    fondoCD: null,
-    fondoCD2: null,
-    siguiente: null,
     anterior: null,
   }
 }
@@ -73,9 +49,7 @@ export function parseBrandingImages(raw: unknown): BrandingImages {
   const base = emptyBrandingImages()
   if (!raw || typeof raw !== 'object') return base
   const row = raw as Record<string, unknown>
-  for (const key of Object.keys(base) as (keyof BrandingImages)[]) {
-    base[key] = isDataOrHttpUrl(row[key]) ? row[key] : null
-  }
+  base.anterior = isDataOrHttpUrl(row.anterior) ? row.anterior : null
   return base
 }
 
@@ -91,7 +65,7 @@ export function loadBrandingImagesFromStorage(): BrandingImages {
 
 export function saveBrandingImagesToStorage(images: BrandingImages) {
   try {
-    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(images))
+    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({ anterior: images.anterior ?? null }))
   } catch {
     /* cuota / modo privado */
   }
@@ -106,8 +80,8 @@ export function getLiveBrandingImages(): BrandingImages {
 }
 
 export function setLiveBrandingImages(next: BrandingImages) {
-  liveImages = next
-  saveBrandingImagesToStorage(next)
+  liveImages = { anterior: next.anterior ?? null }
+  saveBrandingImagesToStorage(liveImages)
   listeners.forEach((fn) => {
     try {
       fn()

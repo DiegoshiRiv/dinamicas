@@ -52,12 +52,6 @@ const MeetingMaps = lazy(() =>
 const EventsBoard = lazy(() =>
   import('@/app/components/EventsBoard').then((m) => ({ default: m.EventsBoard })),
 )
-const EventAnnouncementOverlay = lazy(() =>
-  import('@/app/components/EventAnnouncementOverlay').then((m) => ({
-    default: m.EventAnnouncementOverlay,
-  })),
-)
-
 type View = 'main' | 'roulette'
 
 /** Los ganadores recientes pierden un 90% de peso para dar sitio a los nuevos. */
@@ -180,7 +174,7 @@ export default function App() {
     saveWinnerPrizeCodes, assignWinnerPrizeCode, fetchAssignedPrizeCode,
     deleteRouletteData, spectatorView, incomingSpin, broadcastView, broadcastSpin, rouletteConfig,
     sharedForcedWinner, shareForcedWinner,
-    roundVersion, showWaitingAnnouncement,
+    roundVersion,
   } = useParticipants(activeRouletteCode, {
     // Fetch + realtime de participantes solo en admin/ruleta (arranca más rápido
     // el registro en 3G). Al abrir la ruleta se sincroniza la lista completa.
@@ -188,10 +182,7 @@ export default function App() {
     loadWinnerPrizeCodes: isAdmin,
   })
 
-  const [announcementDismissed, setAnnouncementDismissed] = useState(false)
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
-  /** Evita tapar el primer paint con el anuncio lazy. */
-  const [announcementReady, setAnnouncementReady] = useState(false)
 
   const { tournaments } = useTournaments(isAdmin || activeTab === 'tournaments')
   const { polls } = usePolls(isAdmin || activeTab === 'polls')
@@ -208,13 +199,10 @@ export default function App() {
 
   useEffect(() => {
     void hydrateDeviceToken()
-    const t = window.setTimeout(() => setAnnouncementReady(true), 400)
-    return () => window.clearTimeout(t)
   }, [])
 
-  // Al limpiar ruleta (nueva ronda): anuncio otra vez + permitir registro.
+  // Al limpiar ruleta (nueva ronda): permitir registro de nuevo.
   useEffect(() => {
-    setAnnouncementDismissed(false)
     setAlreadyRegistered(false)
   }, [roundVersion])
 
@@ -235,9 +223,6 @@ export default function App() {
       cancelled = true
     }
   }, [isAdmin, activeRouletteCode, roundVersion])
-
-  const announcementOpen =
-    announcementReady && !isAdmin && showWaitingAnnouncement && !announcementDismissed
 
   useEffect(() => {
     saveAdminSession(adminSession)
@@ -885,17 +870,6 @@ export default function App() {
       >
         {renderMainContent()}
       </MobileShell>
-
-      {announcementOpen && (
-        <Suspense fallback={null}>
-          <ErrorBoundary label="announcement">
-            <EventAnnouncementOverlay
-              open={announcementOpen}
-              onDismiss={() => setAnnouncementDismissed(true)}
-            />
-          </ErrorBoundary>
-        </Suspense>
-      )}
 
       <DebugDiagnosticsPanel
         participantCount={participants.length}

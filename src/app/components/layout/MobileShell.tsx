@@ -19,22 +19,11 @@ import {
   HelpCircle,
   Stamp,
   ImageIcon,
-  ImagePlus,
 } from 'lucide-react'
 import { TabFallback } from '@/app/components/TabFallback'
-import { HeaderLayoutEditor } from '@/app/components/layout/HeaderLayoutEditor'
 import { HeaderFondoCover } from '@/app/components/layout/HeaderFondoCover'
-import {
-  loadHeaderLayoutsFromStorage,
-  logoMaxHeight,
-} from '@/app/config/headerLayout'
-import { useHeaderLayout } from '@/hooks/useHeaderLayout'
-import { useFondoCdUrl } from '@/hooks/useFondoCdUrl'
-import { useBrandingImages } from '@/hooks/useBrandingImages'
-import {
-  getActiveFondoCdId,
-  type FondoCdId,
-} from '@/app/utils/alternatingFondoCd'
+import { logoMaxHeight } from '@/app/config/headerLayout'
+import { useEventTheme } from '@/hooks/useEventTheme'
 import logoImg from '@/assets/logos/Logo.webp'
 import pokebolaImg from '@/assets/iconos/Pokebola.webp'
 import ruletaIcon from '@/assets/iconos/ruleta.webp'
@@ -45,8 +34,8 @@ const FaqPanel = lazy(() =>
 const StampRecoveryPanel = lazy(() =>
   import('@/app/components/StampRecoveryPanel').then((m) => ({ default: m.StampRecoveryPanel })),
 )
-const BrandingImagesPanel = lazy(() =>
-  import('@/app/components/BrandingImagesPanel').then((m) => ({ default: m.BrandingImagesPanel })),
+const EventThemePanel = lazy(() =>
+  import('@/app/components/EventThemePanel').then((m) => ({ default: m.EventThemePanel })),
 )
 const CommunityStatsPanel = lazy(() =>
   import('@/app/components/CommunityStatsPanel').then((m) => ({ default: m.CommunityStatsPanel })),
@@ -138,17 +127,10 @@ export function MobileShell({
   const [menuOpen, setMenuOpen] = useState(false)
   const [faqOpen, setFaqOpen] = useState(false)
   const [stampRecoveryOpen, setStampRecoveryOpen] = useState(false)
-  const [headerEditOpen, setHeaderEditOpen] = useState(false)
-  const [brandingOpen, setBrandingOpen] = useState(false)
+  const [themeOpen, setThemeOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
-  const [editingFondoId, setEditingFondoId] = useState<FondoCdId>(() => getActiveFondoCdId())
-  const [draftStore, setDraftStore] = useState(() => loadHeaderLayoutsFromStorage())
-  const { store, persistStore } = useHeaderLayout()
-  const { setSlot } = useBrandingImages()
+  const { imageUrl: fondoUrl } = useEventTheme()
   const [isSmViewport, setIsSmViewport] = useState(false)
-  const activeFondoId = getActiveFondoCdId()
-  const resolvedFondoUrl = useFondoCdUrl()
-  const editorFondoUrl = useFondoCdUrl(editingFondoId)
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 640px)')
@@ -157,28 +139,6 @@ export function MobileShell({
     mq.addEventListener('change', update)
     return () => mq.removeEventListener('change', update)
   }, [])
-
-  useEffect(() => {
-    if (!headerEditOpen) setDraftStore(store)
-  }, [store, headerEditOpen])
-
-  const activeLayout = store.fondos[activeFondoId]
-  const draftLayout = draftStore.fondos[editingFondoId]
-
-  const updateDraftLayout = (next: typeof draftLayout) => {
-    setDraftStore((prev) => ({
-      fondos: {
-        ...prev.fondos,
-        [editingFondoId]: next,
-      },
-    }))
-  }
-
-  const openHeaderEditor = () => {
-    setEditingFondoId(activeFondoId)
-    setDraftStore(store)
-    setHeaderEditOpen(true)
-  }
 
   const handleMenuSelect = (id: NavTab | 'roulette-action') => {
     setMenuOpen(false)
@@ -273,17 +233,11 @@ export function MobileShell({
   return (
     <div className="min-h-[100dvh] bg-[#e8f4fc] flex flex-col max-w-md mx-auto relative shadow-xl overflow-x-hidden">
       <header className="relative shrink-0 z-0">
-        <div className="relative h-[clamp(210px,36dvh,268px)] overflow-hidden bg-[#b8dff5]">
-          {resolvedFondoUrl && (
-            <HeaderFondoCover
-              url={resolvedFondoUrl}
-              fondoId={activeFondoId}
-              layout={activeLayout}
-            />
-          )}
+        <div className="relative h-[clamp(210px,36dvh,268px)] overflow-hidden bg-[#0b1220]">
+          {fondoUrl && <HeaderFondoCover url={fondoUrl} />}
         </div>
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-cyan-100/50 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-cyan-100/45 pointer-events-none" />
 
         <button
           type="button"
@@ -297,11 +251,11 @@ export function MobileShell({
         {isSuperAdmin && (
           <button
             type="button"
-            onClick={openHeaderEditor}
+            onClick={() => setThemeOpen(true)}
             className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-full bg-black/45 backdrop-blur-sm px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white hover:bg-black/55 min-h-10"
           >
             <ImageIcon className="w-3.5 h-3.5" />
-            Editar portada
+            Ajustes de fondo
           </button>
         )}
 
@@ -310,7 +264,7 @@ export function MobileShell({
             src={logoImg}
             alt="Pokémon GO Community"
             className="w-auto max-w-[min(280px,88%)] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
-            style={{ maxHeight: `${logoMaxHeight(activeLayout.logoScale, isSmViewport)}px` }}
+            style={{ maxHeight: `${logoMaxHeight(1, isSmViewport)}px` }}
             decoding="async"
             fetchPriority="high"
           />
@@ -321,7 +275,6 @@ export function MobileShell({
         <div className="relative px-4 sm:px-5 pt-4 sm:pt-5 pb-3 sm:pb-4">{children}</div>
       </main>
 
-      {/* Bottom nav — active tab always centered */}
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bottom-nav-shell z-40 safe-area-pb">
         <div className="bottom-nav-notch" aria-hidden />
 
@@ -330,7 +283,6 @@ export function MobileShell({
         </div>
       </nav>
 
-      {/* Menú lateral */}
       {menuOpen && (
         <div className="fixed inset-0 z-50 flex">
           <button
@@ -415,26 +367,12 @@ export function MobileShell({
                   type="button"
                   onClick={() => {
                     setMenuOpen(false)
-                    openHeaderEditor()
+                    setThemeOpen(true)
                   }}
                   className="w-full flex items-center gap-4 px-5 py-4 text-left font-bold text-[#0d3b66] hover:bg-gray-50"
                 >
                   <ImageIcon className="w-5 h-5 shrink-0" />
-                  Editar portada
-                </button>
-              )}
-
-              {isSuperAdmin && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false)
-                    setBrandingOpen(true)
-                  }}
-                  className="w-full flex items-center gap-4 px-5 py-4 text-left font-bold text-[#0d3b66] hover:bg-gray-50"
-                >
-                  <ImagePlus className="w-5 h-5 shrink-0" />
-                  Actualizar imágenes
+                  Ajustes de fondo
                 </button>
               )}
 
@@ -499,49 +437,15 @@ export function MobileShell({
           <FaqPanel open onClose={() => setFaqOpen(false)} />
         </Suspense>
       )}
-      {brandingOpen && (
+      {themeOpen && (
         <Suspense fallback={<TabFallback />}>
-          <BrandingImagesPanel open onClose={() => setBrandingOpen(false)} />
+          <EventThemePanel open onClose={() => setThemeOpen(false)} />
         </Suspense>
       )}
       {statsOpen && (
         <Suspense fallback={<TabFallback />}>
           <CommunityStatsPanel open onClose={() => setStatsOpen(false)} />
         </Suspense>
-      )}
-      {headerEditOpen && isSuperAdmin && (
-        <HeaderLayoutEditor
-          open
-          fondoUrl={editorFondoUrl || ''}
-          fondoId={editingFondoId}
-          onFondoChange={(id) => {
-            setEditingFondoId(id)
-            setDraftStore((prev) => ({
-              fondos: {
-                ...prev.fondos,
-                [id]: prev.fondos[id] ?? store.fondos[id],
-              },
-            }))
-          }}
-          layout={draftLayout}
-          onLayoutChange={updateDraftLayout}
-          onClose={() => {
-            setDraftStore(store)
-            setHeaderEditOpen(false)
-          }}
-          onApply={async ({ fondoId, imageDataUrl, layout }) => {
-            await setSlot(fondoId, imageDataUrl)
-            const nextStore = {
-              fondos: {
-                ...draftStore.fondos,
-                [fondoId]: layout,
-              },
-            }
-            setDraftStore(nextStore)
-            await persistStore(nextStore)
-            setHeaderEditOpen(false)
-          }}
-        />
       )}
     </div>
   )

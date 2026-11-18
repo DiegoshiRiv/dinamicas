@@ -10,15 +10,7 @@ import {
   type BrandingImageSlot,
   type BrandingImages,
 } from '@/app/utils/brandingImages'
-import { setFondoCdOverrides } from '@/app/utils/alternatingFondoCd'
 import { eventLog } from '@/app/utils/eventLog'
-
-function applyFondoOverrides(images: BrandingImages) {
-  setFondoCdOverrides({
-    fondoCD: images.fondoCD || null,
-    fondoCD2: images.fondoCD2 || null,
-  })
-}
 
 export function useBrandingImages() {
   const [images, setImages] = useState<BrandingImages>(() => getLiveBrandingImages())
@@ -26,11 +18,8 @@ export function useBrandingImages() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    applyFondoOverrides(getLiveBrandingImages())
     return subscribeBrandingImages(() => {
-      const next = getLiveBrandingImages()
-      setImages(next)
-      applyFondoOverrides(next)
+      setImages(getLiveBrandingImages())
     })
   }, [])
 
@@ -46,8 +35,7 @@ export function useBrandingImages() {
           .maybeSingle()
         if (cancelled || fetchError) return
         if (!data?.value) return
-        const remote = parseBrandingImages(data.value)
-        setLiveBrandingImages(remote)
+        setLiveBrandingImages(parseBrandingImages(data.value))
       } catch {
         /* tabla opcional */
       }
@@ -76,11 +64,10 @@ export function useBrandingImages() {
 
   const persist = useCallback(async (next: BrandingImages) => {
     setLiveBrandingImages(next)
-    applyFondoOverrides(next)
     try {
       const { error: upsertError } = await supabase.from('app_settings').upsert({
         key: BRANDING_IMAGES_KEY,
-        value: next,
+        value: { anterior: next.anterior ?? null },
         updated_at: new Date().toISOString(),
       })
       if (upsertError) throw upsertError
@@ -113,7 +100,7 @@ export function useBrandingImages() {
   )
 
   const resetAll = useCallback(async () => {
-    setSavingSlot('fondoCD')
+    setSavingSlot('anterior')
     try {
       await persist(emptyBrandingImages())
     } finally {
