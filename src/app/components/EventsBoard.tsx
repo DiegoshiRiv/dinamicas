@@ -277,8 +277,8 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
   const goEventsByDay = useMemo(() => buildPokemonGoEventsByDay(ACTIVE_POKEMON_GO_EVENTS), [])
 
   const calendarDays = useMemo(() => {
-    const start = startOfWeek(startOfMonth(month), { weekStartsOn: 0 })
-    const end = endOfWeek(endOfMonth(month), { weekStartsOn: 0 })
+    const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 })
+    const end = endOfWeek(endOfMonth(month), { weekStartsOn: 1 })
     return eachDayOfInterval({ start, end })
   }, [month])
 
@@ -584,7 +584,7 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
         </div>
 
         <div className="grid grid-cols-7 gap-1 mb-1">
-          {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d, i) => (
+          {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
             <div key={`${d}-${i}`} className="text-center text-[10px] font-black text-gray-400 py-1">
               {d}
             </div>
