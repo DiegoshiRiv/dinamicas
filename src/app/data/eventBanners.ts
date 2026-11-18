@@ -95,15 +95,24 @@ export function bannerForGoEvent(event: PokemonGoEvent, schedule: string): Event
       description: base.description ?? event.description ?? '',
     }
   }
+  const badgeByCategory: Partial<Record<PokemonGoEvent['category'], string>> = {
+    'community-day': 'Día de la Comunidad',
+    'raid-day': 'Día de Incursiones',
+    mega: 'Mega Incursiones',
+    'max-battle': 'Combates Max',
+    tour: 'Tour',
+    special: 'Especial',
+  }
+
   return {
     id: event.id,
     title: event.title,
     duration: schedule,
     schedule,
     description: event.description ?? 'Evento en Pokémon GO.',
-    banner: fondoRelleno,
+    banner: event.category === 'community-day' ? FONDO_CD_DYNAMIC : fondoRelleno,
     heroImage: event.logo ?? megaEvIcon,
-    badge: 'Pokémon GO',
+    badge: badgeByCategory[event.category] ?? 'Pokémon GO',
     accent: event.accent,
   }
 }

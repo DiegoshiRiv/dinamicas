@@ -247,13 +247,22 @@ export function EventDayInfographicModal({
   )
 }
 
-export function formatGoEventSchedule(event: { startDate: string; endDate: string }): string {
+export function formatGoEventSchedule(event: {
+  startDate: string
+  endDate: string
+  startTime?: string
+  endTime?: string
+}): string {
   const start = parseISO(event.startDate)
   const end = parseISO(event.endDate)
+  const timeRange =
+    event.startTime && event.endTime
+      ? ` · ${event.startTime} a ${event.endTime} hora local`
+      : ''
   if (event.startDate === event.endDate) {
-    return format(start, "EEEE d 'de' MMMM yyyy", { locale: es })
+    return `${format(start, "EEEE d 'de' MMMM yyyy", { locale: es })}${timeRange}`
   }
-  return `Del ${format(start, "d 'de' MMMM", { locale: es })} al ${format(end, "d 'de' MMMM yyyy", { locale: es })}`
+  return `Del ${format(start, "d 'de' MMMM", { locale: es })} al ${format(end, "d 'de' MMMM yyyy", { locale: es })}${timeRange}`
 }
 
 export function formatCommunitySchedule(startsAt: string, endsAt: string): string {

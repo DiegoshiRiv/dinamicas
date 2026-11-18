@@ -54,7 +54,7 @@ import { optimizeImageFile } from '@/app/utils/optimizeImageFile'
 import { meetingPoints } from '@/app/data/meetingPoints'
 import { CAMPFIRE_JOIN_URL } from '@/app/data/communityLinks'
 import tiempoLibreLogo from '@/assets/logos/tiempolibre.webp'
-import communityDayLogo from '@/assets/logos/diadelacomunidad.webp'
+import campfireCalendarIcon from '@/assets/iconos/campfire-calendar.webp'
 import sellodexImg from '@/assets/recursos/sellodex.webp'
 import {
   modalOverlayClass,
@@ -597,15 +597,9 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
             const communityDayEvents = eventsByDay.get(key) ?? []
             const goMarkers = getCalendarMarkerGoEvents(goEventsByDay.get(key) ?? [])
             const hasCommunity = communityDayEvents.length > 0
+            const hasGoMarker = goMarkers.length > 0
             const hasEvents = dayHasEvents(key, eventsByDay, goEventsByDay)
             const goStyle = getPokemonGoDayStyle(goMarkers)
-            const festMarker = goMarkers.find((e) => e.id === 'fest-global')
-            const cdMarker = goMarkers.find((e) => e.category === 'community-day')
-            const megaDayMarker = goMarkers.find((e) => e.category === 'raid-day' && e.logo)
-            const logoMarker =
-              festMarker?.logo ??
-              (cdMarker ? communityDayLogo : undefined) ??
-              megaDayMarker?.logo
             const inMonth = isSameMonth(day, month)
             const isToday = isSameDay(day, new Date())
 
@@ -636,11 +630,11 @@ export function EventsBoard({ isAdmin }: { isAdmin: boolean }) {
                     {hasCommunity && (
                       <img src={tiempoLibreLogo} alt="" className="h-4 w-4 object-contain" />
                     )}
-                    {logoMarker && (
+                    {hasGoMarker && (
                       <img
-                        src={logoMarker}
+                        src={campfireCalendarIcon}
                         alt=""
-                        className={`object-contain ${festMarker ? 'h-5 w-5' : 'h-4 w-4'}`}
+                        className="h-4 w-4 object-contain"
                       />
                     )}
                   </div>
