@@ -58,7 +58,7 @@ export function EventThemePanel({ open, onClose }: Props) {
           <div>
             <h2 className="text-base font-black text-[#0d3b66]">Ajustes de fondo</h2>
             <p className="text-[11px] text-[#5b6483] font-semibold mt-0.5">
-              Solo Fuecoco · elige el tipo de evento
+              Solo Fuecoco · fondo según el nombre del evento
             </p>
           </div>
           <button
@@ -73,7 +73,7 @@ export function EventThemePanel({ open, onClose }: Props) {
 
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
           <p className="text-[12px] text-[#5b6483] leading-relaxed">
-            Al tocar un tipo de evento, el fondo de la portada cambia al instante para todos.
+            Elige el fondo que coincida con el evento del día. Se publica al instante para todos.
           </p>
 
           {(localError || error) && (

@@ -1,5 +1,6 @@
 import fondoDefault from '@/assets/fondos/predeterminado.jpg'
 import fondoComunidad from '@/assets/fondos/dia-comunidad.png'
+import fondoIncursiones from '@/assets/fondos/dia-incursiones.jpg'
 import fondoMega from '@/assets/fondos/mega-incursiones.webp'
 import fondoMax from '@/assets/fondos/combates-max.png'
 
@@ -9,6 +10,7 @@ const LOCAL_CACHE_KEY = 'dinamicas-event-theme-v1'
 export type EventThemeId =
   | 'default'
   | 'community_day'
+  | 'raid_day'
   | 'mega_raids'
   | 'max_battles'
 
@@ -29,18 +31,24 @@ export const EVENT_THEMES: EventThemeOption[] = [
   {
     id: 'community_day',
     label: 'Día de la Comunidad',
-    hint: 'Community Day',
+    hint: 'Community Day y eventos de comunidad',
     image: fondoComunidad,
   },
   {
+    id: 'raid_day',
+    label: 'Día de Incursiones',
+    hint: 'Raid Day',
+    image: fondoIncursiones,
+  },
+  {
     id: 'mega_raids',
-    label: 'Mega Incursiones',
-    hint: 'Mega Evolution',
+    label: 'Día de Incursiones Mega',
+    hint: 'Mega Evolution / Mega Clefable',
     image: fondoMega,
   },
   {
     id: 'max_battles',
-    label: 'Combates Max',
+    label: 'Día de Combates Max',
     hint: 'Dynamax / Gigantamax',
     image: fondoMax,
   },
@@ -69,6 +77,28 @@ export function getEventThemeOption(id: EventThemeId): EventThemeOption {
 
 export function getEventThemeImage(id: EventThemeId): string {
   return getEventThemeOption(id).image
+}
+
+/** Fondo asociado a la categoría del calendario GO. */
+export function themeIdForGoCategory(
+  category: string,
+): EventThemeId {
+  switch (category) {
+    case 'community-day':
+      return 'community_day'
+    case 'raid-day':
+    case 'raid':
+      return 'raid_day'
+    case 'mega':
+      return 'mega_raids'
+    case 'max-battle':
+      return 'max_battles'
+    case 'tour':
+    case 'special':
+      return 'default'
+    default:
+      return 'default'
+  }
 }
 
 export function loadEventThemeFromStorage(): EventThemeId {
