@@ -332,17 +332,16 @@ export default function App() {
   }
 
   const handleStartRoulette = () => {
+    // No publicar el forzado en set_view: solo Fuecoco debe verlo; el giro lo lee
+    // por el canal/privado set_forced_winner + app_settings.
     const effectiveConfig = canManageProbability
       ? {
           penaltyMonths,
           penaltyPercent,
-          forcedWinnerId: sharedForcedWinner.id,
-          forcedWinnerUsername: sharedForcedWinner.username,
         }
       : {
-          ...rouletteConfig,
-          forcedWinnerId: sharedForcedWinner.id ?? rouletteConfig.forcedWinnerId,
-          forcedWinnerUsername: sharedForcedWinner.username ?? rouletteConfig.forcedWinnerUsername,
+          penaltyMonths: rouletteConfig.penaltyMonths,
+          penaltyPercent: rouletteConfig.penaltyPercent,
         }
     setCurrentView('roulette')
     void syncParticipantsFresh('admin_open_roulette')

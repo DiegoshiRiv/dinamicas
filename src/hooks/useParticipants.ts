@@ -782,18 +782,13 @@ export function useParticipants(
       setSpectatorView(payload.payload?.view === 'roulette' ? 'roulette' : 'main')
       const cfg = payload.payload?.config as RouletteSyncConfig | undefined
       if (cfg) {
-        setRouletteConfig({
+        setRouletteConfig((prev) => ({
           penaltyMonths: Number(cfg.penaltyMonths) || 12,
           penaltyPercent: Number(cfg.penaltyPercent) || 90,
-          forcedWinnerId: cfg.forcedWinnerId ?? null,
-          forcedWinnerUsername: cfg.forcedWinnerUsername ?? null,
-        })
-        if (cfg.forcedWinnerId != null || cfg.forcedWinnerUsername != null) {
-          setSharedForcedWinner({
-            id: cfg.forcedWinnerId ?? null,
-            username: cfg.forcedWinnerUsername ?? null,
-          })
-        }
+          // El forzado no viaja en set_view (privado de Fuecoco).
+          forcedWinnerId: prev.forcedWinnerId ?? null,
+          forcedWinnerUsername: prev.forcedWinnerUsername ?? null,
+        }))
       }
       if (payload.payload?.view === 'roulette') {
         setLoading(true)

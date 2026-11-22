@@ -615,15 +615,22 @@ export function WinnerRoulette({
     setAssuredCompleted(loadAssuredCompleted(activeRouletteCode))
   }, [activeRouletteCode])
 
-  // Cualquier admin recibe el forzado que Fuecoco publicó.
+  // Solo Fuecoco refleja el forzado en la UI. Los demás admins lo aplican en silencio al girar.
   useEffect(() => {
+    if (!canForceWinner) {
+      setForcedWinnerId(null)
+      setForcedWinnerName(null)
+      return
+    }
     if (!sharedForcedWinner) return
     setForcedWinnerId(sharedForcedWinner.id)
     setForcedWinnerName(sharedForcedWinner.username)
-  }, [sharedForcedWinner])
+  }, [sharedForcedWinner, canForceWinner])
 
   // Si el forzado ya ganó (o ya no está activo), liberar la ruleta para sorteo normal.
   useEffect(() => {
+    // Solo Fuecoco administra/limpia la selección visible.
+    if (!canForceWinner) return
     const id = forcedWinnerId ?? sharedForcedWinner?.id ?? null
     const name = forcedWinnerName ?? sharedForcedWinner?.username ?? null
     if (!id && !name) return
@@ -644,6 +651,7 @@ export function WinnerRoulette({
     setSpinError(null)
     void onShareForcedWinner?.(null)
   }, [
+    canForceWinner,
     participants,
     activePlayers,
     forcedWinnerId,
@@ -1853,7 +1861,7 @@ export function WinnerRoulette({
                     <span>
                       {forcedWinner
                         ? `Resultado fijado: ${forcedWinner.username}`
-                        : 'Elegir resultado (solo master)'}
+                        : 'Elegir resultado (solo Fuecoco)'}
                     </span>
                     <span className="text-[#3d76e5]">{forcePickerOpen ? 'Cerrar' : 'Abrir'}</span>
                   </button>
@@ -1906,7 +1914,7 @@ export function WinnerRoulette({
                         )}
                       </div>
                       <p className="text-[10px] text-[#94a3b8] font-medium leading-snug">
-                        Al girar (tú u otro admin), la ruleta caerá en esa persona. Los espectadores no ven esta opción.
+                        Solo tú ves esta selección. Si otro admin gira, se aplica en silencio.
                       </p>
                     </div>
                   )}
