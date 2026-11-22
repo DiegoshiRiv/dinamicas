@@ -622,6 +622,37 @@ export function WinnerRoulette({
     setForcedWinnerName(sharedForcedWinner.username)
   }, [sharedForcedWinner])
 
+  // Si el forzado ya ganó (o ya no está activo), liberar la ruleta para sorteo normal.
+  useEffect(() => {
+    const id = forcedWinnerId ?? sharedForcedWinner?.id ?? null
+    const name = forcedWinnerName ?? sharedForcedWinner?.username ?? null
+    if (!id && !name) return
+    if (listLoading || participants.length === 0) return
+
+    const matches = (p: Participant) =>
+      p.id === id || (name != null && winnerKey(p.username) === winnerKey(name))
+
+    if (activePlayers.some(matches)) return
+
+    const known = participants.find(matches)
+    // Limpiar solo con evidencia: ya ganó / salió, o hay activos y esa persona no está.
+    if (known?.status === 'active') return
+    if (!known && activePlayers.length === 0) return
+
+    setForcedWinnerId(null)
+    setForcedWinnerName(null)
+    setSpinError(null)
+    void onShareForcedWinner?.(null)
+  }, [
+    participants,
+    activePlayers,
+    forcedWinnerId,
+    forcedWinnerName,
+    sharedForcedWinner,
+    onShareForcedWinner,
+    listLoading,
+  ])
+
   const publishForcedWinner = useCallback(
     (id: string | null, username: string | null) => {
       setForcedWinnerId(id)
@@ -1322,6 +1353,14 @@ export function WinnerRoulette({
             (forceName != null && winnerKey(p.username) === winnerKey(forceName)),
         )
       if (!canForceFromWheel) {
+        // Forzado obsoleto (ya ganó): liberarlo para no dejar la ruleta trabada.
+        if (forceId || forceName) {
+          setForcedWinnerId(null)
+          setForcedWinnerName(null)
+          setForcePickerOpen(false)
+          setForceSearch('')
+          void onShareForcedWinner?.(null)
+        }
         console.warn('[dinamicas:roulette] spin aborted: no eligible players after sync', {
           total: freshList.length,
           active: freshActive.length,
@@ -1350,7 +1389,7 @@ export function WinnerRoulette({
     const forceName = forcedWinnerName ?? sharedForcedWinner?.username ?? null
     if (forceId || forceName) {
       // Por id primero; si esa persona se reregistró su fila es otra, así que
-      // se reintenta por nombre antes de rendirse y dejarlo al azar.
+      // se reintenta por nombre antes de dejarlo al azar.
       const forced =
         freshActive.find((p) => p.id === forceId) ??
         (forceName
@@ -1363,18 +1402,16 @@ export function WinnerRoulette({
         winningPlayer = forced
         usedForcedWinner = true
       } else {
-        // Elegido por el master pero ya no está en la sala: mejor no girar que
-        // premiar a otra persona sin avisar.
-        console.warn('[dinamicas:roulette] forced winner no longer in room', {
+        // Ya ganó o salió de activos: quitar el forzado y seguir con sorteo normal.
+        console.warn('[dinamicas:roulette] forced winner already done; resuming normal spin', {
           forceId,
           forceName,
         })
-        setIsSpinning(false)
-        spinLockRef.current = false
-        setSpinError(
-          `${forceName ?? 'El elegido'} ya no está en la ruleta. Quita la selección o vuelve a elegir.`,
-        )
-        return
+        setForcedWinnerId(null)
+        setForcedWinnerName(null)
+        setForcePickerOpen(false)
+        setForceSearch('')
+        void onShareForcedWinner?.(null)
       }
     }
 
