@@ -180,6 +180,8 @@ export default function App() {
     // el registro en 3G). Al abrir la ruleta se sincroniza la lista completa.
     loadParticipants: isAdmin || currentView === 'roulette' || activeTab === 'ruleta',
     loadWinnerPrizeCodes: isAdmin,
+    // Forzado de Fuecoco y secretos de admin: nunca a espectadores.
+    syncAdminSecrets: isAdmin,
   })
 
   const [alreadyRegistered, setAlreadyRegistered] = useState(false)
@@ -554,9 +556,9 @@ export default function App() {
             syncParticipantsFresh={syncParticipantsFresh}
             realtimeReady={realtimeReady}
             syncError={syncError}
-            canForceWinner={canManageProbability}
-            sharedForcedWinner={sharedForcedWinner}
-            onShareForcedWinner={shareForcedWinner}
+            canForceWinner={isAdmin && canManageProbability}
+            sharedForcedWinner={isAdmin ? sharedForcedWinner : null}
+            onShareForcedWinner={isAdmin ? shareForcedWinner : undefined}
           />
           </ErrorBoundary>
         </Suspense>

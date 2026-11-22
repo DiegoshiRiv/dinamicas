@@ -281,10 +281,16 @@ function normalizeWinnerPrizeCodes(raw: unknown): WinnerPrizeCode[] {
 
 export function useParticipants(
   activeRouletteCode: string = DEFAULT_ROULETTE_CODE,
-  options: { loadParticipants?: boolean; loadWinnerPrizeCodes?: boolean } = {},
+  options: {
+    loadParticipants?: boolean
+    loadWinnerPrizeCodes?: boolean
+    /** Solo admins: forzado de Fuecoco, app_settings y broadcast secreto. */
+    syncAdminSecrets?: boolean
+  } = {},
 ) {
   const loadParticipants = options.loadParticipants ?? true
   const loadWinnerPrizeCodes = options.loadWinnerPrizeCodes ?? loadParticipants
+  const syncAdminSecrets = options.syncAdminSecrets ?? false
   const rouletteCode = sanitizeRouletteCode(activeRouletteCode)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([])
@@ -768,6 +774,11 @@ export function useParticipants(
    */
   const [channelEpoch, setChannelEpoch] = useState(0)
 
+  const syncAdminSecretsRef = useRef(syncAdminSecrets)
+  useEffect(() => {
+    syncAdminSecretsRef.current = syncAdminSecrets
+  }, [syncAdminSecrets])
+
   // Canal de sync de ruleta: estable respecto a loadParticipants.
   useEffect(() => {
     const syncChannel = supabase.channel(`roulette_sync_${rouletteCode}_${channelEpoch}`, {
@@ -782,12 +793,14 @@ export function useParticipants(
       setSpectatorView(payload.payload?.view === 'roulette' ? 'roulette' : 'main')
       const cfg = payload.payload?.config as RouletteSyncConfig | undefined
       if (cfg) {
+        // Espectadores solo sincronizan pesos públicos; nunca el forzado.
         setRouletteConfig((prev) => ({
           penaltyMonths: Number(cfg.penaltyMonths) || 12,
           penaltyPercent: Number(cfg.penaltyPercent) || 90,
-          // El forzado no viaja en set_view (privado de Fuecoco).
-          forcedWinnerId: prev.forcedWinnerId ?? null,
-          forcedWinnerUsername: prev.forcedWinnerUsername ?? null,
+          forcedWinnerId: syncAdminSecretsRef.current ? prev.forcedWinnerId ?? null : null,
+          forcedWinnerUsername: syncAdminSecretsRef.current
+            ? prev.forcedWinnerUsername ?? null
+            : null,
         }))
       }
       if (payload.payload?.view === 'roulette') {
@@ -797,6 +810,8 @@ export function useParticipants(
     })
 
     syncChannel.on('broadcast', { event: 'set_forced_winner' }, (payload) => {
+      // Privado de admins: los espectadores no deben enterarse ni guardarlo.
+      if (!syncAdminSecretsRef.current) return
       const data = payload?.payload
       const next = normalizeForcedWinner(data)
       setSharedForcedWinner(next)
@@ -1149,8 +1164,14 @@ export function useParticipants(
 
   useEffect(() => {
     setSharedForcedWinner({ id: null, username: null })
+    setRouletteConfig((prev) => ({
+      ...prev,
+      forcedWinnerId: null,
+      forcedWinnerUsername: null,
+    }))
+    if (!syncAdminSecrets) return
     void fetchForcedWinner()
-  }, [rouletteCode, fetchForcedWinner])
+  }, [rouletteCode, fetchForcedWinner, syncAdminSecrets])
 
   const broadcastSpin = async (
     rotation: number,
